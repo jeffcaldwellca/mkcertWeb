@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mkcert Web UI</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-certificate"></i> mkcert Web UI</h1>
+            <p>Manage SSL certificates with mkcert CLI</p>
+        </header>
+
+        <!-- Status Section -->
+        <section class="status-section">
+            <h2><i class="fas fa-info-circle"></i> System Status</h2>
+            <div id="status-info" class="status-card">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i> Checking mkcert status...
+                </div>
+            </div>
+        </section>
+
+        <!-- Root CA Section -->
+        <section class="rootca-section" id="rootca-section" style="display: none;">
+            <h2><i class="fas fa-shield-alt"></i> Root Certificate Authority</h2>
+            <div id="rootca-info" class="rootca-card">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i> Loading CA information...
+                </div>
+            </div>
+        </section>
+
+        <!-- Certificate Generation Section -->
+        <section class="generate-section">
+            <h2><i class="fas fa-plus-circle"></i> Generate New Certificate</h2>
+            <div class="generate-card">
+                <form id="generate-form">
+                    <div class="form-group">
+                        <label for="domains">Domains (one per line):</label>
+                        <textarea id="domains" placeholder="localhost&#10;127.0.0.1&#10;*.example.com&#10;example.com" rows="4" required></textarea>
+                        <small class="help-text">Enter domain names, IP addresses, or wildcards. One per line.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="format">Certificate Format:</label>
+                        <select id="format" class="form-select">
+                            <option value="pem">PEM (.pem / -key.pem)</option>
+                            <option value="crt">CRT/KEY (.crt / .key)</option>
+                        </select>
+                        <small class="help-text">Choose certificate file format. PEM is standard, CRT/KEY is common for web servers.</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-magic"></i> Generate Certificate
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Certificates List Section -->
+        <section class="certificates-section">
+            <h2><i class="fas fa-list"></i> Existing Certificates</h2>
+            <div class="certificates-controls">
+                <button id="refresh-btn" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div id="certificates-list" class="certificates-list">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i> Loading certificates...
+                </div>
+            </div>
+        </section>
+
+        <!-- Alerts -->
+        <div id="alerts-container"></div>
+    </div>
+
+    <!-- Modal for CA Installation -->
+    <div id="ca-modal" class="modal">
+        <div class="modal-content">
+            <h3><i class="fas fa-shield-alt"></i> Install Root CA</h3>
+            <p>The mkcert root Certificate Authority (CA) is not installed. You need to install it to create trusted certificates for local development.</p>
+            <div class="modal-actions">
+                <button id="install-ca-btn" class="btn btn-primary">
+                    <i class="fas fa-download"></i> Install CA
+                </button>
+                <button id="cancel-ca-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
