@@ -1,0 +1,28 @@
+[Unit]
+Description=mkcert Web UI
+Documentation=https://github.com/FiloSottile/mkcert
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mkcert-web-ui
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ENABLE_HTTPS=true
+Environment=SSL_DOMAIN=localhost
+Environment=HTTPS_PORT=3443
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/mkcert-web-ui/certificates
+ReadWritePaths=/opt/mkcert-web-ui/ssl
+
+[Install]
+WantedBy=multi-user.target
