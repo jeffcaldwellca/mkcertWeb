@@ -65,7 +65,25 @@ ls node_modules/ | wc -l  # Should show many packages
 npm list --depth=0        # Show direct dependencies
 ```
 
-### 2. Initialize mkcert CA
+### 2. Environment Configuration
+```bash
+# Check if .env file exists
+ls -la .env
+
+# If .env doesn't exist, copy from example
+cp .env.example .env
+
+# View current configuration
+cat .env
+
+# Test with authentication enabled (default)
+grep "ENABLE_AUTH=true" .env && echo "✓ Authentication enabled"
+
+# Test with authentication disabled (optional)
+# sed -i 's/ENABLE_AUTH=true/ENABLE_AUTH=false/' .env
+```
+
+### 3. Initialize mkcert CA
 ```bash
 # Initialize the Certificate Authority
 mkcert -install
@@ -77,7 +95,7 @@ ls -la $(mkcert -CAROOT)
 # Should show rootCA.pem and rootCA-key.pem files
 ```
 
-### 3. Start Application
+### 4. Start Application
 ```bash
 # Start the server
 npm start &
@@ -91,12 +109,224 @@ ps aux | grep node
 netstat -tlnp | grep :3000
 ```
 
+## Authentication Testing
+
+### 1. Authentication Status Testing
+```bash
+# Test authentication status endpoint
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Expected output with authentication enabled:
+# {
+#   "authEnabled": true,
+#   "authenticated": false,
+#   "username": null
+# }
+```
+
+### 2. Login Testing
+```bash
+# Test login with correct credentials
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/login-response.json
+
+# Verify successful login
+cat /tmp/login-response.json | python3 -m json.tool
+
+# Expected output:
+# {
+#   "success": true,
+#   "message": "Login successful",
+#   "redirectTo": "/"
+# }
+
+# Test authentication status after login
+wget --load-cookies=/tmp/cookies.txt \
+     -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Expected output after login:
+# {
+#   "authEnabled": true,
+#   "authenticated": true,
+#   "username": "admin"
+# }
+```
+
+### 3. Login Failure Testing
+```bash
+# Test login with incorrect credentials
+wget --post-data='{"username":"admin","password":"wrong"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/login-fail.json 2>&1
+
+# Verify login failure
+cat /tmp/login-fail.json | python3 -m json.tool
+
+# Should contain:
+# {
+#   "success": false,
+#   "error": "Invalid username or password"
+# }
+
+# Test with missing credentials
+wget --post-data='{"username":"admin"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/login-missing.json 2>&1
+
+# Should return 400 error for missing password
+```
+
+### 4. Logout Testing
+```bash
+# Login first to get valid session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Test logout
+wget --load-cookies=/tmp/cookies.txt \
+     --method=POST \
+     http://localhost:3000/api/auth/logout \
+     -O /tmp/logout-response.json
+
+# Verify successful logout
+cat /tmp/logout-response.json | python3 -m json.tool
+
+# Expected output:
+# {
+#   "success": true,
+#   "message": "Logout successful",
+#   "redirectTo": "/login"
+# }
+
+# Verify session is invalidated
+wget --load-cookies=/tmp/cookies.txt \
+     -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Should show authenticated: false
+```
+
+### 5. Protected Routes Testing
+```bash
+# Test accessing protected API without authentication
+wget http://localhost:3000/api/status -O /tmp/unauth-test.json 2>&1
+
+# Should return 401 Unauthorized when auth is enabled
+
+# Test with valid session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Now test protected route with authentication
+wget --load-cookies=/tmp/cookies.txt \
+     -qO- http://localhost:3000/api/status | python3 -m json.tool
+
+# Should work and return system status
+```
+
+### 6. Login Page Testing
+```bash
+# Test login page loads
+wget -qO- http://localhost:3000/login | grep -q "<title>" && echo "✓ Login page loads"
+
+# Test redirect to login when not authenticated
+wget -qO- http://localhost:3000/ 2>&1 | grep -q "302\|login" && echo "✓ Redirects to login"
+
+# Test redirect to main page when already authenticated
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+wget --load-cookies=/tmp/cookies.txt \
+     http://localhost:3000/login 2>&1 | grep -q "302\|/" && echo "✓ Redirects authenticated users from login"
+```
+
+### 7. Session Persistence Testing
+```bash
+# Login and save session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/session-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Test session persists across requests
+for i in {1..3}; do
+    echo "Request $i:"
+    wget --load-cookies=/tmp/session-cookies.txt \
+         -qO- http://localhost:3000/api/auth/status | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print('Authenticated:', data.get('authenticated', False))
+"
+    sleep 1
+done
+```
+
+### 8. Authentication Disabled Testing
+```bash
+# Backup current .env
+cp .env .env.backup
+
+# Disable authentication
+sed -i 's/ENABLE_AUTH=true/ENABLE_AUTH=false/' .env
+
+# Restart server
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+
+# Test that authentication is disabled
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Expected output:
+# {
+#   "authEnabled": false
+# }
+
+# Test direct access to main page (should work without login)
+wget -qO- http://localhost:3000/ | grep -q "<title>" && echo "✓ Main page accessible without auth"
+
+# Test API access without authentication (should work)
+wget -qO- http://localhost:3000/api/status | python3 -m json.tool
+
+# Restore authentication settings
+cp .env.backup .env
+
+# Restart server with auth enabled
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+```
+
 ## Functional Testing Using Built-in Tools
 
 ### 1. System Status API Testing
 ```bash
+# Login first if authentication is enabled
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/auth-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json 2>/dev/null
+
 # Test system status endpoint
-wget -qO- http://localhost:3000/api/status | python3 -m json.tool
+wget --load-cookies=/tmp/auth-cookies.txt \
+     -qO- http://localhost:3000/api/status | python3 -m json.tool
 
 # Expected output should include:
 # - "success": true
@@ -107,8 +337,9 @@ wget -qO- http://localhost:3000/api/status | python3 -m json.tool
 
 ### 2. Root CA Information Testing
 ```bash
-# Test CA info endpoint
-wget -qO- http://localhost:3000/api/rootca/info | python3 -m json.tool
+# Test CA info endpoint (using session from previous test)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     -qO- http://localhost:3000/api/rootca/info | python3 -m json.tool
 
 # Expected output should include:
 # - Certificate subject, issuer, serial
@@ -121,8 +352,9 @@ wget -qO- http://localhost:3000/api/rootca/info | python3 -m json.tool
 
 #### PEM Format Certificate
 ```bash
-# Generate PEM format certificate using wget
-wget --post-data='{"domains":["localhost","127.0.0.1","test.local"],"format":"pem"}' \
+# Generate PEM format certificate using wget (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     --post-data='{"domains":["localhost","127.0.0.1","test.local"],"format":"pem"}' \
      --header='Content-Type: application/json' \
      http://localhost:3000/api/generate \
      -O /tmp/pem-response.json
@@ -139,8 +371,9 @@ cat /tmp/pem-response.json | python3 -m json.tool
 
 #### CRT Format Certificate  
 ```bash
-# Generate CRT format certificate
-wget --post-data='{"domains":["example.local","api.example.local"],"format":"crt"}' \
+# Generate CRT format certificate (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     --post-data='{"domains":["example.local","api.example.local"],"format":"crt"}' \
      --header='Content-Type: application/json' \
      http://localhost:3000/api/generate \
      -O /tmp/crt-response.json
@@ -156,8 +389,9 @@ cat /tmp/crt-response.json | python3 -m json.tool
 
 ### 4. Certificate Listing Testing
 ```bash
-# List all certificates
-wget -qO- http://localhost:3000/api/certificates | python3 -m json.tool > /tmp/certificates.json
+# List all certificates (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     -qO- http://localhost:3000/api/certificates | python3 -m json.tool > /tmp/certificates.json
 
 # Verify certificate list
 cat /tmp/certificates.json
@@ -173,8 +407,9 @@ grep -c "example.local" /tmp/certificates.json  # Should be > 0
 mkdir -p /tmp/mkcert-downloads
 cd /tmp/mkcert-downloads
 
-# Download root CA certificate
-wget http://localhost:3000/api/download/rootca -O mkcert-rootCA.pem
+# Download root CA certificate (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     http://localhost:3000/api/download/rootca -O mkcert-rootCA.pem
 
 # Verify it's a valid certificate
 openssl x509 -in mkcert-rootCA.pem -text -noout | head -20
@@ -198,8 +433,9 @@ if data['certificates']:
 ")
 
 if [ ! -z "$FOLDER" ] && [ ! -z "$CERT_NAME" ]; then
-    # Download certificate bundle
-    wget "http://localhost:3000/api/download/bundle/${FOLDER}/${CERT_NAME}" -O certificate-bundle.zip
+    # Download certificate bundle (with authentication)
+    wget --load-cookies=/tmp/auth-cookies.txt \
+         "http://localhost:3000/api/download/bundle/${FOLDER}/${CERT_NAME}" -O certificate-bundle.zip
     
     # Verify ZIP file
     unzip -l certificate-bundle.zip
@@ -244,7 +480,8 @@ find certificates/ -name "*.key" -exec ls -la {} \;
 # Try to delete a certificate from root (should fail)
 if [ -d "certificates/root" ]; then
     # This should return 403 Forbidden
-    wget --method=DELETE http://localhost:3000/api/certificates/root/test-cert \
+    wget --load-cookies=/tmp/auth-cookies.txt \
+         --method=DELETE http://localhost:3000/api/certificates/root/test-cert \
          -O /tmp/delete-response.txt 2>&1
     cat /tmp/delete-response.txt
     grep -q "403" /tmp/delete-response.txt && echo "✓ Root protection working"
@@ -252,7 +489,8 @@ fi
 
 # Try to delete a subfolder certificate (should succeed if any exist)
 if [ ! -z "$FOLDER" ] && [ ! -z "$CERT_NAME" ]; then
-    wget --method=DELETE "http://localhost:3000/api/certificates/${FOLDER}/${CERT_NAME}" \
+    wget --load-cookies=/tmp/auth-cookies.txt \
+         --method=DELETE "http://localhost:3000/api/certificates/${FOLDER}/${CERT_NAME}" \
          -O /tmp/delete-response2.txt 2>&1
     cat /tmp/delete-response2.txt
 fi
@@ -260,41 +498,134 @@ fi
 
 ## Security Testing
 
-### 1. Input Validation Testing
+### 1. Authentication Security Testing
 ```bash
-# Test invalid domain names
-wget --post-data='{"domains":[],"format":"pem"}' \
+# Test session timeout and security
+# Login and get session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/security-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Test session hijacking protection (cookies should be httpOnly)
+grep -q "HttpOnly" /tmp/security-cookies.txt && echo "✓ HttpOnly cookies enabled"
+
+# Test HTTPS session security (cookies should be secure in production)
+# This would need HTTPS testing environment
+
+# Test CSRF protection by attempting requests without proper session
+wget --post-data='{"domains":["malicious.test"],"format":"pem"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/generate \
+     -O /tmp/csrf-test.json 2>&1
+
+# Should fail without proper authentication
+grep -q "401\|403" /tmp/csrf-test.json && echo "✓ CSRF protection working"
+```
+
+### 2. Input Validation Testing
+```bash
+# Test invalid domain names (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     --post-data='{"domains":[],"format":"pem"}' \
      --header='Content-Type: application/json' \
      http://localhost:3000/api/generate \
      -O /tmp/invalid-empty.json 2>&1
 
 grep -q "400" /tmp/invalid-empty.json && echo "✓ Empty domains rejected"
 
-# Test invalid format
-wget --post-data='{"domains":["test.local"],"format":"invalid"}' \
+# Test invalid format (with authentication)
+wget --load-cookies=/tmp/auth-cookies.txt \
+     --post-data='{"domains":["test.local"],"format":"invalid"}' \
      --header='Content-Type: application/json' \
      http://localhost:3000/api/generate \
      -O /tmp/invalid-format.json 2>&1
 
 grep -q "400" /tmp/invalid-format.json && echo "✓ Invalid format rejected"
+
+# Test SQL injection attempts in authentication
+wget --post-data='{"username":"admin'\'' OR 1=1--","password":"any"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/sql-injection.json 2>&1
+
+grep -q "401\|400" /tmp/sql-injection.json && echo "✓ SQL injection protection working"
+
+# Test XSS attempts in domain names
+wget --load-cookies=/tmp/auth-cookies.txt \
+     --post-data='{"domains":["<script>alert(\"xss\")</script>.test"],"format":"pem"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/generate \
+     -O /tmp/xss-test.json 2>&1
+
+# Should either reject or sanitize the input
 ```
 
-### 2. File Access Security Testing
+### 3. File Access Security Testing
 ```bash
 # Try to access files outside certificate directory (should fail)
-wget http://localhost:3000/api/download/cert/root/../../../etc/passwd \
+wget --load-cookies=/tmp/auth-cookies.txt \
+     http://localhost:3000/api/download/cert/root/../../../etc/passwd \
      -O /tmp/security-test.txt 2>&1
 
 grep -q "404\|400" /tmp/security-test.txt && echo "✓ Path traversal protection working"
+
+# Test unauthorized file access without authentication
+wget http://localhost:3000/api/download/rootca \
+     -O /tmp/unauth-download.txt 2>&1
+
+grep -q "401" /tmp/unauth-download.txt && echo "✓ File download requires authentication"
+```
+
+### 4. Session Management Security Testing
+```bash
+# Test concurrent sessions
+# Login from multiple "clients"
+for i in {1..3}; do
+    wget --post-data='{"username":"admin","password":"admin"}' \
+         --header='Content-Type: application/json' \
+         --save-cookies="/tmp/session-${i}.txt" \
+         http://localhost:3000/api/auth/login \
+         -O "/tmp/login-${i}.json" 2>/dev/null
+done
+
+# Test that all sessions work independently
+for i in {1..3}; do
+    STATUS=$(wget --load-cookies="/tmp/session-${i}.txt" \
+                  -qO- http://localhost:3000/api/auth/status | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(data.get('authenticated', False))
+")
+    echo "Session $i authenticated: $STATUS"
+done
+
+# Test session invalidation after logout
+wget --load-cookies="/tmp/session-1.txt" \
+     --method=POST \
+     http://localhost:3000/api/auth/logout \
+     -O /tmp/logout-test.json
+
+# Verify session is invalidated
+STATUS=$(wget --load-cookies="/tmp/session-1.txt" \
+              -qO- http://localhost:3000/api/auth/status | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(data.get('authenticated', False))
+")
+echo "Session after logout: $STATUS"
+[ "$STATUS" = "False" ] && echo "✓ Session properly invalidated"
 ```
 
 ## Performance Testing
 
 ### 1. Concurrent Certificate Generation
 ```bash
-# Generate multiple certificates simultaneously
+# Generate multiple certificates simultaneously (with authentication)
 for i in {1..5}; do
-    wget --post-data="{\"domains\":[\"test${i}.local\",\"api${i}.local\"],\"format\":\"pem\"}" \
+    wget --load-cookies=/tmp/auth-cookies.txt \
+         --post-data="{\"domains\":[\"test${i}.local\",\"api${i}.local\"],\"format\":\"pem\"}" \
          --header='Content-Type: application/json' \
          http://localhost:3000/api/generate \
          -O "/tmp/concurrent-${i}.json" &
@@ -315,8 +646,9 @@ done
 
 ### 2. Large Certificate List Testing
 ```bash
-# Get certificate count
-CERT_COUNT=$(wget -qO- http://localhost:3000/api/certificates | python3 -c "
+# Get certificate count (with authentication)
+CERT_COUNT=$(wget --load-cookies=/tmp/auth-cookies.txt \
+                  -qO- http://localhost:3000/api/certificates | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 print(len(data.get('certificates', [])))
@@ -325,29 +657,52 @@ print(len(data.get('certificates', [])))
 echo "Certificate count: $CERT_COUNT"
 
 # Measure response time for certificate listing
-time wget -qO- http://localhost:3000/api/certificates > /dev/null
+time wget --load-cookies=/tmp/auth-cookies.txt \
+          -qO- http://localhost:3000/api/certificates > /dev/null
 ```
 
 ## Browser Integration Testing
 
 ### 1. Web Interface Testing
 ```bash
-# Test main page loads
-wget -qO- http://localhost:3000/ | grep -q "<title>" && echo "✓ Main page loads"
+# Test main page loads (should redirect to login when auth is enabled)
+wget -qO- http://localhost:3000/ 2>&1 | grep -q "302\|login" && echo "✓ Redirects to login"
+
+# Test login page loads
+wget -qO- http://localhost:3000/login | grep -q "<title>" && echo "✓ Login page loads"
+
+# Test authenticated access to main page
+wget --load-cookies=/tmp/auth-cookies.txt \
+     -qO- http://localhost:3000/ | grep -q "<title>" && echo "✓ Main page loads when authenticated"
 
 # Test static assets
 wget -qO- http://localhost:3000/styles.css | grep -q "body" && echo "✓ CSS loads"
 wget -qO- http://localhost:3000/script.js | grep -q "function" && echo "✓ JavaScript loads"
 ```
 
-### 2. Certificate Trust Testing (if desktop environment available)
+### 2. Authentication Flow Testing (Manual Browser Testing)
+```bash
+echo "=== Manual Browser Testing Instructions ==="
+echo "1. Open browser to http://localhost:3000"
+echo "2. Should redirect to login page"
+echo "3. Try invalid credentials - should show error"
+echo "4. Login with admin/admin - should redirect to main page"
+echo "5. Check that logout button appears"
+echo "6. Test logout - should redirect back to login"
+echo "7. Try accessing http://localhost:3000 again - should redirect to login"
+echo "8. Test that browser back button doesn't bypass authentication"
+```
+
+### 3. Certificate Trust Testing (if desktop environment available)
 ```bash
 # If running on desktop Ubuntu, test certificate trust
 if command -v firefox &> /dev/null; then
     echo "Firefox detected - manual testing recommended:"
-    echo "1. Navigate to https://localhost (if you have a localhost cert)"
-    echo "2. Verify no security warnings appear"
-    echo "3. Check certificate details show mkcert as issuer"
+    echo "1. Generate a certificate for localhost"
+    echo "2. Set up a test HTTPS server with the certificate"
+    echo "3. Navigate to https://localhost"
+    echo "4. Verify no security warnings appear"
+    echo "5. Check certificate details show mkcert as issuer"
 fi
 ```
 
@@ -433,6 +788,21 @@ echo "✓ All tests completed successfully!"
 
 ## Troubleshooting Common Issues
 
+### Authentication Issues
+```bash
+# Check authentication configuration
+grep "ENABLE_AUTH" .env
+grep "AUTH_USERNAME" .env
+grep "AUTH_PASSWORD" .env
+
+# Reset authentication settings
+cp .env.example .env
+# Edit .env with your preferred settings
+
+# Clear browser cookies if having session issues
+# Or delete cookie files: rm /tmp/*cookies*.txt
+```
+
 ### Permission Issues
 ```bash
 # Fix certificate directory permissions
@@ -448,6 +818,21 @@ sudo netstat -tlnp | grep :3000
 
 # Use alternative port
 PORT=3001 npm start
+```
+
+### Session Issues
+```bash
+# Check session configuration in development
+# Session cookies should work over HTTP in development
+# For production, ensure HTTPS is enabled for secure cookies
+
+# Clear existing sessions
+rm /tmp/*cookies*.txt
+
+# Restart server to reset all sessions
+kill $SERVER_PID
+npm start &
+SERVER_PID=$!
 ```
 
 ### mkcert Issues
@@ -607,9 +992,19 @@ openssl x509 -in certificates/your-cert-file.pem -noout -text | grep -A1 "Subjec
 - [ ] mkcert is installed and accessible
 - [ ] Node.js and npm are installed
 - [ ] Project dependencies are installed
+- [ ] Environment configuration (.env) is properly set
 - [ ] mkcert CA is installed (`mkcert -install`)
 - [ ] Web server starts without errors
-- [ ] Web interface loads at `http://localhost:3000`
+- [ ] **Authentication Testing:**
+  - [ ] Login page loads correctly
+  - [ ] Can login with correct credentials (admin/admin)
+  - [ ] Login fails with incorrect credentials
+  - [ ] Session persists across requests
+  - [ ] Logout invalidates session
+  - [ ] Protected routes require authentication
+  - [ ] Unauthenticated requests are redirected to login
+  - [ ] Session cookies are secure (HttpOnly)
+- [ ] Web interface loads at `http://localhost:3000` (when authenticated)
 - [ ] System status shows green checkmarks
 - [ ] Can generate certificates for multiple domains
 - [ ] Can generate certificates in PEM format (.pem, -key.pem)
@@ -621,8 +1016,14 @@ openssl x509 -in certificates/your-cert-file.pem -noout -text | grep -A1 "Subjec
 - [ ] Can download individual certificate files (both formats)
 - [ ] Can download certificate bundles (ZIP)
 - [ ] Can delete certificates (both formats)
-- [ ] API endpoints respond correctly
+- [ ] API endpoints respond correctly (with authentication)
 - [ ] Expired certificates are clearly marked
+- [ ] **Security Testing:**
+  - [ ] Path traversal protection works
+  - [ ] Input validation prevents malicious input
+  - [ ] File downloads require authentication
+  - [ ] Sessions are properly managed
+  - [ ] Authentication can be disabled in development
 
 ## Expected File Structure After Testing
 ```
