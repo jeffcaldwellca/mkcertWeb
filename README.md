@@ -6,6 +6,7 @@ A modern web interface for managing SSL certificates using the mkcert CLI tool. 
 
 - **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
 - **📁 Organized Storage**: Automatic timestamp-based folder organization (YYYY-MM-DD/YYYY-MM-DDTHH-MM-SS_domains/)
+- **🔒 Optional Authentication**: Secure access with configurable user authentication (can be disabled)
 - **� HTTPS Support**: Auto-generated SSL certificates for secure web interface access
 - **�📋 Certificate Management**: View, download, and archive certificates with expiry tracking
 - **📦 Bundle Downloads**: Download certificate and key files as ZIP bundles
@@ -511,10 +512,56 @@ See `TESTING.md` for comprehensive testing procedures including:
 
 ### Environment Variables
 ```bash
+# Server Configuration
 PORT=3000                    # Server port (default: 3000)
+HTTPS_PORT=3443             # HTTPS server port (default: 3443)
 NODE_ENV=production          # Environment mode (development/production)
 CERT_DIR=/custom/path        # Custom certificate storage directory
+
+# HTTPS Configuration
+ENABLE_HTTPS=true           # Enable HTTPS server (true/false)
+SSL_DOMAIN=localhost        # Domain name for SSL certificate
+FORCE_HTTPS=false           # Redirect HTTP to HTTPS (true/false)
+
+# Authentication Configuration
+ENABLE_AUTH=false           # Enable user authentication (true/false)
+AUTH_USERNAME=admin         # Username for authentication (when ENABLE_AUTH=true)
+AUTH_PASSWORD=admin         # Password for authentication (when ENABLE_AUTH=true)
+SESSION_SECRET=your-secret  # Session secret key - CHANGE IN PRODUCTION!
 ```
+
+### Authentication Setup
+
+To enable user authentication and secure access to the web interface:
+
+1. **Copy the example configuration:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Enable authentication in `.env`:**
+   ```bash
+   ENABLE_AUTH=true
+   AUTH_USERNAME=your-username
+   AUTH_PASSWORD=your-secure-password
+   SESSION_SECRET=your-very-long-random-secret-key
+   ```
+
+3. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+4. **Access the application:**
+   - Visit http://localhost:3000 (or your configured URL)
+   - You'll be redirected to a login page
+   - Enter your configured username and password
+
+**Security Notes:**
+- When `ENABLE_AUTH=false`, authentication is completely disabled and users have direct access
+- When `ENABLE_AUTH=true`, all API routes are protected and require valid session authentication
+- Always use a strong, unique `SESSION_SECRET` in production environments
+- Consider using HTTPS when authentication is enabled for additional security
 
 ### Customization
 ```bash

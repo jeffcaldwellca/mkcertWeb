@@ -10,6 +10,8 @@ const cors = require('cors');
 const archiver = require('archiver');
 const https = require('https');
 const http = require('http');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,11 +20,125 @@ const ENABLE_HTTPS = process.env.ENABLE_HTTPS === 'true' || process.env.ENABLE_H
 const SSL_DOMAIN = process.env.SSL_DOMAIN || 'localhost';
 const FORCE_HTTPS = process.env.FORCE_HTTPS === 'true' || process.env.FORCE_HTTPS === '1';
 
+// Authentication configuration
+const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true' || process.env.ENABLE_AUTH === '1';
+const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'admin';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'mkcert-web-ui-secret-key-change-in-production';
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
+
+// Session configuration
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: ENABLE_HTTPS && !process.env.NODE_ENV !== 'development',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Authentication middleware
+const requireAuth = (req, res, next) => {
+  if (!ENABLE_AUTH) {
+    return next(); // Skip authentication if disabled
+  }
+  
+  if (req.session && req.session.authenticated) {
+    return next();
+  } else {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Authentication required',
+      redirectTo: '/login'
+    });
+  }
+};
+
+// Serve static files with conditional authentication
+app.use(express.static('public', {
+  setHeaders: (res, path) => {
+    // No special headers needed for static files
+  }
+}));
+
+// Authentication routes
+if (ENABLE_AUTH) {
+  // Login page route
+  app.get('/login', (req, res) => {
+    if (req.session && req.session.authenticated) {
+      return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  });
+
+  // Login API
+  app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required'
+      });
+    }
+    
+    // Check credentials
+    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+      req.session.authenticated = true;
+      req.session.username = username;
+      res.json({
+        success: true,
+        message: 'Login successful',
+        redirectTo: '/'
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid username or password'
+      });
+    }
+  });
+
+  // Logout API
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({
+          success: false,
+          error: 'Could not log out'
+        });
+      }
+      res.json({
+        success: true,
+        message: 'Logout successful',
+        redirectTo: '/login'
+      });
+    });
+  });
+
+  // Check auth status
+  app.get('/api/auth/status', (req, res) => {
+    res.json({
+      authenticated: req.session && req.session.authenticated,
+      username: req.session ? req.session.username : null,
+      authEnabled: ENABLE_AUTH
+    });
+  });
+
+  // Redirect root to login if not authenticated
+  app.get('/', (req, res, next) => {
+    if (!req.session || !req.session.authenticated) {
+      return res.redirect('/login');
+    }
+    next();
+  });
+}
 
 // Certificate storage directory
 const CERT_DIR = path.join(__dirname, 'certificates');
@@ -46,7 +162,7 @@ const executeCommand = (command) => {
 // Routes
 
 // Get mkcert status and CA info
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', requireAuth, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -CAROOT');
     const caRoot = result.stdout.trim();
@@ -84,7 +200,7 @@ app.get('/api/status', async (req, res) => {
 });
 
 // Install CA (mkcert -install)
-app.post('/api/install-ca', async (req, res) => {
+app.post('/api/install-ca', requireAuth, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -install');
     res.json({
@@ -101,8 +217,8 @@ app.post('/api/install-ca', async (req, res) => {
   }
 });
 
-// Download root CA certificate
-app.get('/api/download/rootca', async (req, res) => {
+// Download Root CA certificate
+app.get('/api/download/rootca', requireAuth, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -CAROOT');
     const caRoot = result.stdout.trim();
@@ -145,8 +261,8 @@ app.get('/api/download/rootca', async (req, res) => {
   }
 });
 
-// Get root CA information
-app.get('/api/rootca/info', async (req, res) => {
+// Get Root CA information
+app.get('/api/rootca/info', requireAuth, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -CAROOT');
     const caRoot = result.stdout.trim();
@@ -208,7 +324,7 @@ app.get('/api/rootca/info', async (req, res) => {
 });
 
 // Generate certificate
-app.post('/api/generate', async (req, res) => {
+app.post('/api/generate', requireAuth, async (req, res) => {
   try {
     const { domains, format = 'pem' } = req.body;
     
@@ -363,8 +479,8 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
   return files;
 };
 
-// List certificates
-app.get('/api/certificates', async (req, res) => {
+// List all certificates
+app.get('/api/certificates', requireAuth, async (req, res) => {
   try {
     // Find all certificate files recursively
     const certFiles = await findAllCertificateFiles(CERT_DIR);
@@ -445,7 +561,7 @@ app.get('/api/certificates', async (req, res) => {
 });
 
 // Download certificate file
-app.get('/api/download/cert/:folder/:filename', (req, res) => {
+app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
   const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
@@ -461,7 +577,7 @@ app.get('/api/download/cert/:folder/:filename', (req, res) => {
 });
 
 // Download key file
-app.get('/api/download/key/:folder/:filename', (req, res) => {
+app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
   const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
@@ -477,7 +593,7 @@ app.get('/api/download/key/:folder/:filename', (req, res) => {
 });
 
 // Download both cert and key as zip
-app.get('/api/download/bundle/:folder/:certname', (req, res) => {
+app.get('/api/download/bundle/:folder/:certname', requireAuth, (req, res) => {
   const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
   const certName = req.params.certname;
   
@@ -526,7 +642,7 @@ app.get('/api/download/bundle/:folder/:certname', (req, res) => {
 });
 
 // Legacy download endpoints for backward compatibility
-app.get('/api/download/cert/:filename', (req, res) => {
+app.get('/api/download/cert/:filename', requireAuth, (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, filename);
   
@@ -540,7 +656,7 @@ app.get('/api/download/cert/:filename', (req, res) => {
   res.download(filePath, filename);
 });
 
-app.get('/api/download/key/:filename', (req, res) => {
+app.get('/api/download/key/:filename', requireAuth, (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, filename);
   
@@ -554,7 +670,7 @@ app.get('/api/download/key/:filename', (req, res) => {
   res.download(filePath, filename);
 });
 
-app.get('/api/download/bundle/:certname', (req, res) => {
+app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
   const certName = req.params.certname;
   
   // Try both formats in root directory
@@ -601,7 +717,7 @@ app.get('/api/download/bundle/:certname', (req, res) => {
 });
 
 // Archive certificate (instead of deleting)
-app.post('/api/certificates/:folder/:certname/archive', async (req, res) => {
+app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
   try {
     const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
     const certName = req.params.certname;
@@ -676,7 +792,7 @@ app.post('/api/certificates/:folder/:certname/archive', async (req, res) => {
 });
 
 // Restore certificate from archive
-app.post('/api/certificates/:folder/:certname/restore', async (req, res) => {
+app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req, res) => {
   try {
     const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
     const certName = req.params.certname;
@@ -758,7 +874,7 @@ app.post('/api/certificates/:folder/:certname/restore', async (req, res) => {
 });
 
 // Delete certificate permanently from archive
-app.delete('/api/certificates/:folder/:certname', async (req, res) => {
+app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) => {
   try {
     const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
     const certName = req.params.certname;
@@ -828,7 +944,7 @@ app.delete('/api/certificates/:folder/:certname', async (req, res) => {
 });
 
 // Legacy delete endpoint for backward compatibility
-app.delete('/api/certificates/:certname', async (req, res) => {
+app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
   try {
     const certName = req.params.certname;
     
