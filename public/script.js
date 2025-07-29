@@ -11,16 +11,21 @@ let currentUser = null;
 // DOM Elements
 let certificatesList, generateForm, domainsInput, formatSelect;
 let installCaBtn, showCaBtn, hideModal, caModal;
+let themeToggle;
 let statusIndicators = {};
 
+// Theme management
+// Theme management
+let currentTheme = localStorage.getItem('theme'); // Don't set default here, let server decide
+
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    checkAuthentication().then(() => {
-        initializeElements();
-        loadSystemStatus();
-        loadCertificates();
-        setupEventListeners();
-    });
+document.addEventListener('DOMContentLoaded', async function() {
+    await checkAuthentication();
+    initializeElements();
+    await initializeTheme();
+    loadSystemStatus();
+    loadCertificates();
+    setupEventListeners();
 });
 
 // Check authentication status
@@ -82,6 +87,7 @@ function initializeElements() {
     showCaBtn = document.getElementById('show-ca-btn');
     hideModal = document.getElementById('hide-modal');
     caModal = document.getElementById('ca-modal');
+    themeToggle = document.getElementById('theme-toggle');
     
     // Status indicators
     statusIndicators.mkcert = document.getElementById('mkcert-status');
@@ -135,6 +141,10 @@ function setupEventListeners() {
     
     if (hideModal) {
         hideModal.addEventListener('click', hideModalDialog);
+    }
+    
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
     }
     
     // Add logout button event listener
@@ -613,5 +623,45 @@ function hideAlert(alertId) {
     const alert = document.getElementById('alert-' + alertId);
     if (alert) {
         alert.remove();
+    }
+}
+
+// Theme management functions
+async function initializeTheme() {
+    // If no stored preference, get default from server
+    if (!localStorage.getItem('theme')) {
+        try {
+            const config = await apiRequest('/config/theme');
+            currentTheme = config.defaultTheme || 'dark';
+        } catch (error) {
+            console.warn('Failed to fetch default theme config, using dark mode:', error);
+            currentTheme = 'dark';
+        }
+    }
+    
+    // Set theme based on stored preference or server default
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeToggleButton();
+}
+
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('theme', currentTheme);
+    updateThemeToggleButton();
+}
+
+function updateThemeToggleButton() {
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        const text = themeToggle.childNodes[themeToggle.childNodes.length - 1];
+        
+        if (currentTheme === 'dark') {
+            icon.className = 'fas fa-sun';
+            text.textContent = ' Light Mode';
+        } else {
+            icon.className = 'fas fa-moon';
+            text.textContent = ' Dark Mode';
+        }
     }
 }

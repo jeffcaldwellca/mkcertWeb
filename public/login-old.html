@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - mkcert Web UI</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        
+        .login-container {
+            max-width: 400px;
+            width: 90%;
+            padding: 40px;
+            background: var(--secondary-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            box-shadow: 
+                0 8px 32px var(--shadow-color),
+                inset 0 1px 0 var(--glow-primary);
+            backdrop-filter: blur(20px);
+            position: relative;
+            z-index: 1;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--button-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-toggle:hover {
+            background: var(--button-hover-bg);
+            box-shadow: 0 0 10px var(--glow-primary);
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle i {
+            margin-right: 0.5rem;
+        } 
+                0 8px 25px rgba(0, 0, 0, 0.4),
+                0 0 20px rgba(0, 255, 65, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-header h1 {
+            color: #00ff41;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            font-weight: 700;
+        }
+
+        .login-header h1::before {
+            content: '> ';
+            color: #ff0041;
+            text-shadow: 0 0 5px rgba(255, 0, 65, 0.8);
+        }
+        
+        .login-header p {
+            color: #8cc8ff;
+            font-size: 0.95rem;
+        }
+        
+        .login-form .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .login-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #00ff41;
+            font-size: 0.9rem;
+            text-shadow: 0 0 3px rgba(0, 255, 65, 0.3);
+        }
+        
+        .login-form input {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(13, 17, 23, 0.8);
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            color: #8cc8ff;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+        }
+        
+        .login-form input:focus {
+            outline: none;
+            border-color: #00ff41;
+            box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.2);
+            background: rgba(13, 17, 23, 0.9);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #00ff41 0%, #00cc33 100%);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+        }
+        
+        .login-btn:hover {
+            background: linear-gradient(135deg, #00ff41 0%, #00aa28 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 255, 65, 0.4), 0 0 20px rgba(0, 255, 65, 0.2);
+        }
+        
+        .login-btn:disabled {
+            background: #21262d;
+            color: #484f58;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .error-message {
+            background: rgba(255, 0, 65, 0.1);
+            border: 1px solid rgba(255, 0, 65, 0.3);
+            color: #ff0041;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+            font-size: 0.9rem;
+            box-shadow: 0 0 10px rgba(255, 0, 65, 0.2);
+        }
+        
+        .loading {
+            text-align: center;
+            color: #7d8590;
+        }
+
+        .fas {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1><i class="fas fa-certificate"></i> mkcert Web UI</h1>
+            <p>Please log in to access the certificate management interface</p>
+        </div>
+        
+        <div id="error-message" class="error-message"></div>
+        
+        <form id="login-form" class="login-form">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" id="login-btn" class="login-btn">
+                <i class="fas fa-sign-in-alt"></i> Sign In
+            </button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+            const loginBtn = document.getElementById('login-btn');
+            
+            // Check if already authenticated
+            fetch('/api/auth/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.authenticated) {
+                        window.location.href = '/';
+                    }
+                })
+                .catch(error => {
+                    console.log('Auth status check failed:', error);
+                });
+            
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                // Disable form
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+                errorMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.location.href = data.redirectTo || '/';
+                    } else {
+                        throw new Error(data.error || 'Login failed');
+                    }
+                } catch (error) {
+                    errorMessage.textContent = error.message;
+                    errorMessage.style.display = 'block';
+                    
+                    // Re-enable form
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

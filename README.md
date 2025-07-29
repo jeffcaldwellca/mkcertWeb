@@ -18,6 +18,7 @@ A modern web interface for managing SSL certificates using the mkcert CLI tool. 
 - **📦 Bundle Downloads**: Download certificate and key files as ZIP bundles
 - **🔑 Root CA Management**: Install, view, and download the mkcert root Certificate Authority
 - **🎨 Terminal-Style UI**: Modern red/green color scheme with monospace fonts and glowing effects
+- **🌙 Dark/Light Mode**: Switchable themes with persistent user preference storage
 - **🔒 Security**: Root certificates are read-only protected, authenticated sessions, input validation
 - **📊 Certificate Details**: View domains, expiry dates, file sizes, and certificate information
 - **🔄 Dual Format Support**: Generate certificates in PEM (.pem/.key) or CRT (.crt/.key) formats
@@ -552,6 +553,9 @@ ENABLE_AUTH=false           # Enable user authentication (true/false)
 AUTH_USERNAME=admin         # Username for authentication (when ENABLE_AUTH=true)
 AUTH_PASSWORD=admin         # Password for authentication (when ENABLE_AUTH=true)
 SESSION_SECRET=your-secret  # Session secret key - CHANGE IN PRODUCTION!
+
+# UI Configuration
+DEFAULT_THEME=dark          # Default theme mode for new users (dark/light)
 ```
 
 ### Authentication Setup
@@ -586,6 +590,23 @@ To enable user authentication and secure access to the web interface:
 - When `ENABLE_AUTH=true`, all API routes are protected and require valid session authentication
 - Always use a strong, unique `SESSION_SECRET` in production environments
 - Consider using HTTPS when authentication is enabled for additional security
+
+### Theme Configuration
+
+The application supports both dark and light themes with a toggle button. You can set the default theme for new users:
+
+```bash
+# Set default theme in .env
+DEFAULT_THEME=light  # Start with light mode for new users
+DEFAULT_THEME=dark   # Start with dark mode for new users (default)
+```
+
+**Theme Behavior:**
+- Users can toggle between themes using the button in the header
+- Theme preference is saved in browser localStorage
+- If no stored preference exists, the server's `DEFAULT_THEME` setting is used
+- Supports both the main application and login page
+- Available via API endpoint: `GET /api/config/theme`
 
 ### Customization
 ```bash

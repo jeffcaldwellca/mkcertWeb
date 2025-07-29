@@ -122,13 +122,21 @@ if (ENABLE_AUTH) {
     });
   });
 
-  // Check auth status
-  app.get('/api/auth/status', (req, res) => {
-    res.json({
-      authenticated: req.session && req.session.authenticated,
-      username: req.session ? req.session.username : null,
-      authEnabled: ENABLE_AUTH
-    });
+  // Traditional form-based login route
+  app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.redirect('/login?error=missing_credentials');
+    }
+    
+    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+      req.session.authenticated = true;
+      req.session.username = username;
+      res.redirect('/');
+    } else {
+      res.redirect('/login?error=invalid_credentials');
+    }
   });
 
   // Redirect root to login if not authenticated
@@ -144,7 +152,42 @@ if (ENABLE_AUTH) {
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
+  
+  // Redirect login page to main page when auth is disabled
+  app.get('/login', (req, res) => {
+    res.redirect('/');
+  });
+  
+  // Handle POST /login when auth is disabled (redirect to main page)
+  app.post('/login', (req, res) => {
+    res.redirect('/');
+  });
 }
+
+// Auth status endpoint (always available)
+app.get('/api/auth/status', (req, res) => {
+  if (ENABLE_AUTH) {
+    res.json({
+      authenticated: req.session && req.session.authenticated,
+      username: req.session ? req.session.username : null,
+      authEnabled: true
+    });
+  } else {
+    res.json({
+      authenticated: false,
+      username: null,
+      authEnabled: false
+    });
+  }
+});
+
+// Theme configuration endpoint (always available)
+app.get('/api/config/theme', (req, res) => {
+  const defaultTheme = process.env.DEFAULT_THEME || 'dark';
+  res.json({
+    defaultTheme: ['dark', 'light'].includes(defaultTheme) ? defaultTheme : 'dark'
+  });
+});
 
 // Certificate storage directory
 const CERT_DIR = path.join(__dirname, 'certificates');
