@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Dark/Light mode toggle with persistent user preference storage
+- CSS custom properties (variables) for better theme management
+- Theme toggle available on both main interface and login page
+- Smooth transitions between theme modes
+- Light mode with professional green/red color scheme
+
+### Changed
+- Refactored CSS to use CSS custom properties for all colors
+- Updated login page to support theme switching
+- Improved color consistency across all UI elements
+
 ## [1.1.0]
 
 ### Added
