@@ -4,6 +4,7 @@ FROM node:18-alpine
 # Install mkcert and other required tools
 RUN apk add --no-cache \
     ca-certificates \
+    openssl \
     wget \
     && wget -O /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-amd64 \
     && chmod +x /usr/local/bin/mkcert
