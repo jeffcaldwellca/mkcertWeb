@@ -136,7 +136,13 @@ if (ENABLE_AUTH) {
     if (!req.session || !req.session.authenticated) {
       return res.redirect('/login');
     }
-    next();
+    // Serve the main index.html for authenticated users
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+} else {
+  // When authentication is disabled, serve index.html directly
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 }
 
