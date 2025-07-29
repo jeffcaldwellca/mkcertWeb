@@ -18,12 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health check configuration for container monitoring
 - Non-root user security implementation in containers
 - Environment variable support for all configuration options
+- Automatic Root CA generation when none exists
+- Manual Root CA generation option with user-friendly interface
+- Visual indicators for auto-generated Root CAs
+- New API endpoint `/api/generate-ca` for manual CA creation
 
 ### Changed
 - Updated .gitignore to exclude Docker-related build files
 - Enhanced package.json with Docker-related scripts
 - Optimized .dockerignore for efficient Docker builds
 - Cleaned up unused backup and development files
+- **Docker**: Added OpenSSL to container for full certificate functionality
+
+### Fixed
+- **Docker**: OpenSSL now included in container for certificate analysis and operations
 
 ### Removed
 - Unused backup files
