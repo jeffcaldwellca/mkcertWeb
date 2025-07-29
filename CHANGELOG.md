@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-07-29
+
+### Added
+- Complete Docker containerization support
+- Multi-stage Dockerfile with Node.js 18 Alpine base image
+- Pre-installed mkcert CLI in Docker container
+- Docker Compose configuration for easy deployment
+- Volume persistence for certificates and application data
+- Comprehensive Docker documentation (DOCKER.md)
+- Docker-specific npm scripts for container management
+- Health check configuration for container monitoring
+- Non-root user security implementation in containers
+- Environment variable support for all configuration options
+
+### Changed
+- Updated .gitignore to exclude Docker-related build files
+- Enhanced package.json with Docker-related scripts
+- Optimized .dockerignore for efficient Docker builds
+- Cleaned up unused backup and development files
+
+### Removed
+- Unused backup files
+- Development test utility
+
+### Security
+- Docker container runs as non-root user (nodejs:1001)
+- Secure volume mounting for certificate persistence
+- Production-ready security configurations
+
 ## [1.1.1]
 
 ### Added
@@ -75,7 +104,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Version History Summary
 
 - **v1.0.0**: Initial release with core functionality
-- **Current**: Enhanced UI with red/green theme and improved authentication
+- **v1.1.0**: Enhanced UI with red/green theme and improved authentication  
+- **v1.1.1**: Dark/Light mode toggle with theme persistence
+- **v1.2.0**: Complete Docker containerization support
+- **Current**: Full-featured mkcert Web UI with Docker deployment options
 
 ## Contributing
 
