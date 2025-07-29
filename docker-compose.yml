@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  mkcert-web-ui:
+    build: .
+    ports:
+      - "3000:3000"    # HTTP port
+      - "3443:3443"    # HTTPS port
+    environment:
+      # Server Configuration
+      - PORT=3000
+      - HTTPS_PORT=3443
+      
+      # SSL/HTTPS Configuration
+      - ENABLE_HTTPS=false
+      - SSL_DOMAIN=localhost
+      - FORCE_HTTPS=false
+      
+      # Application Configuration
+      - NODE_ENV=production
+      - DEFAULT_THEME=dark
+      
+      # Authentication Configuration (disabled by default)
+      - ENABLE_AUTH=false
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=admin
+      - SESSION_SECRET=mkcert-web-ui-secret-key-change-in-production
+    volumes:
+      # Persist certificates and data
+      - mkcert_certificates:/app/certificates
+      - mkcert_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  mkcert_certificates:
+    driver: local
+  mkcert_data:
+    driver: local
