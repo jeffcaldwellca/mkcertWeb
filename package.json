@@ -10,7 +10,14 @@
     "https-dev": "ENABLE_HTTPS=true nodemon server.js",
     "https-only": "ENABLE_HTTPS=true FORCE_HTTPS=true node server.js",
     "env": "node -r dotenv/config server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docker:build": "docker build -t mkcert-web-ui .",
+    "docker:run": "docker run -d --name mkcert-web-ui -p 3000:3000 -v mkcert_certificates:/app/certificates -v mkcert_data:/app/data mkcert-web-ui",
+    "docker:stop": "docker stop mkcert-web-ui && docker rm mkcert-web-ui",
+    "docker:logs": "docker logs mkcert-web-ui",
+    "compose:up": "docker-compose up -d",
+    "compose:down": "docker-compose down",
+    "compose:logs": "docker-compose logs -f"
   },
   "keywords": [
     "mkcert",
