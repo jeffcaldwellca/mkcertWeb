@@ -348,6 +348,118 @@ section h2::before {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        min-width: unset;
+    }
+}
+
+/* CA Missing and Generation Styles */
+.ca-missing-info {
+    text-align: center;
+    padding: 2rem;
+}
+
+.warning-message {
+    background: var(--card-bg-secondary);
+    border: 2px solid var(--warning-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.warning-message i {
+    color: var(--warning-color);
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+}
+
+.warning-message h3 {
+    color: var(--warning-color);
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+}
+
+.warning-message p {
+    color: var(--text-color);
+    margin-bottom: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.ca-generation-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.ca-info-text {
+    max-width: 500px;
+    text-align: left;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1.25rem;
+}
+
+.ca-info-text p {
+    margin-bottom: 0.75rem;
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.ca-info-text ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.ca-info-text li {
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+    line-height: 1.4;
+}
+
+/* Auto-generated badge */
+.auto-generated-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--success-color), var(--primary-color));
+    color: var(--dark-bg);
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    text-shadow: none;
+    box-shadow: 0 0 8px rgba(64, 224, 208, 0.3);
+    animation: pulse-glow 2s ease-in-out;
+}
+
+.auto-generated-badge i {
+    margin-right: 0.25rem;
+}
+
+/* Animation for newly generated CA */
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 8px rgba(64, 224, 208, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(64, 224, 208, 0.8); }
+    100% { box-shadow: 0 0 8px rgba(64, 224, 208, 0.3); }
+}
+
+/* Highlight effect for newly updated sections */
+.ca-updated {
+    animation: section-highlight 3s ease-in-out;
+}
+
+@keyframes section-highlight {
+    0% { background: var(--card-bg); }
+    20% { background: rgba(64, 224, 208, 0.1); border: 1px solid rgba(64, 224, 208, 0.3); }
+    100% { background: var(--card-bg); }
 }
 
 /* Forms */
