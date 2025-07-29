@@ -4,18 +4,78 @@
 // Configuration
 const API_BASE = window.location.origin + '/api';
 
+// Authentication state
+let authEnabled = false;
+let currentUser = null;
+
 // DOM Elements
 let certificatesList, generateForm, domainsInput, formatSelect;
 let installCaBtn, showCaBtn, hideModal, caModal;
+let themeToggle;
 let statusIndicators = {};
 
+// Theme management
+// Theme management
+let currentTheme = localStorage.getItem('theme'); // Don't set default here, let server decide
+
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    await checkAuthentication();
     initializeElements();
+    await initializeTheme();
     loadSystemStatus();
     loadCertificates();
     setupEventListeners();
 });
+
+// Check authentication status
+async function checkAuthentication() {
+    try {
+        const response = await fetch('/api/auth/status');
+        const data = await response.json();
+        
+        authEnabled = data.authEnabled;
+        currentUser = data.username;
+        
+        if (authEnabled && !data.authenticated) {
+            window.location.href = '/login';
+            return;
+        }
+        
+        // Show auth controls if authentication is enabled and user is logged in
+        if (authEnabled && data.authenticated) {
+            const authControls = document.getElementById('auth-controls');
+            const usernameDisplay = document.getElementById('username-display');
+            
+            if (authControls) {
+                authControls.style.display = 'block';
+                usernameDisplay.textContent = `Welcome, ${currentUser}`;
+            }
+        }
+        
+    } catch (error) {
+        console.log('Auth check failed:', error);
+        // If auth check fails and we're not on login page, assume no auth required
+    }
+}
+
+// Handle logout
+function logout() {
+    if (!authEnabled) return;
+    
+    fetch('/api/auth/logout', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.redirectTo || '/login';
+            }
+        })
+        .catch(error => {
+            console.error('Logout failed:', error);
+            // Force redirect to login anyway
+            window.location.href = '/login';
+        });
+}
 
 // Initialize DOM elements
 function initializeElements() {
@@ -27,6 +87,7 @@ function initializeElements() {
     showCaBtn = document.getElementById('show-ca-btn');
     hideModal = document.getElementById('hide-modal');
     caModal = document.getElementById('ca-modal');
+    themeToggle = document.getElementById('theme-toggle');
     
     // Status indicators
     statusIndicators.mkcert = document.getElementById('mkcert-status');
@@ -47,6 +108,13 @@ async function apiRequest(endpoint, options = {}) {
         
         if (!response.ok) {
             const error = await response.json();
+            
+            // Handle authentication errors
+            if (response.status === 401 && error.redirectTo) {
+                window.location.href = error.redirectTo;
+                return;
+            }
+            
             // Throw the full error object so UI can access all fields
             throw error;
         }
@@ -73,6 +141,16 @@ function setupEventListeners() {
     
     if (hideModal) {
         hideModal.addEventListener('click', hideModalDialog);
+    }
+    
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+    
+    // Add logout button event listener
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
     }
 }
 
@@ -545,5 +623,45 @@ function hideAlert(alertId) {
     const alert = document.getElementById('alert-' + alertId);
     if (alert) {
         alert.remove();
+    }
+}
+
+// Theme management functions
+async function initializeTheme() {
+    // If no stored preference, get default from server
+    if (!localStorage.getItem('theme')) {
+        try {
+            const config = await apiRequest('/config/theme');
+            currentTheme = config.defaultTheme || 'dark';
+        } catch (error) {
+            console.warn('Failed to fetch default theme config, using dark mode:', error);
+            currentTheme = 'dark';
+        }
+    }
+    
+    // Set theme based on stored preference or server default
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeToggleButton();
+}
+
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('theme', currentTheme);
+    updateThemeToggleButton();
+}
+
+function updateThemeToggleButton() {
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        const text = themeToggle.childNodes[themeToggle.childNodes.length - 1];
+        
+        if (currentTheme === 'dark') {
+            icon.className = 'fas fa-sun';
+            text.textContent = ' Light Mode';
+        } else {
+            icon.className = 'fas fa-moon';
+            text.textContent = ' Dark Mode';
+        }
     }
 }

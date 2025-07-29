@@ -10,8 +10,21 @@
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-certificate"></i> mkcert Web UI</h1>
-            <p>Manage SSL certificates with mkcert CLI</p>
+            <button class="theme-toggle" id="theme-toggle">
+                <i class="fas fa-sun"></i> Light Mode
+            </button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1><i class="fas fa-certificate"></i> mkcert Web UI</h1>
+                    <p>Manage SSL certificates with mkcert CLI</p>
+                </div>
+                <div id="auth-controls" style="display: none;">
+                    <span id="username-display" style="margin-right: 15px; color: var(--secondary-color);"></span>
+                    <button id="logout-btn" class="btn btn-secondary">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
         </header>
 
         <!-- Status Section -->

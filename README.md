@@ -2,16 +2,24 @@
 
 A modern web interface for managing SSL certificates using the mkcert CLI tool. This application provides an easy-to-use interface for generating, downloading, and managing local development certificates with organized storage and comprehensive certificate management features.
 
+## Screenshot
+
+![mkcert Web UI Screenshot](public/assets/screenshot.png)
+
+*The mkcert Web UI featuring the new red/green terminal-style theme with certificate management, system status, and Root CA information.*
+
 ## Features
 
 - **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
 - **📁 Organized Storage**: Automatic timestamp-based folder organization (YYYY-MM-DD/YYYY-MM-DDTHH-MM-SS_domains/)
-- **� HTTPS Support**: Auto-generated SSL certificates for secure web interface access
-- **�📋 Certificate Management**: View, download, and archive certificates with expiry tracking
+- **🔒 Optional Authentication**: Secure access with configurable user authentication (can be disabled)
+- **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface access
+- **📋 Certificate Management**: View, download, and archive certificates with expiry tracking
 - **📦 Bundle Downloads**: Download certificate and key files as ZIP bundles
 - **🔑 Root CA Management**: Install, view, and download the mkcert root Certificate Authority
-- **🎨 Modern UI**: Clean, responsive interface with real-time status updates
-- **🔒 Security**: Root certificates are read-only protected, archived certificates can be restored
+- **🎨 Terminal-Style UI**: Modern red/green color scheme with monospace fonts and glowing effects
+- **🌙 Dark/Light Mode**: Switchable themes with persistent user preference storage
+- **🔒 Security**: Root certificates are read-only protected, authenticated sessions, input validation
 - **📊 Certificate Details**: View domains, expiry dates, file sizes, and certificate information
 - **🔄 Dual Format Support**: Generate certificates in PEM (.pem/.key) or CRT (.crt/.key) formats
 
@@ -85,6 +93,10 @@ npm start
 
 5. **Access the web interface**:
    - Open your browser to `http://localhost:3000`
+   - **If authentication is enabled**: You'll be redirected to the login page
+     - Use credentials from your `.env` file (default: admin/admin123)
+     - After successful login, you'll access the main interface
+   - **If authentication is disabled**: You'll go directly to the certificate generation interface
    - The application will verify mkcert installation and CA status
 
 ## HTTPS Configuration
@@ -383,9 +395,17 @@ sudo update-ca-certificates
 
 ### REST API Endpoints
 
-The application provides a comprehensive REST API for programmatic access:
+The application provides a comprehensive REST API for programmatic access.
 
-#### System Status
+**🔒 Authentication Note**: When authentication is enabled, API endpoints require valid session cookies. For programmatic access, you may need to:
+1. Disable authentication by setting `DISABLE_AUTH=true` in your `.env` file, or
+2. First authenticate via `POST /login` to establish a session before making API calls
+
+#### Authentication
+- `POST /login` - Authenticate user and establish session
+- `POST /logout` - Destroy current session
+
+#### System Status  
 - `GET /api/status` - Get mkcert installation and CA status
 - `POST /api/install-ca` - Install the mkcert root CA (requires user confirmation)
 
@@ -447,13 +467,17 @@ mkcertWeb/
 ├── package.json             # Node.js dependencies and scripts  
 ├── public/                  # Frontend static assets
 │   ├── index.html          # Main web interface
-│   ├── styles.css          # Responsive CSS styling
-│   └── script.js           # Frontend JavaScript functionality
+│   ├── login.html          # Authentication login page
+│   ├── styles.css          # Terminal-style CSS with red/green theme
+│   ├── script.js           # Frontend JavaScript functionality
+│   └── assets/             # Static assets (screenshots, etc.)
 ├── certificates/            # Certificate storage (organized by date)
 │   ├── root/               # Legacy certificates (read-only)
 │   └── YYYY-MM-DD/         # Date-based organization
 │       └── YYYY-MM-DDTHH-MM-SS_domains/  # Timestamped folders
+├── .env.example            # Environment configuration template
 ├── README.md               # Comprehensive documentation
+├── CHANGELOG.md            # Version history and release notes
 ├── TESTING.md              # Testing procedures and validation
 └── package-lock.json       # Dependency lock file
 ```
@@ -461,9 +485,11 @@ mkcertWeb/
 ## Security & Best Practices
 
 ### Security Model
-- **Development Only**: Designed for local development environments
-- **Regular User**: Runs without root privileges (except for `mkcert -install`)
+- **Development Focus**: Designed for local development environments
+- **Optional Authentication**: Configurable user authentication with session management
+- **Regular User Execution**: Runs without root privileges (except for `mkcert -install`)
 - **Read-Only Protection**: Root directory certificates cannot be deleted
+- **Session Security**: HTTP-only cookies with CSRF protection
 - **Organized Storage**: Timestamp-based folders prevent conflicts
 
 ### Network Security
@@ -511,10 +537,76 @@ See `TESTING.md` for comprehensive testing procedures including:
 
 ### Environment Variables
 ```bash
+# Server Configuration
 PORT=3000                    # Server port (default: 3000)
+HTTPS_PORT=3443             # HTTPS server port (default: 3443)
 NODE_ENV=production          # Environment mode (development/production)
 CERT_DIR=/custom/path        # Custom certificate storage directory
+
+# HTTPS Configuration
+ENABLE_HTTPS=true           # Enable HTTPS server (true/false)
+SSL_DOMAIN=localhost        # Domain name for SSL certificate
+FORCE_HTTPS=false           # Redirect HTTP to HTTPS (true/false)
+
+# Authentication Configuration
+ENABLE_AUTH=false           # Enable user authentication (true/false)
+AUTH_USERNAME=admin         # Username for authentication (when ENABLE_AUTH=true)
+AUTH_PASSWORD=admin         # Password for authentication (when ENABLE_AUTH=true)
+SESSION_SECRET=your-secret  # Session secret key - CHANGE IN PRODUCTION!
+
+# UI Configuration
+DEFAULT_THEME=dark          # Default theme mode for new users (dark/light)
 ```
+
+### Authentication Setup
+
+To enable user authentication and secure access to the web interface:
+
+1. **Copy the example configuration:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Enable authentication in `.env`:**
+   ```bash
+   ENABLE_AUTH=true
+   AUTH_USERNAME=your-username
+   AUTH_PASSWORD=your-secure-password
+   SESSION_SECRET=your-very-long-random-secret-key
+   ```
+
+3. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+4. **Access the application:**
+   - Visit http://localhost:3000 (or your configured URL)
+   - You'll be redirected to a login page
+   - Enter your configured username and password
+
+**Security Notes:**
+- When `ENABLE_AUTH=false`, authentication is completely disabled and users have direct access
+- When `ENABLE_AUTH=true`, all API routes are protected and require valid session authentication
+- Always use a strong, unique `SESSION_SECRET` in production environments
+- Consider using HTTPS when authentication is enabled for additional security
+
+### Theme Configuration
+
+The application supports both dark and light themes with a toggle button. You can set the default theme for new users:
+
+```bash
+# Set default theme in .env
+DEFAULT_THEME=light  # Start with light mode for new users
+DEFAULT_THEME=dark   # Start with dark mode for new users (default)
+```
+
+**Theme Behavior:**
+- Users can toggle between themes using the button in the header
+- Theme preference is saved in browser localStorage
+- If no stored preference exists, the server's `DEFAULT_THEME` setting is used
+- Supports both the main application and login page
+- Available via API endpoint: `GET /api/config/theme`
 
 ### Customization
 ```bash
