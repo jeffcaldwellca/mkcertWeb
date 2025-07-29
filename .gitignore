@@ -99,3 +99,8 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 
+# Docker
+.dockerignore
+docker-compose.override.yml
+.docker/
+
