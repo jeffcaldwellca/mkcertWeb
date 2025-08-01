@@ -10,6 +10,10 @@ yarn.lock
 certificates/*.pem
 certificates/*.key
 
+# Temporary files
+temp/
+*.pfx
+
 # SSL certificates (auto-generated)
 ssl/
 *.pem
