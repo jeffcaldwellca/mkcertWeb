@@ -12,6 +12,8 @@ const https = require('https');
 const http = require('http');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const passport = require('passport');
+const OpenIDConnectStrategy = require('passport-openidconnect');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +27,14 @@ const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true' || process.env.ENABLE_AUT
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'admin';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'mkcert-web-ui-secret-key-change-in-production';
+
+// OIDC configuration
+const ENABLE_OIDC = process.env.ENABLE_OIDC === 'true' || process.env.ENABLE_OIDC === '1';
+const OIDC_ISSUER = process.env.OIDC_ISSUER;
+const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
+const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
+const OIDC_CALLBACK_URL = process.env.OIDC_CALLBACK_URL || `http://localhost:${PORT}/auth/oidc/callback`;
+const OIDC_SCOPE = process.env.OIDC_SCOPE || 'openid profile email';
 
 // Middleware
 app.use(cors());
@@ -43,13 +53,50 @@ app.use(session({
   }
 }));
 
+// Passport configuration
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser((user, done) => {
+  done(null, user);
+});
+
+// OIDC Strategy Configuration
+if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
+  passport.use('oidc', new OpenIDConnectStrategy({
+    issuer: OIDC_ISSUER,
+    authorizationURL: `${OIDC_ISSUER}/auth`,
+    tokenURL: `${OIDC_ISSUER}/token`,
+    userInfoURL: `${OIDC_ISSUER}/userinfo`,
+    clientID: OIDC_CLIENT_ID,
+    clientSecret: OIDC_CLIENT_SECRET,
+    callbackURL: OIDC_CALLBACK_URL,
+    scope: OIDC_SCOPE
+  }, (issuer, profile, done) => {
+    // You can customize user profile processing here
+    const user = {
+      id: profile.id,
+      email: profile.emails ? profile.emails[0].value : null,
+      name: profile.displayName || profile.username,
+      provider: 'oidc'
+    };
+    return done(null, user);
+  }));
+}
+
 // Authentication middleware
 const requireAuth = (req, res, next) => {
   if (!ENABLE_AUTH) {
     return next(); // Skip authentication if disabled
   }
   
-  if (req.session && req.session.authenticated) {
+  // Check for basic auth session or OIDC authentication
+  if ((req.session && req.session.authenticated) || (req.user && req.isAuthenticated())) {
     return next();
   } else {
     return res.status(401).json({ 
@@ -114,11 +161,48 @@ if (ENABLE_AUTH) {
           error: 'Could not log out'
         });
       }
+      
+      // If using OIDC, also logout from passport
+      if (req.user) {
+        req.logout((logoutErr) => {
+          if (logoutErr) {
+            console.error('Passport logout error:', logoutErr);
+          }
+        });
+      }
+      
       res.json({
         success: true,
         message: 'Logout successful',
         redirectTo: '/login'
       });
+    });
+  });
+
+  // OIDC Authentication Routes
+  if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
+    // Initiate OIDC login
+    app.get('/auth/oidc',
+      passport.authenticate('oidc')
+    );
+
+    // OIDC callback
+    app.get('/auth/oidc/callback',
+      passport.authenticate('oidc', { failureRedirect: '/login?error=oidc_failed' }),
+      (req, res) => {
+        // Successful authentication, redirect to main page
+        res.redirect('/');
+      }
+    );
+  }
+
+  // API endpoint to check authentication methods available
+  app.get('/api/auth/methods', (req, res) => {
+    res.json({
+      basic: true,
+      oidc: {
+        enabled: !!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET)
+      }
     });
   });
 
@@ -141,7 +225,8 @@ if (ENABLE_AUTH) {
 
   // Redirect root to login if not authenticated
   app.get('/', (req, res, next) => {
-    if (!req.session || !req.session.authenticated) {
+    // Check both session authentication and OIDC authentication
+    if ((!req.session || !req.session.authenticated) && (!req.user || !req.isAuthenticated())) {
       return res.redirect('/login');
     }
     // Serve the main index.html for authenticated users

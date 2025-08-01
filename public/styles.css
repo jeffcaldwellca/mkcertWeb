@@ -1251,7 +1251,7 @@ section h2::before {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     color: var(--text-color);
-    font-family: inherit;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
     font-size: 1rem;
     transition: all 0.3s ease;
     box-sizing: border-box;
@@ -1328,6 +1328,34 @@ section h2::before {
     box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
 }
 
+.divider {
+    text-align: center;
+    margin: 20px 0;
+    position: relative;
+}
+
+.divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.divider span {
+    background: var(--bg-color);
+    padding: 0 15px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+#oidc-login-section .btn {
+    width: 100%;
+    margin-top: 0;
+}
+
 .home-link {
     text-align: center;
     margin-top: 20px;
@@ -1356,4 +1384,63 @@ section h2::before {
 
 [data-theme="light"] .home-link a:hover {
     text-shadow: none;
+}
+
+/* OIDC Button Styling */
+.btn-oidc {
+    width: 100%;
+    padding: 15px;
+    background: transparent;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 0;
+    box-sizing: border-box;
+}
+
+.btn-oidc:hover {
+    background: var(--primary-color);
+    color: #000;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+    text-decoration: none;
+}
+
+.btn-oidc:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+/* Dark theme OIDC button */
+[data-theme="dark"] .btn-oidc {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+[data-theme="dark"] .btn-oidc:hover {
+    background: var(--primary-color);
+    color: #000;
+    box-shadow: 0 4px 12px rgba(72, 139, 255, 0.4);
+}
+
+/* Light theme OIDC button */
+[data-theme="light"] .btn-oidc {
+    border-color: #0066cc;
+    color: #0066cc;
+}
+
+[data-theme="light"] .btn-oidc:hover {
+    background: #0066cc;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
 }
