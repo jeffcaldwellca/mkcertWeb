@@ -14,6 +14,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const OpenIDConnectStrategy = require('passport-openidconnect');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,46 @@ const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
 const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
 const OIDC_CALLBACK_URL = process.env.OIDC_CALLBACK_URL || `http://localhost:${PORT}/auth/oidc/callback`;
 const OIDC_SCOPE = process.env.OIDC_SCOPE || 'openid profile email';
+
+// Rate limiting configuration
+const CLI_RATE_LIMIT_WINDOW = parseInt(process.env.CLI_RATE_LIMIT_WINDOW) || 15 * 60 * 1000; // 15 minutes
+const CLI_RATE_LIMIT_MAX = parseInt(process.env.CLI_RATE_LIMIT_MAX) || 10; // 10 requests per window
+const API_RATE_LIMIT_WINDOW = parseInt(process.env.API_RATE_LIMIT_WINDOW) || 15 * 60 * 1000; // 15 minutes  
+const API_RATE_LIMIT_MAX = parseInt(process.env.API_RATE_LIMIT_MAX) || 100; // 100 requests per window
+
+// Create rate limiters
+const cliRateLimiter = rateLimit({
+  windowMs: CLI_RATE_LIMIT_WINDOW,
+  max: CLI_RATE_LIMIT_MAX,
+  message: {
+    error: 'Too many CLI operations, please try again later.',
+    retryAfter: Math.ceil(CLI_RATE_LIMIT_WINDOW / 1000)
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Rate limit by IP address and user (if authenticated)
+    const ip = req.ip || req.connection.remoteAddress;
+    const user = req.user?.username || req.session?.username || 'anonymous';
+    return `cli:${ip}:${user}`;
+  }
+});
+
+const apiRateLimiter = rateLimit({
+  windowMs: API_RATE_LIMIT_WINDOW,
+  max: API_RATE_LIMIT_MAX,
+  message: {
+    error: 'Too many API requests, please try again later.',
+    retryAfter: Math.ceil(API_RATE_LIMIT_WINDOW / 1000)
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    const user = req.user?.username || req.session?.username || 'anonymous';
+    return `api:${ip}:${user}`;
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -295,8 +336,14 @@ const executeCommand = (command) => {
 
 // Routes
 
+// Apply general API rate limiting to all API routes (except auth endpoints)
+app.use('/api/certificates', apiRateLimiter);
+app.use('/api/download', apiRateLimiter);
+app.use('/api/rootca', apiRateLimiter);
+app.use('/api/config', apiRateLimiter);
+
 // Get mkcert status and CA info
-app.get('/api/status', requireAuth, async (req, res) => {
+app.get('/api/status', requireAuth, cliRateLimiter, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -CAROOT');
     const caRoot = result.stdout.trim();
@@ -360,7 +407,7 @@ app.get('/api/status', requireAuth, async (req, res) => {
 });
 
 // Install CA (mkcert -install)
-app.post('/api/install-ca', requireAuth, async (req, res) => {
+app.post('/api/install-ca', requireAuth, cliRateLimiter, async (req, res) => {
   try {
     const result = await executeCommand('mkcert -install');
     res.json({
@@ -378,7 +425,7 @@ app.post('/api/install-ca', requireAuth, async (req, res) => {
 });
 
 // Generate new Root CA (mkcert -install creates a new CA if one doesn't exist)
-app.post('/api/generate-ca', requireAuth, async (req, res) => {
+app.post('/api/generate-ca', requireAuth, cliRateLimiter, async (req, res) => {
   try {
     // First check if mkcert is available
     try {
@@ -598,7 +645,7 @@ app.get('/api/rootca/info', requireAuth, async (req, res) => {
 });
 
 // Generate certificate
-app.post('/api/generate', requireAuth, async (req, res) => {
+app.post('/api/generate', requireAuth, cliRateLimiter, async (req, res) => {
   try {
     const { domains, format = 'pem' } = req.body;
     
@@ -1019,7 +1066,7 @@ app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
 });
 
 // Generate PFX file from certificate and key
-app.post('/api/generate/pfx/*', requireAuth, async (req, res) => {
+app.post('/api/generate/pfx/*', requireAuth, cliRateLimiter, async (req, res) => {
   try {
     // Parse the wildcard path to extract folder and certname
     const fullPath = req.params[0]; // Get the wildcard part

@@ -729,7 +729,71 @@ wget --load-cookies=/tmp/auth-cookies.txt \
 # Should either reject or sanitize the input
 ```
 
-### 3. File Access Security Testing
+### 3. Rate Limiting Security Testing
+```bash
+# Test CLI rate limiting for certificate generation
+echo "Testing CLI rate limiting..."
+
+# Login first to get valid session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/rate-limit-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Test rapid certificate generation (should hit rate limit)
+echo "Attempting rapid certificate generation to test rate limiting..."
+for i in {1..12}; do
+    echo "Request $i:"
+    wget --load-cookies=/tmp/rate-limit-cookies.txt \
+         --post-data="{\"domains\":[\"test$i.local\"],\"format\":\"pem\"}" \
+         --header='Content-Type: application/json' \
+         http://localhost:3000/api/generate \
+         -O /tmp/rate-limit-test-$i.json 2>&1
+    
+    if grep -q "429\|Too many" /tmp/rate-limit-test-$i.json; then
+        echo "✓ Rate limit triggered at request $i"
+        break
+    elif [ $i -gt 10 ]; then
+        echo "⚠ Rate limit may not be working (completed $i requests)"
+    fi
+    sleep 1
+done
+
+# Test API rate limiting for general endpoints
+echo "Testing API rate limiting..."
+for i in {1..25}; do
+    wget --load-cookies=/tmp/rate-limit-cookies.txt \
+         -qO- http://localhost:3000/api/certificates > /tmp/api-rate-$i.json 2>&1
+    
+    if grep -q "429\|Too many" /tmp/api-rate-$i.json; then
+        echo "✓ API rate limit working (triggered at request $i)"
+        break
+    fi
+    
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "Completed $i API requests..."
+    fi
+done
+
+# Test rate limit headers
+echo "Testing rate limit headers..."
+wget --load-cookies=/tmp/rate-limit-cookies.txt \
+     --server-response \
+     http://localhost:3000/api/status \
+     -O /tmp/rate-headers.txt 2>&1
+
+grep -E "X-RateLimit|RateLimit" /tmp/rate-headers.txt && echo "✓ Rate limit headers present"
+
+# Test rate limiting with different IPs (if possible)
+# Note: This is limited in single-machine testing
+echo "✓ Rate limiting tests completed"
+
+# Clean up rate limiting test files
+rm -f /tmp/rate-limit-*.json /tmp/api-rate-*.json /tmp/rate-headers.txt
+```
+
+### 4. File Access Security Testing
 ```bash
 # Try to access files outside certificate directory (should fail)
 wget --load-cookies=/tmp/auth-cookies.txt \
@@ -745,7 +809,7 @@ wget http://localhost:3000/api/download/rootca \
 grep -q "401" /tmp/unauth-download.txt && echo "✓ File download requires authentication"
 ```
 
-### 4. Session Management Security Testing
+### 5. Session Management Security Testing
 ```bash
 # Test concurrent sessions
 # Login from multiple "clients"
