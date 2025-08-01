@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.0] - 2025-08-01
+## [1.4.1] - 2025-08-01
+
+### Added
+- **Rate Limiting Protection**: Comprehensive rate limiting to prevent CLI command abuse
+  - Separate rate limiters for CLI operations (certificate generation, CA management) and API requests
+  - Configurable rate limits with environment variables (CLI: 10 ops/15min, API: 100 req/15min)
+  - Per-user and per-IP rate limiting for authenticated and anonymous users
+  - Protection against automated attacks and resource exhaustion
+- **Rate Limiting Testing**: Comprehensive testing procedures and automated test script
+- **Environment Configuration**: Added rate limiting configuration options to .env.example
+
+### Security
+- **Rate Limiting Protection**: Comprehensive protection against CLI command abuse and automated attacks
+- **Resource Protection**: Prevents excessive CLI operations that could impact server performance
+- **Multi-layer Security**: Combined IP-based and user-based rate limiting for enhanced protection
+
+### Technical
+- Added `express-rate-limit@^7.4.0` dependency for robust rate limiting functionality
+- Enhanced server middleware with configurable rate limiting for different endpoint types
+- Automated test script for validating rate limiting functionality
+
+## [1.4.0]
 
 ### Added
 - **OpenID Connect (OIDC) SSO Authentication**: Full OpenID Connect integration for single sign-on support
@@ -175,7 +196,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v1.2.0**: Complete Docker containerization support
 - **v1.3.0**: PFX generation, improved UI/UX, and enhanced certificate management
 - **v1.4.0**: OpenID Connect SSO authentication and enhanced Root CA management
-- **Current**: Full-featured mkcert Web UI with comprehensive certificate format support and enterprise SSO
+- **v1.4.1**: Rate limiting protection and security enhancements
+- **Current**: Full-featured mkcert Web UI with comprehensive certificate format support, enterprise SSO, and rate limiting protection
 
 ## Contributing
 

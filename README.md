@@ -8,6 +8,7 @@ A modern web interface for managing SSL certificates using the mkcert CLI tool. 
 - **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
 - **🔒 Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect (OIDC)
 - **🏢 Enterprise SSO**: OpenID Connect integration for Azure AD, Google, and other OIDC providers
+- **🛡️ Rate Limiting**: Built-in protection against CLI command abuse and automated attacks
 - **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface
 - **📋 Certificate Management**: View, download, archive, and restore certificates
 - **🎨 Modern UI**: Dark/light themes with responsive design and mobile support
@@ -118,6 +119,12 @@ FORCE_HTTPS=true             # Redirect HTTP to HTTPS
 
 # Certificate Settings
 CERTIFICATE_FORMAT=pem       # Default format: 'pem' or 'crt'
+
+# Rate Limiting Configuration
+CLI_RATE_LIMIT_WINDOW=900000 # CLI operations window in ms (default: 15 minutes)
+CLI_RATE_LIMIT_MAX=10        # Max CLI operations per window (default: 10)
+API_RATE_LIMIT_WINDOW=900000 # API requests window in ms (default: 15 minutes)
+API_RATE_LIMIT_MAX=100       # Max API requests per window (default: 100)
 ```
 
 ### Authentication Setup
@@ -347,6 +354,11 @@ mkcertWeb/
 - **Development Focus**: Designed for local development environments
 - **Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect
 - **Enterprise SSO**: Secure OIDC integration with proper token validation and session management
+- **Rate Limiting Protection**: Built-in protection against CLI command abuse and automated attacks
+  - **CLI Operations**: Limited to 10 operations per 15-minute window (certificate generation, CA management)
+  - **API Requests**: Limited to 100 requests per 15-minute window (general API endpoints)
+  - **Per-User Limiting**: Rate limits applied per IP address and authenticated user
+  - **Configurable Limits**: All rate limits can be adjusted via environment variables
 - **Regular User Execution**: Runs without root privileges (except for `mkcert -install`)
 - **Read-Only Protection**: Root directory certificates cannot be deleted
 - **Session Security**: HTTP-only cookies with CSRF protection and secure OIDC flows
