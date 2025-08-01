@@ -1041,15 +1041,37 @@ app.post('/api/generate/pfx/*', requireAuth, async (req, res) => {
     // Create temporary PFX file
     const tempDir = path.join(__dirname, 'temp');
     await fs.ensureDir(tempDir);
-    const tempPfxPath = path.join(tempDir, `${certName}_${Date.now()}.pfx`);
+    const timestamp = Date.now();
+    const tempPfxPath = path.join(tempDir, `${certName}_${timestamp}.pfx`);
+    const tempPassFile = path.join(tempDir, `pass_${timestamp}.txt`);
     
     try {
-      // Generate PFX using OpenSSL
-      const opensslCmd = password 
-        ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass:"${password}"`
-        : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass:`;
+      // Find the CA certificate file
+      const caCertPath = path.join(CERT_DIR, 'rootCA.pem');
+      const caExists = fs.existsSync(caCertPath);
+      
+      // Generate PFX using OpenSSL with proper password escaping
+      // Use file-based password to avoid shell escaping issues
+      
+      let opensslCmd;
+      if (password) {
+        // Write password to temporary file for secure passing
+        await fs.writeFile(tempPassFile, password);
+        opensslCmd = caExists 
+          ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -certfile "${caCertPath}" -passout file:"${tempPassFile}"`
+          : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout file:"${tempPassFile}"`;
+      } else {
+        opensslCmd = caExists
+          ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -certfile "${caCertPath}" -passout pass:`
+          : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass:`;
+      }
       
       await executeCommand(opensslCmd);
+      
+      // Clean up password file
+      if (password && fs.existsSync(tempPassFile)) {
+        fs.unlinkSync(tempPassFile);
+      }
       
       // Check if PFX file was created
       if (!fs.existsSync(tempPfxPath)) {
@@ -1082,9 +1104,12 @@ app.post('/api/generate/pfx/*', requireAuth, async (req, res) => {
       });
       
     } catch (error) {
-      // Clean up temp file on error
+      // Clean up temp files on error
       if (fs.existsSync(tempPfxPath)) {
         fs.unlinkSync(tempPfxPath);
+      }
+      if (fs.existsSync(tempPassFile)) {
+        fs.unlinkSync(tempPassFile);
       }
       throw error;
     }
