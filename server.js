@@ -330,19 +330,6 @@ app.get('/api/status', requireAuth, async (req, res) => {
       } catch (generateError) {
         console.error('Failed to auto-generate Root CA:', generateError.message);
       }
-    } else {
-      // If CA exists, ensure it's available in public area for download
-      try {
-        const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
-        const publicCAExists = await fs.pathExists(publicCACertPath);
-        
-        if (!publicCAExists) {
-          await fs.copy(caCertPath, publicCACertPath);
-          console.log('Existing Root CA copied to public certificates directory for download access');
-        }
-      } catch (copyError) {
-        console.error('Failed to copy existing Root CA to public area:', copyError.message);
-      }
     }
     
     // Check if OpenSSL is available
@@ -421,7 +408,7 @@ app.post('/api/generate-ca', requireAuth, async (req, res) => {
     const caExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
 
     if (caExists) {
-      // Even if CA exists, ensure it's available in the public area for download
+      // Even if CA exists, ensure it's available in the public area for download (only if not already there)
       try {
         const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
         const publicCAExists = await fs.pathExists(publicCACertPath);
@@ -822,6 +809,11 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
       
       // Skip archived certificates - they shouldn't appear in the main list
       if (isArchived) {
+        continue;
+      }
+      
+      // Skip Root CA certificate - it's available for download from the header area
+      if (certName === 'mkcert-rootCA' || certFileInfo.name === 'mkcert-rootCA.pem') {
         continue;
       }
       
