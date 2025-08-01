@@ -36,7 +36,9 @@
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-session": "^1.17.3",
-    "fs-extra": "^11.2.0"
+    "fs-extra": "^11.2.0",
+    "passport": "^0.7.0",
+    "passport-openidconnect": "^0.1.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
