@@ -439,7 +439,7 @@ function displayCertificates(certificates) {
 
         // Format folder display
         const folderDisplay = cert.folder === 'root' ? 'Root folder' : cert.folder;
-        const folderParam = cert.folder === 'root' ? 'root' : cert.folder.replace(/\//g, '_'); // encode slashes as underscores
+        const folderParam = cert.folder === 'root' ? 'root' : encodeURIComponent(cert.folder); // URL encode the folder path
         const isRootCert = cert.folder === 'root';
         const isArchived = cert.isArchived || false;
         
@@ -536,9 +536,9 @@ async function archiveCertificate(folder, certName) {
         return;
     }
     try {
-        // Encode folder slashes as underscores for backend
-        const folderParam = folder.replace(/\//g, '_');
-        const endpoint = '/certificates/' + encodeURIComponent(folderParam) + '/' + encodeURIComponent(certName) + '/archive';
+        // Encode folder for URL path
+        const folderParam = encodeURIComponent(folder);
+        const endpoint = '/certificates/' + folderParam + '/' + encodeURIComponent(certName) + '/archive';
         await apiRequest(endpoint, {
             method: 'POST'
         });
@@ -564,9 +564,9 @@ async function restoreCertificate(folder, certName) {
         return;
     }
     try {
-        // Encode folder slashes as underscores for backend
-        const folderParam = folder.replace(/\//g, '_');
-        const endpoint = '/certificates/' + encodeURIComponent(folderParam) + '/' + encodeURIComponent(certName) + '/restore';
+        // Encode folder for URL path
+        const folderParam = encodeURIComponent(folder);
+        const endpoint = '/certificates/' + folderParam + '/' + encodeURIComponent(certName) + '/restore';
         await apiRequest(endpoint, {
             method: 'POST'
         });

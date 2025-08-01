@@ -729,7 +729,7 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
 
 // Download certificate file
 app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
   
@@ -750,7 +750,7 @@ app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
 
 // Download key file
 app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
   
@@ -771,7 +771,7 @@ app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
 
 // Download both cert and key as zip
 app.get('/api/download/bundle/:folder/:certname', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const certName = req.params.certname;
   
   // Try both formats
@@ -896,7 +896,7 @@ app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
 // Archive certificate (instead of deleting)
 app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Protect root directory certificates from archiving
@@ -971,7 +971,7 @@ app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req,
 // Restore certificate from archive
 app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Source folder paths
@@ -1053,7 +1053,7 @@ app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req,
 // Delete certificate permanently from archive
 app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Only allow deletion from archive folders
