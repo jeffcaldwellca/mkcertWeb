@@ -689,7 +689,117 @@ section h2::before {
     background: var(--error-color);
     color: white;
     font-weight: 700;
-    box-shadow: 0 0 10px var(--glow-secondary);
+    border: 1px solid var(--error-color);
+}
+
+.btn-danger:hover {
+    background: var(--error-color);
+    filter: brightness(0.9);
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+    color: white;
+}
+
+/* Logout button specific styling */
+.btn-logout {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--secondary-color);
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.btn-logout:hover {
+    background: var(--error-color);
+    border-color: var(--error-color);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 0, 0, 0.2);
+}
+
+/* Theme-specific logout button styles */
+[data-theme="dark"] .btn-logout {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--secondary-color);
+}
+
+[data-theme="dark"] .btn-logout:hover {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+[data-theme="light"] .btn-logout {
+    background: transparent;
+    border: 1px solid #ddd;
+    color: #6c757d;
+}
+
+[data-theme="light"] .btn-logout:hover {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: white;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+/* Refresh button specific styling */
+.btn-refresh {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.btn-refresh:hover {
+    background: rgba(var(--primary-color-rgb), 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.btn-refresh .fas {
+    margin-right: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.btn-refresh:hover .fas {
+    transform: rotate(180deg);
+}
+
+/* Theme-specific refresh button styles */
+[data-theme="dark"] .btn-refresh {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+}
+
+[data-theme="dark"] .btn-refresh:hover {
+    background: rgba(64, 224, 208, 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(64, 224, 208, 0.2);
+}
+
+[data-theme="light"] .btn-refresh {
+    background: transparent;
+    border: 1px solid #ddd;
+    color: #198754;
+}
+
+[data-theme="light"] .btn-refresh:hover {
+    background: rgba(25, 135, 84, 0.1);
+    border-color: #198754;
+    color: #198754;
+    box-shadow: 0 2px 8px rgba(25, 135, 84, 0.2);
 }
 
 .btn-danger:hover {
@@ -897,6 +1007,85 @@ section h2::before {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-weight: 600;
+}
+
+/* Root CA specific styles */
+.certificate-card.root-ca-certificate {
+    border-color: var(--success-color);
+    background: rgba(74, 222, 128, 0.05);
+    position: relative;
+}
+
+.certificate-card.root-ca-certificate:hover {
+    border-color: var(--success-color);
+    box-shadow: 0 2px 12px rgba(74, 222, 128, 0.2);
+    transform: translateY(-1px);
+}
+
+.certificate-card.root-ca-certificate::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--success-color), #22c55e);
+    border-radius: 8px 8px 0 0;
+}
+
+.root-ca-badge {
+    background: linear-gradient(135deg, var(--success-color) 0%, #22c55e 100%);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-shadow: 0 0 3px rgba(74, 222, 128, 0.5);
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+}
+
+.root-ca-title {
+    color: var(--success-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+.root-ca-description {
+    background: rgba(74, 222, 128, 0.05);
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 0.75rem 0;
+}
+
+.root-ca-description h4 {
+    color: var(--success-color);
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.root-ca-description p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
+}
+
+.root-ca-description p:last-child {
+    margin-bottom: 0;
+}
+
+@keyframes pulse-glow {
+    0% { 
+        box-shadow: 0 0 5px rgba(74, 222, 128, 0.5);
+    }
+    100% { 
+        box-shadow: 0 0 15px rgba(74, 222, 128, 0.8);
+    }
 }
 
 .format-badge {

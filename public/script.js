@@ -448,19 +448,23 @@ function displayCertificates(certificates) {
         const folderParam = cert.folder === 'root' ? 'root' : encodeURIComponent(cert.folder); // URL encode the folder path
         const isRootCert = cert.folder === 'root';
         const isArchived = cert.isArchived || false;
+        const isRootCA = cert.name === 'mkcert-rootCA' || cert.certFile === 'mkcert-rootCA.pem';
         
         return '<div class="certificate-card ' + 
                (cert.isExpired ? 'certificate-expired' : '') + ' ' +
                (isRootCert ? 'root-certificate' : '') + ' ' +
+               (isRootCA ? 'root-ca-certificate' : '') + ' ' +
                (isArchived ? 'archived-certificate' : '') + '">' +
                '<div class="certificate-header">' +
                '<div class="certificate-name">' +
-               '<i class="fas fa-certificate"></i> ' + cert.name +
+               '<i class="fas fa-' + (isRootCA ? 'shield-alt' : 'certificate') + '"></i> ' + cert.name +
+               (isRootCA ? ' <span class="root-ca-title">(Root Certificate Authority)</span>' : '') +
                '</div>' +
                '<div class="certificate-badges">' +
                formatBadge +
                (cert.isExpired ? '<span class="expired-badge">EXPIRED</span>' : '') +
-               (isRootCert ? '<span class="read-only-badge">READ-ONLY</span>' : '') +
+               (isRootCA ? '<span class="root-ca-badge">ROOT CA</span>' : '') +
+               (isRootCert && !isRootCA ? '<span class="read-only-badge">READ-ONLY</span>' : '') +
                (isArchived ? '<span class="archived-badge">ARCHIVED</span>' : '') +
                '</div>' +
                '</div>' +
@@ -474,6 +478,12 @@ function displayCertificates(certificates) {
                '<div><strong>File Size:</strong><br>' + formatFileSize(cert.size) + '</div>' +
                '<div><strong>Status:</strong><br>' + (isArchived ? 'Archived' : 'Active') + '</div>' +
                '</div>' +
+               (isRootCA ? 
+                '<div class="root-ca-description">' +
+                '<h4><i class="fas fa-info-circle"></i> Root Certificate Authority</h4>' +
+                '<p>This is your mkcert Root CA certificate. Install this certificate in your system\'s trust store to enable local HTTPS development with automatically trusted certificates.</p>' +
+                '<p><strong>Installation:</strong> Download and install this certificate to trust all mkcert-generated certificates on this system.</p>' +
+                '</div>' : '') +
                '<div class="certificate-actions">' +
                '<button onclick="downloadCert(\'' + folderParam + '\', \'' + cert.certFile + '\')" ' +
                'class="btn btn-success btn-small">' +
@@ -661,20 +671,34 @@ async function handleGenerateCA() {
                 // Force reload the entire system status and CA information
                 await loadSystemStatus();
                 
-                // Show a more detailed success message
-                showAlert(
+                // Show a more detailed success message with copy information
+                let successMessage = 
                     '<strong>Root CA Generated Successfully!</strong><br>' +
                     'Your new Root Certificate Authority is now ready to generate SSL certificates.<br>' +
-                    '<em>CA Root Path:</em> ' + (result.caRoot || 'Default location') +
-                    (result.caInfo && result.caInfo.expiry ? '<br><em>Valid Until:</em> ' + new Date(result.caInfo.expiry).toLocaleDateString() : ''),
-                    'success'
-                );
+                    '<em>CA Root Path:</em> ' + (result.caRoot || 'Default location');
+                
+                if (result.caCopiedToPublic) {
+                    successMessage += '<br><strong>✓ CA Certificate copied to public download area</strong><br>' +
+                        '<em>Available for download in the certificates list</em>';
+                }
+                
+                if (result.caInfo && result.caInfo.expiry) {
+                    successMessage += '<br><em>Valid Until:</em> ' + new Date(result.caInfo.expiry).toLocaleDateString();
+                }
+                
+                showAlert(successMessage, 'success');
                 
                 // Scroll to the Root CA section to show the new information
                 const rootCASection = document.getElementById('rootca-section');
                 if (rootCASection) {
                     rootCASection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+                
+                // Also refresh the certificates list to show the public CA copy
+                setTimeout(() => {
+                    loadCertificates();
+                }, 500);
+                
             }, 1000); // 1 second delay to ensure backend processing is complete
             
         } else {
