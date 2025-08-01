@@ -5,17 +5,17 @@ A modern web interface for managing SSL certificates using the mkcert CLI tool. 
 ## ✨ Features
 
 - **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
-- **� Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
+- **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
 - **🔒 Optional Authentication**: Secure access with configurable user authentication
 - **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface
 - **📋 Certificate Management**: View, download, archive, and restore certificates
 - **🎨 Modern UI**: Dark/light themes with responsive design and mobile support
-- **� Docker Support**: Complete containerization with docker-compose deployment
+- **🐳 Docker Support**: Complete containerization with docker-compose deployment
 - **🔑 Root CA Management**: Install, view, and download the mkcert Certificate Authority
 - **📊 Certificate Details**: Comprehensive information including expiry tracking
 - **🔄 Automatic Organization**: Timestamp-based folder structure for easy management
 
-## � Quick Start with Docker
+## 🚀 Quick Start with Docker
 
 The fastest way to get started is using Docker:
 
@@ -35,7 +35,7 @@ open http://localhost:3000
 
 For local installation without Docker, you'll need Node.js 16+, mkcert, and OpenSSL. See [Installation Guide](#-installation) below for detailed setup instructions.
 
-## � Screenshot
+## 📸 Screenshot
 
 ![mkcert Web UI Screenshot](public/assets/screenshot.png)
 
