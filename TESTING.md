@@ -313,6 +313,173 @@ SERVER_PID=$!
 sleep 3
 ```
 
+## OpenID Connect (OIDC) SSO Testing
+
+**Note**: OIDC testing requires a configured OIDC provider. For development/testing purposes, you can use a public OIDC test provider or set up a local identity server.
+
+### 1. OIDC Configuration Testing
+```bash
+# Create OIDC test configuration
+cat > .env.oidc << 'EOF'
+# Copy existing configuration
+ENABLE_AUTH=true
+ENABLE_OIDC=true
+
+# Test OIDC Configuration (example with a test provider)
+OIDC_ISSUER=https://demo.identityserver.io
+OIDC_CLIENT_ID=interactive.public
+OIDC_CLIENT_SECRET=
+OIDC_CALLBACK_URL=http://localhost:3000/auth/oidc/callback
+OIDC_SCOPE=openid profile email
+EOF
+
+# Backup current configuration
+cp .env .env.backup
+
+# Apply OIDC configuration
+cp .env.oidc .env
+
+# Restart server with OIDC enabled
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 5
+```
+
+### 2. OIDC Provider Discovery Testing
+```bash
+# Test OIDC configuration endpoint
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Expected output should include:
+# {
+#   "authEnabled": true,
+#   "oidcEnabled": true,
+#   "authenticated": false
+# }
+
+# Verify OIDC provider discovery is working
+# (Check server logs for successful OIDC provider initialization)
+echo "Check server logs for OIDC provider initialization..."
+```
+
+### 3. OIDC Authentication Flow Testing
+```bash
+# Test OIDC login initiation
+# This should redirect to the OIDC provider
+wget --max-redirect=0 http://localhost:3000/auth/oidc 2>&1 | grep -q "302\|Location" && echo "✓ OIDC login initiation redirects properly"
+
+# Test OIDC callback endpoint exists
+wget --spider http://localhost:3000/auth/oidc/callback 2>&1 | grep -q "200\|404" && echo "✓ OIDC callback endpoint accessible"
+```
+
+### 4. OIDC Login Page Integration Testing
+```bash
+# Test that login page includes OIDC option when enabled
+wget -qO- http://localhost:3000/login | grep -qi "sso\|oidc\|sign.*with" && echo "✓ Login page includes OIDC option"
+
+# Test login page loads properly with OIDC enabled
+wget -qO- http://localhost:3000/login | grep -q "<title>" && echo "✓ Login page loads with OIDC enabled"
+```
+
+### 5. OIDC Configuration Validation Testing
+```bash
+# Test with missing OIDC configuration
+cat > .env.oidc-invalid << 'EOF'
+ENABLE_AUTH=true
+ENABLE_OIDC=true
+# Missing required OIDC settings
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+EOF
+
+cp .env.oidc-invalid .env
+
+# Restart and check that server handles missing config gracefully
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+
+# Check that app still works with invalid OIDC config
+wget -qO- http://localhost:3000/api/auth/status | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print('✓ Server handles invalid OIDC config gracefully')
+    print('Auth enabled:', data.get('authEnabled', False))
+    print('OIDC enabled:', data.get('oidcEnabled', False))
+except:
+    print('✗ Server error with invalid OIDC config')
+"
+```
+
+### 6. Dual Authentication Testing
+```bash
+# Test both basic auth and OIDC enabled simultaneously
+cat > .env.dual-auth << 'EOF'
+ENABLE_AUTH=true
+USERNAME=admin
+PASSWORD=admin123
+ENABLE_OIDC=true
+OIDC_ISSUER=https://demo.identityserver.io
+OIDC_CLIENT_ID=interactive.public
+OIDC_CLIENT_SECRET=
+OIDC_CALLBACK_URL=http://localhost:3000/auth/oidc/callback
+OIDC_SCOPE=openid profile email
+EOF
+
+cp .env.dual-auth .env
+
+# Restart server
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 5
+
+# Test that basic auth still works
+wget --post-data='{"username":"admin","password":"admin123"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/basic-auth-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/basic-auth-response.json
+
+cat /tmp/basic-auth-response.json | python3 -m json.tool
+
+# Test that login page shows both options
+wget -qO- http://localhost:3000/login | grep -qi "username\|password" && echo "✓ Basic auth form present"
+wget -qO- http://localhost:3000/login | grep -qi "sso\|oidc\|sign.*with" && echo "✓ OIDC option present"
+```
+
+### 7. OIDC Cleanup Testing
+```bash
+# Restore original configuration
+cp .env.backup .env
+
+# Restart server with original settings
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+
+# Verify basic auth still works
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Clean up test files
+rm -f .env.oidc .env.oidc-invalid .env.dual-auth .env.backup
+rm -f /tmp/basic-auth-*.json /tmp/basic-auth-cookies.txt
+
+echo "✓ OIDC testing completed and cleaned up"
+```
+
+**Manual OIDC Testing Notes:**
+- Complete OIDC authentication flow requires manual browser testing with a real OIDC provider
+- Test with Azure AD, Google, or other OIDC providers in your organization
+- Verify that user profile information is correctly extracted from OIDC tokens
+- Test OIDC logout and session management
+- Verify OIDC token refresh if implemented
+
 ## Functional Testing Using Built-in Tools
 
 ### 1. System Status API Testing
@@ -562,7 +729,71 @@ wget --load-cookies=/tmp/auth-cookies.txt \
 # Should either reject or sanitize the input
 ```
 
-### 3. File Access Security Testing
+### 3. Rate Limiting Security Testing
+```bash
+# Test CLI rate limiting for certificate generation
+echo "Testing CLI rate limiting..."
+
+# Login first to get valid session
+wget --post-data='{"username":"admin","password":"admin"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/rate-limit-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/temp.json
+
+# Test rapid certificate generation (should hit rate limit)
+echo "Attempting rapid certificate generation to test rate limiting..."
+for i in {1..12}; do
+    echo "Request $i:"
+    wget --load-cookies=/tmp/rate-limit-cookies.txt \
+         --post-data="{\"domains\":[\"test$i.local\"],\"format\":\"pem\"}" \
+         --header='Content-Type: application/json' \
+         http://localhost:3000/api/generate \
+         -O /tmp/rate-limit-test-$i.json 2>&1
+    
+    if grep -q "429\|Too many" /tmp/rate-limit-test-$i.json; then
+        echo "✓ Rate limit triggered at request $i"
+        break
+    elif [ $i -gt 10 ]; then
+        echo "⚠ Rate limit may not be working (completed $i requests)"
+    fi
+    sleep 1
+done
+
+# Test API rate limiting for general endpoints
+echo "Testing API rate limiting..."
+for i in {1..25}; do
+    wget --load-cookies=/tmp/rate-limit-cookies.txt \
+         -qO- http://localhost:3000/api/certificates > /tmp/api-rate-$i.json 2>&1
+    
+    if grep -q "429\|Too many" /tmp/api-rate-$i.json; then
+        echo "✓ API rate limit working (triggered at request $i)"
+        break
+    fi
+    
+    if [ $((i % 10)) -eq 0 ]; then
+        echo "Completed $i API requests..."
+    fi
+done
+
+# Test rate limit headers
+echo "Testing rate limit headers..."
+wget --load-cookies=/tmp/rate-limit-cookies.txt \
+     --server-response \
+     http://localhost:3000/api/status \
+     -O /tmp/rate-headers.txt 2>&1
+
+grep -E "X-RateLimit|RateLimit" /tmp/rate-headers.txt && echo "✓ Rate limit headers present"
+
+# Test rate limiting with different IPs (if possible)
+# Note: This is limited in single-machine testing
+echo "✓ Rate limiting tests completed"
+
+# Clean up rate limiting test files
+rm -f /tmp/rate-limit-*.json /tmp/api-rate-*.json /tmp/rate-headers.txt
+```
+
+### 4. File Access Security Testing
 ```bash
 # Try to access files outside certificate directory (should fail)
 wget --load-cookies=/tmp/auth-cookies.txt \
@@ -578,7 +809,7 @@ wget http://localhost:3000/api/download/rootca \
 grep -q "401" /tmp/unauth-download.txt && echo "✓ File download requires authentication"
 ```
 
-### 4. Session Management Security Testing
+### 5. Session Management Security Testing
 ```bash
 # Test concurrent sessions
 # Login from multiple "clients"

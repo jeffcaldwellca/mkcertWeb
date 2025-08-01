@@ -6,7 +6,9 @@ A modern web interface for managing SSL certificates using the mkcert CLI tool. 
 
 - **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
 - **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
-- **🔒 Optional Authentication**: Secure access with configurable user authentication
+- **🔒 Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect (OIDC)
+- **🏢 Enterprise SSO**: OpenID Connect integration for Azure AD, Google, and other OIDC providers
+- **🛡️ Rate Limiting**: Built-in protection against CLI command abuse and automated attacks
 - **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface
 - **📋 Certificate Management**: View, download, archive, and restore certificates
 - **🎨 Modern UI**: Dark/light themes with responsive design and mobile support
@@ -95,10 +97,18 @@ npm start
 Configure the application using a `.env` file (see `.env.example`) or environment variables:
 
 ```bash
-# Authentication
+# Authentication Configuration
 ENABLE_AUTH=true             # Enable user authentication (default: true)
-USERNAME=admin               # Username for authentication  
-PASSWORD=admin123            # Password for authentication
+USERNAME=admin               # Username for basic authentication  
+PASSWORD=admin123            # Password for basic authentication
+
+# OpenID Connect (OIDC) SSO Authentication
+ENABLE_OIDC=false            # Enable OIDC SSO authentication (default: false)
+OIDC_ISSUER=                 # OIDC provider issuer URL
+OIDC_CLIENT_ID=              # OIDC client application ID
+OIDC_CLIENT_SECRET=          # OIDC client secret
+OIDC_CALLBACK_URL=           # OIDC callback URL (auto-configured)
+OIDC_SCOPE=openid profile email  # OIDC scopes to request
 
 # Server Configuration
 PORT=3000                    # HTTP server port
@@ -109,7 +119,42 @@ FORCE_HTTPS=true             # Redirect HTTP to HTTPS
 
 # Certificate Settings
 CERTIFICATE_FORMAT=pem       # Default format: 'pem' or 'crt'
+
+# Rate Limiting Configuration
+CLI_RATE_LIMIT_WINDOW=900000 # CLI operations window in ms (default: 15 minutes)
+CLI_RATE_LIMIT_MAX=10        # Max CLI operations per window (default: 10)
+API_RATE_LIMIT_WINDOW=900000 # API requests window in ms (default: 15 minutes)
+API_RATE_LIMIT_MAX=100       # Max API requests per window (default: 100)
 ```
+
+### Authentication Setup
+
+The application supports two authentication methods that can be used together or independently:
+
+#### Basic Authentication (Default)
+```bash
+ENABLE_AUTH=true
+USERNAME=admin
+PASSWORD=your-secure-password
+```
+
+#### Enterprise SSO with OpenID Connect
+```bash
+# Enable OIDC alongside basic auth
+ENABLE_OIDC=true
+OIDC_ISSUER=https://login.microsoftonline.com/your-tenant-id/v2.0
+OIDC_CLIENT_ID=your-azure-app-id
+OIDC_CLIENT_SECRET=your-client-secret
+```
+
+**Supported OIDC Providers:**
+- Microsoft Azure AD / Entra ID
+- Google Workspace
+- Okta
+- Auth0
+- Any OpenID Connect compliant provider
+
+For detailed OIDC setup instructions, see the `.env.example` file.
 
 ### HTTPS Setup
 
@@ -138,7 +183,9 @@ For production deployments, consider using Docker or see [DOCKER.md](DOCKER.md) 
 
 1. **System Check**: The web interface automatically verifies mkcert and OpenSSL installation
 2. **Root CA Installation**: Install the mkcert root CA if prompted (`mkcert -install`)
-3. **Authentication**: Log in with configured credentials (default: admin/admin123)
+3. **Authentication**: Choose your authentication method:
+   - **Basic Auth**: Log in with configured credentials (default: admin/admin123)
+   - **OIDC SSO**: Use your organization's single sign-on when OIDC is configured
 
 ### 🔐 Certificate Generation
 
@@ -301,13 +348,22 @@ mkcertWeb/
 
 ## Security & Best Practices
 
+## Security & Best Practices
+
 ### Security Model
 - **Development Focus**: Designed for local development environments
-- **Optional Authentication**: Configurable user authentication with session management
+- **Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect
+- **Enterprise SSO**: Secure OIDC integration with proper token validation and session management
+- **Rate Limiting Protection**: Built-in protection against CLI command abuse and automated attacks
+  - **CLI Operations**: Limited to 10 operations per 15-minute window (certificate generation, CA management)
+  - **API Requests**: Limited to 100 requests per 15-minute window (general API endpoints)
+  - **Per-User Limiting**: Rate limits applied per IP address and authenticated user
+  - **Configurable Limits**: All rate limits can be adjusted via environment variables
 - **Regular User Execution**: Runs without root privileges (except for `mkcert -install`)
 - **Read-Only Protection**: Root directory certificates cannot be deleted
-- **Session Security**: HTTP-only cookies with CSRF protection
+- **Session Security**: HTTP-only cookies with CSRF protection and secure OIDC flows
 - **Organized Storage**: Timestamp-based folders prevent conflicts
+- **Provider Security**: OIDC callback validation and secure provider configuration
 
 ### Network Security
 - **HTTP Only**: Suitable for localhost development (consider HTTPS proxy for production)
@@ -346,8 +402,10 @@ SSL_DOMAIN=myapp.local npm run https
 See `TESTING.md` for comprehensive testing procedures including:
 - Installation verification
 - Certificate generation testing
+- Authentication testing (both basic and OIDC)
 - API endpoint validation
 - Security testing
+- OIDC SSO integration testing
 - Browser integration testing
 
 ## Configuration
