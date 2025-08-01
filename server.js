@@ -498,18 +498,23 @@ app.post('/api/generate', requireAuth, async (req, res) => {
       });
     }
 
-    // Create organized subfolder with timestamp
+    // Create organized subfolder with clean naming
     const now = new Date();
-    const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-'); // YYYY-MM-DDTHH-MM-SS
     const dateFolder = now.toISOString().slice(0, 10); // YYYY-MM-DD
     
-    // Sanitize domain names for filename
-    const sanitizedDomains = domains.map(domain => domain.replace(/[^\w.-]/g, '_'));
-    const certName = sanitizedDomains.join('_');
+    // Sanitize domain names for folder name - keep it clean and readable
+    const sanitizedDomains = domains.map(domain => {
+      // Remove protocol if present
+      let cleanDomain = domain.replace(/^https?:\/\//, '');
+      // Replace wildcards and special chars with underscores
+      return cleanDomain.replace(/[^\w.-]/g, '_').replace(/^_+|_+$/g, '');
+    });
     
-    // Create subfolder: certificates/YYYY-MM-DD/YYYY-MM-DDTHH-MM-SS_domainname/
-    const subfolderName = `${timestamp}_${certName}`;
-    const certSubDir = path.join(CERT_DIR, dateFolder, subfolderName);
+    // Create folder name from domains
+    const folderName = sanitizedDomains.join('_');
+    
+    // Create subfolder: certificates/YYYY-MM-DD/domain_names/
+    const certSubDir = path.join(CERT_DIR, dateFolder, folderName);
     
     // Ensure subfolder exists
     await fs.ensureDir(certSubDir);
@@ -517,6 +522,9 @@ app.post('/api/generate', requireAuth, async (req, res) => {
     // Set file extensions based on format
     const certExt = format === 'crt' ? '.crt' : '.pem';
     const keyExt = format === 'crt' ? '.key' : '-key.pem';
+    
+    // Use clean cert name (same as folder name for consistency)
+    const certName = folderName;
     
     const certPath = path.join(certSubDir, `${certName}${certExt}`);
     const keyPath = path.join(certSubDir, `${certName}${keyExt}`);
@@ -537,7 +545,7 @@ app.post('/api/generate', requireAuth, async (req, res) => {
         message: 'Certificate generated successfully',
         certFile: `${certName}${certExt}`,
         keyFile: `${certName}${keyExt}`,
-        folder: `${dateFolder}/${subfolderName}`,
+        folder: `${dateFolder}/${folderName}`,
         format,
         domains,
         output: result.stdout
@@ -679,6 +687,11 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
       // Check if certificate is archived
       const isArchived = certFileInfo.directory.includes('archive');
       
+      // Skip archived certificates - they shouldn't appear in the main list
+      if (isArchived) {
+        continue;
+      }
+      
       // Create unique identifier that includes folder structure
       const uniqueName = certFileInfo.directory ? 
         `${certFileInfo.directory.replace(/[/\\]/g, '_')}_${certName}` : 
@@ -698,7 +711,7 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
         isExpired,
         domains,
         format,
-        isArchived
+        isArchived: false // Always false since we're filtering out archived ones
       });
     }
     
@@ -716,7 +729,7 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
 
 // Download certificate file
 app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
   
@@ -727,12 +740,17 @@ app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
     });
   }
   
+  // Set proper headers for download
+  res.setHeader('Content-Type', 'application/x-pem-file');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-cache');
+  
   res.download(filePath, filename);
 });
 
 // Download key file
 app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const filename = req.params.filename;
   const filePath = path.join(CERT_DIR, folder, filename);
   
@@ -743,12 +761,17 @@ app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
     });
   }
   
+  // Set proper headers for download
+  res.setHeader('Content-Type', 'application/x-pem-file');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-cache');
+  
   res.download(filePath, filename);
 });
 
 // Download both cert and key as zip
 app.get('/api/download/bundle/:folder/:certname', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
   const certName = req.params.certname;
   
   // Try both formats
@@ -873,7 +896,7 @@ app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
 // Archive certificate (instead of deleting)
 app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Protect root directory certificates from archiving
@@ -948,7 +971,7 @@ app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req,
 // Restore certificate from archive
 app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Source folder paths
@@ -1030,7 +1053,7 @@ app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req,
 // Delete certificate permanently from archive
 app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : req.params.folder.replace(/_/g, '/');
+    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
     const certName = req.params.certname;
     
     // Only allow deletion from archive folders
@@ -1113,11 +1136,6 @@ app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
       error: error.message
     });
   }
-});
-
-// Serve the main page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Error handling middleware

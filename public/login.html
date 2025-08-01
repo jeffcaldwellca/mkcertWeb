@@ -47,7 +47,7 @@
 
     <script>
         // Theme management for login page
-        let currentTheme = localStorage.getItem('theme'); // Don't set default here
+        let currentTheme = localStorage.getItem('theme');
         let themeToggle = document.getElementById('theme-toggle');
 
         async function initializeTheme() {
@@ -77,14 +77,14 @@
         function updateThemeToggleButton() {
             if (themeToggle) {
                 const icon = themeToggle.querySelector('i');
-                const text = themeToggle.childNodes[themeToggle.childNodes.length - 1];
+                const textNode = themeToggle.childNodes[themeToggle.childNodes.length - 1];
                 
                 if (currentTheme === 'dark') {
                     icon.className = 'fas fa-sun';
-                    text.textContent = ' Light Mode';
+                    textNode.textContent = ' Light Mode';
                 } else {
                     icon.className = 'fas fa-moon';
-                    text.textContent = ' Dark Mode';
+                    textNode.textContent = ' Dark Mode';
                 }
             }
         }
