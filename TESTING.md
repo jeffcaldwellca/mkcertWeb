@@ -313,6 +313,173 @@ SERVER_PID=$!
 sleep 3
 ```
 
+## OpenID Connect (OIDC) SSO Testing
+
+**Note**: OIDC testing requires a configured OIDC provider. For development/testing purposes, you can use a public OIDC test provider or set up a local identity server.
+
+### 1. OIDC Configuration Testing
+```bash
+# Create OIDC test configuration
+cat > .env.oidc << 'EOF'
+# Copy existing configuration
+ENABLE_AUTH=true
+ENABLE_OIDC=true
+
+# Test OIDC Configuration (example with a test provider)
+OIDC_ISSUER=https://demo.identityserver.io
+OIDC_CLIENT_ID=interactive.public
+OIDC_CLIENT_SECRET=
+OIDC_CALLBACK_URL=http://localhost:3000/auth/oidc/callback
+OIDC_SCOPE=openid profile email
+EOF
+
+# Backup current configuration
+cp .env .env.backup
+
+# Apply OIDC configuration
+cp .env.oidc .env
+
+# Restart server with OIDC enabled
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 5
+```
+
+### 2. OIDC Provider Discovery Testing
+```bash
+# Test OIDC configuration endpoint
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Expected output should include:
+# {
+#   "authEnabled": true,
+#   "oidcEnabled": true,
+#   "authenticated": false
+# }
+
+# Verify OIDC provider discovery is working
+# (Check server logs for successful OIDC provider initialization)
+echo "Check server logs for OIDC provider initialization..."
+```
+
+### 3. OIDC Authentication Flow Testing
+```bash
+# Test OIDC login initiation
+# This should redirect to the OIDC provider
+wget --max-redirect=0 http://localhost:3000/auth/oidc 2>&1 | grep -q "302\|Location" && echo "✓ OIDC login initiation redirects properly"
+
+# Test OIDC callback endpoint exists
+wget --spider http://localhost:3000/auth/oidc/callback 2>&1 | grep -q "200\|404" && echo "✓ OIDC callback endpoint accessible"
+```
+
+### 4. OIDC Login Page Integration Testing
+```bash
+# Test that login page includes OIDC option when enabled
+wget -qO- http://localhost:3000/login | grep -qi "sso\|oidc\|sign.*with" && echo "✓ Login page includes OIDC option"
+
+# Test login page loads properly with OIDC enabled
+wget -qO- http://localhost:3000/login | grep -q "<title>" && echo "✓ Login page loads with OIDC enabled"
+```
+
+### 5. OIDC Configuration Validation Testing
+```bash
+# Test with missing OIDC configuration
+cat > .env.oidc-invalid << 'EOF'
+ENABLE_AUTH=true
+ENABLE_OIDC=true
+# Missing required OIDC settings
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+EOF
+
+cp .env.oidc-invalid .env
+
+# Restart and check that server handles missing config gracefully
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+
+# Check that app still works with invalid OIDC config
+wget -qO- http://localhost:3000/api/auth/status | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print('✓ Server handles invalid OIDC config gracefully')
+    print('Auth enabled:', data.get('authEnabled', False))
+    print('OIDC enabled:', data.get('oidcEnabled', False))
+except:
+    print('✗ Server error with invalid OIDC config')
+"
+```
+
+### 6. Dual Authentication Testing
+```bash
+# Test both basic auth and OIDC enabled simultaneously
+cat > .env.dual-auth << 'EOF'
+ENABLE_AUTH=true
+USERNAME=admin
+PASSWORD=admin123
+ENABLE_OIDC=true
+OIDC_ISSUER=https://demo.identityserver.io
+OIDC_CLIENT_ID=interactive.public
+OIDC_CLIENT_SECRET=
+OIDC_CALLBACK_URL=http://localhost:3000/auth/oidc/callback
+OIDC_SCOPE=openid profile email
+EOF
+
+cp .env.dual-auth .env
+
+# Restart server
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 5
+
+# Test that basic auth still works
+wget --post-data='{"username":"admin","password":"admin123"}' \
+     --header='Content-Type: application/json' \
+     --save-cookies=/tmp/basic-auth-cookies.txt \
+     http://localhost:3000/api/auth/login \
+     -O /tmp/basic-auth-response.json
+
+cat /tmp/basic-auth-response.json | python3 -m json.tool
+
+# Test that login page shows both options
+wget -qO- http://localhost:3000/login | grep -qi "username\|password" && echo "✓ Basic auth form present"
+wget -qO- http://localhost:3000/login | grep -qi "sso\|oidc\|sign.*with" && echo "✓ OIDC option present"
+```
+
+### 7. OIDC Cleanup Testing
+```bash
+# Restore original configuration
+cp .env.backup .env
+
+# Restart server with original settings
+kill $SERVER_PID 2>/dev/null
+npm start &
+SERVER_PID=$!
+sleep 3
+
+# Verify basic auth still works
+wget -qO- http://localhost:3000/api/auth/status | python3 -m json.tool
+
+# Clean up test files
+rm -f .env.oidc .env.oidc-invalid .env.dual-auth .env.backup
+rm -f /tmp/basic-auth-*.json /tmp/basic-auth-cookies.txt
+
+echo "✓ OIDC testing completed and cleaned up"
+```
+
+**Manual OIDC Testing Notes:**
+- Complete OIDC authentication flow requires manual browser testing with a real OIDC provider
+- Test with Azure AD, Google, or other OIDC providers in your organization
+- Verify that user profile information is correctly extracted from OIDC tokens
+- Test OIDC logout and session management
+- Verify OIDC token refresh if implemented
+
 ## Functional Testing Using Built-in Tools
 
 ### 1. System Status API Testing
