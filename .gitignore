@@ -7,12 +7,23 @@ package-lock.json
 yarn.lock
 
 # Certificate files
+certificates/
 certificates/*.pem
 certificates/*.key
 
 # Temporary files
 temp/
 *.pfx
+
+# Test files
+test/
+*test*
+*.test.js
+*.spec.js
+
+# Cookie files
+cookies.txt
+*.cookies
 
 # SSL certificates (auto-generated)
 ssl/
@@ -107,4 +118,3 @@ Thumbs.db
 .dockerignore
 docker-compose.override.yml
 .docker/
-
