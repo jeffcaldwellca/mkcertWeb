@@ -409,7 +409,13 @@ function displayCertificates(certificates) {
     }
     
     const html = certificates.map(cert => {
-        const domainsDisplay = cert.domains ? cert.domains.join(', ') : 'Unknown';
+        // Truncate domains list if too long
+        let domainsDisplay = cert.domains ? cert.domains.join(', ') : 'Unknown';
+        if (domainsDisplay.length > 100) {
+            const truncated = domainsDisplay.substring(0, 97) + '...';
+            domainsDisplay = `<span title="${domainsDisplay}">${truncated}</span>`;
+        }
+        
         const createdDate = new Date(cert.created).toLocaleDateString();
         const createdTime = new Date(cert.created).toLocaleTimeString();
         
@@ -417,8 +423,8 @@ function displayCertificates(certificates) {
             '<span class="format-badge format-' + cert.format.toLowerCase() + '">' + cert.format.toUpperCase() + '</span>' : '';
         
         let expiryInfo, expiryClass = '';
-        if (cert.expiryDate) {
-            const expiryDateStr = new Date(cert.expiryDate).toLocaleDateString();
+        if (cert.expiry) {
+            const expiryDateStr = new Date(cert.expiry).toLocaleDateString();
             if (cert.daysUntilExpiry < 0) {
                 expiryInfo = 'Expired ' + Math.abs(cert.daysUntilExpiry) + ' days ago';
                 expiryClass = 'expiry-expired';
@@ -450,20 +456,23 @@ function displayCertificates(certificates) {
                '<div class="certificate-header">' +
                '<div class="certificate-name">' +
                '<i class="fas fa-certificate"></i> ' + cert.name +
+               '</div>' +
+               '<div class="certificate-badges">' +
                formatBadge +
                (cert.isExpired ? '<span class="expired-badge">EXPIRED</span>' : '') +
                (isRootCert ? '<span class="read-only-badge">READ-ONLY</span>' : '') +
                (isArchived ? '<span class="archived-badge">ARCHIVED</span>' : '') +
-               '</div></div>' +
+               '</div>' +
+               '</div>' +
                '<div class="certificate-info">' +
-               '<div><strong>Domains:</strong> ' + domainsDisplay + '</div>' +
-               '<div><strong>Location:</strong> ' + folderDisplay + '</div>' +
-               '<div><strong>Created:</strong> ' + createdDate + ' ' + createdTime + '</div>' +
-               '<div class="' + expiryClass + '"><strong>Expiry:</strong> ' + expiryInfo + '</div>' +
-               '<div><strong>Cert File:</strong> ' + cert.certFile + '</div>' +
-               '<div><strong>Key File:</strong> ' + (cert.keyFile || 'Missing') + '</div>' +
-               '<div><strong>Size:</strong> ' + formatFileSize(cert.size) + '</div>' +
-               '<div><strong>Status:</strong> ' + (isArchived ? 'Archived' : 'Active') + '</div>' +
+               '<div><strong>Domains:</strong><br>' + domainsDisplay + '</div>' +
+               '<div><strong>Location:</strong><br>' + folderDisplay + '</div>' +
+               '<div><strong>Created:</strong><br>' + createdDate + ' ' + createdTime + '</div>' +
+               '<div class="' + expiryClass + '"><strong>Expiry:</strong><br>' + expiryInfo + '</div>' +
+               '<div><strong>Certificate File:</strong><div class="file-name">' + cert.certFile + '</div></div>' +
+               '<div><strong>Private Key File:</strong><div class="file-name">' + (cert.keyFile || '<em>Missing</em>') + '</div></div>' +
+               '<div><strong>File Size:</strong><br>' + formatFileSize(cert.size) + '</div>' +
+               '<div><strong>Status:</strong><br>' + (isArchived ? 'Archived' : 'Active') + '</div>' +
                '</div>' +
                '<div class="certificate-actions">' +
                '<button onclick="downloadCert(\'' + folderParam + '\', \'' + cert.certFile + '\')" ' +
@@ -476,6 +485,10 @@ function displayCertificates(certificates) {
                '<button onclick="downloadBundle(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
                'class="btn btn-primary btn-small">' +
                '<i class="fas fa-file-archive"></i> Download Bundle</button>' +
+               (cert.keyFile && !isRootCert ? 
+                '<button onclick="testPFX(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
+                'class="btn btn-windows btn-small" title="Generate password-protected PFX file">' +
+                '<i class="fas fa-shield-alt"></i> Generate PFX</button>' : '') +
                (!isRootCert && !isArchived ? 
                 '<button onclick="archiveCertificate(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
                 'class="btn btn-warning btn-small" title="Archive this certificate">' +
@@ -820,4 +833,125 @@ function downloadBundle(folderParam, certname) {
 function downloadRootCA() {
     const url = API_BASE + '/download/rootca';
     downloadFile(url, 'mkcert-rootCA.pem');
+}
+
+function testPFX(folderParam, certname) {
+    generatePFX(folderParam, certname);
+}
+
+async function generatePFX(folderParam, certname) {
+    console.log('generatePFX called with:', folderParam, certname);
+    
+    // Create a modal for password input
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block'; // Show the modal
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3><i class="fas fa-shield-alt"></i> Generate PFX File</h3>
+            <p>Enter a password to protect the PFX file. This file will contain both the certificate and private key.</p>
+            <div class="form-group">
+                <label for="pfx-password">Password (optional):</label>
+                <input type="password" id="pfx-password" placeholder="Leave empty for no password protection" />
+                <small class="help-text">Strong passwords are recommended for security.</small>
+            </div>
+            <div class="modal-actions">
+                <button id="generate-pfx-btn" class="btn btn-primary">
+                    <i class="fas fa-cog"></i> Generate PFX
+                </button>
+                <button id="cancel-pfx-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    console.log('Modal created and added to DOM');
+    
+    // Focus on password input
+    const passwordInput = document.getElementById('pfx-password');
+    passwordInput.focus();
+    
+    return new Promise((resolve, reject) => {
+        const generateBtn = document.getElementById('generate-pfx-btn');
+        const cancelBtn = document.getElementById('cancel-pfx-btn');
+        
+        const cleanup = () => {
+            document.body.removeChild(modal);
+        };
+        
+        const handleGenerate = async () => {
+            console.log('Generate button clicked!');
+            const password = passwordInput.value;
+            console.log('Password entered:', password ? 'Yes' : 'No');
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            generateBtn.disabled = true;
+            
+            try {
+                console.log('Making API request...');
+                const apiUrl = API_BASE + '/generate/pfx/' + folderParam + '/' + encodeURIComponent(certname);
+                console.log('API URL:', apiUrl);
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ password: password || '' })
+                });
+                
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData);
+                    throw new Error(errorData.error || `PFX generation failed: ${response.status} ${response.statusText}`);
+                }
+                
+                console.log('Downloading blob...');
+                const blob = await response.blob();
+                console.log('Blob size:', blob.size);
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = certname + '.pfx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                showAlert('PFX file generated and downloaded successfully', 'success');
+                cleanup();
+                resolve();
+            } catch (error) {
+                console.error('PFX generation error:', error);
+                showAlert('PFX generation failed: ' + error.message, 'error');
+                generateBtn.innerHTML = '<i class="fas fa-cog"></i> Generate PFX';
+                generateBtn.disabled = false;
+                reject(error);
+            }
+        };
+        
+        const handleCancel = () => {
+            cleanup();
+            resolve();
+        };
+        
+        generateBtn.addEventListener('click', handleGenerate);
+        cancelBtn.addEventListener('click', handleCancel);
+        
+        console.log('Event listeners attached to buttons');
+        
+        // Allow Enter to trigger generation
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleGenerate();
+            }
+        });
+        
+        // Allow Escape to cancel
+        modal.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            }
+        });
+    });
 }

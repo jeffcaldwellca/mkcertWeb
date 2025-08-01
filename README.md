@@ -1,316 +1,149 @@
 # mkcert Web UI
 
-A modern web interface for managing SSL certificates using the mkcert CLI tool. This application provides an easy-to-use interface for generating, downloading, and managing local development certificates with organized storage and comprehensive certificate management features.
+A modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with an intuitive web interface featuring Docker support, PFX generation, and comprehensive certificate management.
 
-## Screenshot
+## ✨ Features
+
+- **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
+- **� Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
+- **🔒 Optional Authentication**: Secure access with configurable user authentication
+- **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface
+- **📋 Certificate Management**: View, download, archive, and restore certificates
+- **🎨 Modern UI**: Dark/light themes with responsive design and mobile support
+- **� Docker Support**: Complete containerization with docker-compose deployment
+- **🔑 Root CA Management**: Install, view, and download the mkcert Certificate Authority
+- **📊 Certificate Details**: Comprehensive information including expiry tracking
+- **🔄 Automatic Organization**: Timestamp-based folder structure for easy management
+
+## � Quick Start with Docker
+
+The fastest way to get started is using Docker:
+
+```bash
+# Clone the repository
+git clone https://github.com/jeffcaldwellca/mkcertWeb.git
+cd mkcertWeb
+
+# Start with Docker Compose (includes automatic CA generation)
+docker-compose up -d
+
+# Access the application
+open http://localhost:3000
+```
+
+**For detailed Docker setup, configuration, and deployment options, see [DOCKER.md](DOCKER.md)**
+
+For local installation without Docker, you'll need Node.js 16+, mkcert, and OpenSSL. See [Installation Guide](#-installation) below for detailed setup instructions.
+
+## � Screenshot
 
 ![mkcert Web UI Screenshot](public/assets/screenshot.png)
 
-*The mkcert Web UI featuring the new red/green terminal-style theme with certificate management, system status, and Root CA information.*
+*The mkcert Web UI featuring the modern terminal-style theme with certificate management, system status, and Root CA information.*
 
-## Features
+## 🔧 Installation
 
-- **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
-- **📁 Organized Storage**: Automatic timestamp-based folder organization (YYYY-MM-DD/YYYY-MM-DDTHH-MM-SS_domains/)
-- **🔒 Optional Authentication**: Secure access with configurable user authentication (can be disabled)
-- **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface access
-- **📋 Certificate Management**: View, download, and archive certificates with expiry tracking
-- **📦 Bundle Downloads**: Download certificate and key files as ZIP bundles
-- **🔑 Root CA Management**: Install, view, and download the mkcert root Certificate Authority
-- **🎨 Terminal-Style UI**: Modern red/green color scheme with monospace fonts and glowing effects
-- **🌙 Dark/Light Mode**: Switchable themes with persistent user preference storage
-- **🔒 Security**: Root certificates are read-only protected, authenticated sessions, input validation
-- **📊 Certificate Details**: View domains, expiry dates, file sizes, and certificate information
-- **🔄 Dual Format Support**: Generate certificates in PEM (.pem/.key) or CRT (.crt/.key) formats
+### Method 1: Docker (Recommended)
 
-## Prerequisites
+See the [Quick Start with Docker](#-quick-start-with-docker) section above, or [DOCKER.md](DOCKER.md) for comprehensive Docker deployment options.
 
-### Required Software
-1. **Node.js** (version 16 or higher) - JavaScript runtime
-2. **mkcert** - Local certificate authority tool
-3. **OpenSSL** - Certificate analysis (usually pre-installed on Ubuntu)
+### Method 2: Local Installation
 
-### Ubuntu Installation (Recommended)
+#### Prerequisites
+- **Node.js** (version 16 or higher)
+- **mkcert** CLI tool  
+- **OpenSSL** (usually pre-installed on most systems)
 
-#### Install Node.js
+#### Ubuntu/Debian Setup
 ```bash
-# Install Node.js 18 LTS (recommended)
+# Install Node.js
 sudo apt update
 sudo apt install -y nodejs npm
 
-# Verify installation
-node --version  # Should be v16+ 
-npm --version
-```
-
-#### Install mkcert
-```bash
-# Install dependencies
+# Install mkcert dependencies and download mkcert
 sudo apt install -y libnss3-tools wget
-
-# Download and install mkcert (latest version)
 wget -O mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-amd64
 chmod +x mkcert
 sudo mv mkcert /usr/local/bin/
 
-# Verify installation
+# Verify installations
+node --version  # Should be v16+
 mkcert -version
-```
-
-#### Install OpenSSL (if not present)
-```bash
-# Usually pre-installed, but if needed:
-sudo apt install -y openssl
-
-# Verify installation
 openssl version
 ```
-## Installation
 
-### Quick Start (Ubuntu)
-
-1. **Clone the repository**:
+#### Application Setup
 ```bash
+# Clone and install
 git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
-```
-
-2. **Install dependencies**:
-```bash
 npm install
-```
 
-3. **Initialize mkcert** (first time only):
-```bash
-# Create and install the root CA
+# Initialize mkcert (first time only)
 mkcert -install
-```
 
-4. **Start the application**:
-```bash
+# Start the application
 npm start
+
+# Access at http://localhost:3000
 ```
 
-5. **Access the web interface**:
-   - Open your browser to `http://localhost:3000`
-   - **If authentication is enabled**: You'll be redirected to the login page
-     - Use credentials from your `.env` file (default: admin/admin123)
-     - After successful login, you'll access the main interface
-   - **If authentication is disabled**: You'll go directly to the certificate generation interface
-   - The application will verify mkcert installation and CA status
+## ⚙️ Configuration
 
-## HTTPS Configuration
+### Environment Variables
 
-The application supports automatic HTTPS with self-signed certificates generated using mkcert. This provides a secure development environment without browser warnings.
+Configure the application using a `.env` file (see `.env.example`) or environment variables:
 
-### Quick HTTPS Setup
-
-#### Option 1: HTTPS with HTTP Fallback (Recommended for Development)
 ```bash
-# Start with both HTTP and HTTPS servers
+# Authentication
+ENABLE_AUTH=true             # Enable user authentication (default: true)
+USERNAME=admin               # Username for authentication  
+PASSWORD=admin123            # Password for authentication
+
+# Server Configuration
+PORT=3000                    # HTTP server port
+ENABLE_HTTPS=true            # Enable HTTPS server
+HTTPS_PORT=3443              # HTTPS server port
+SSL_DOMAIN=localhost         # Domain for SSL certificate
+FORCE_HTTPS=true             # Redirect HTTP to HTTPS
+
+# Certificate Settings
+CERTIFICATE_FORMAT=pem       # Default format: 'pem' or 'crt'
+```
+
+### HTTPS Setup
+
+The application supports automatic HTTPS with mkcert-generated certificates:
+
+```bash
+# HTTPS with HTTP fallback (recommended for development)
 npm run https
 
-# Or with environment variables
-ENABLE_HTTPS=true npm start
-
-# Access via:
-# HTTP:  http://localhost:3000
-# HTTPS: https://localhost:3443
-```
-
-#### Option 2: HTTPS Only (Redirects HTTP to HTTPS)
-```bash
-# Start with HTTPS only (HTTP redirects to HTTPS)
+# HTTPS only (redirects HTTP to HTTPS)
 npm run https-only
 
-# Or with environment variables
-ENABLE_HTTPS=true FORCE_HTTPS=true npm start
-
-# All requests redirect to: https://localhost:3443
-```
-
-#### Option 3: Custom Domain HTTPS
-```bash
-# Generate certificate for custom domain
+# Custom domain
 SSL_DOMAIN=myapp.local ENABLE_HTTPS=true npm start
-
-# Access via: https://myapp.local:3443
-# (Add "127.0.0.1 myapp.local" to /etc/hosts)
 ```
 
-### Environment Variables for HTTPS
+SSL certificates are automatically generated and stored in the `./ssl/` directory. Since they're created with mkcert, they're automatically trusted by your browser.
 
-Create a `.env` file (see `.env.example`) or set environment variables:
+### Production Deployment
 
-```bash
-# Basic HTTPS configuration
-ENABLE_HTTPS=true             # Enable HTTPS server
-HTTPS_PORT=3443              # HTTPS server port (default: 3443)
-SSL_DOMAIN=localhost         # Domain for SSL certificate (default: localhost)
+For production deployments, consider using Docker or see [DOCKER.md](DOCKER.md) for comprehensive deployment options including reverse proxy configurations and security best practices.
 
-# Advanced options
-FORCE_HTTPS=true             # Redirect all HTTP to HTTPS
-PORT=3000                    # HTTP server port (default: 3000)
-```
-
-### SSL Certificate Management
-
-The application automatically:
-1. **Generates SSL certificates** on first HTTPS startup using mkcert
-2. **Stores certificates** in `./ssl/` directory
-3. **Reuses existing certificates** on subsequent startups
-4. **Includes multiple domains**: localhost, 127.0.0.1, ::1, and custom domain
-
-Certificate files:
-```
-ssl/
-├── {domain}.pem          # SSL certificate
-└── {domain}-key.pem      # Private key
-```
-
-### Browser Trust Setup
-
-Since the certificates are generated by mkcert, they are automatically trusted if you have:
-1. **Installed mkcert**: `mkcert -install` (done during setup)
-2. **Root CA installed**: The mkcert root CA should be in your system trust store
-
-If you see browser warnings:
-```bash
-# Verify mkcert installation
-mkcert -install
-
-# Check CA location
-mkcert -CAROOT
-
-# Regenerate SSL certificates
-rm -rf ssl/
-npm run https
-```
-
-### Production Deployment (Ubuntu)
-
-#### Option 1: Simple Service User Deployment
-```bash
-# Create dedicated user
-sudo adduser --system --group --home /opt/mkcertui mkcertui
-
-# Install application
-sudo cp -r mkcertWeb /opt/mkcertui/
-sudo chown -R mkcertui:mkcertui /opt/mkcertui/
-
-# Switch to service user and install dependencies
-sudo su - mkcertui
-cd mkcertWeb
-npm install
-
-# Initialize mkcert for this user
-mkcert -install
-
-# Start application
-npm start
-```
-
-#### Option 2: Systemd Service
-```bash
-# Create systemd service file
-sudo tee /etc/systemd/system/mkcertui.service << 'EOF'
-[Unit]
-Description=mkcert Web UI
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=mkcertui
-Group=mkcertui
-WorkingDirectory=/opt/mkcertui/mkcertWeb
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-Environment=PORT=3000
-
-# Security settings
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/opt/mkcertui
-PrivateTmp=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Enable and start service
-sudo systemctl daemon-reload
-sudo systemctl enable mkcertui
-sudo systemctl start mkcertui
-
-# Check status
-sudo systemctl status mkcertui
-```
-
-### Environment Configuration
-
-#### Environment Variables
-```bash
-# Server Configuration
-PORT=3000                    # HTTP server port (default: 3000)
-HTTPS_PORT=3443             # HTTPS server port (default: 3443)
-
-# SSL/HTTPS Configuration  
-ENABLE_HTTPS=true           # Enable HTTPS server (default: false)
-SSL_DOMAIN=localhost        # Domain name for SSL certificate (default: localhost)
-FORCE_HTTPS=true            # Redirect HTTP to HTTPS (default: false)
-
-# Application Configuration
-NODE_ENV=production         # Environment mode
-CERT_DIR=/custom/path       # Custom certificate storage (optional)
-```
-
-#### Reverse Proxy (Nginx)
-```bash
-# Install nginx
-sudo apt install -y nginx
-
-# Create nginx configuration
-sudo tee /etc/nginx/sites-available/mkcertui << 'EOF'
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-EOF
-
-# Enable site
-sudo ln -s /etc/nginx/sites-available/mkcertui /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## Usage
+## 📚 Usage
 
 ### First Time Setup
 
-1. **Verify Prerequisites**: The web interface will check if mkcert and OpenSSL are installed
-2. **Install Root CA**: If not already installed, the app will prompt you to install the mkcert root CA
-3. **Download Root CA**: Use the Root CA section to download the certificate for other systems
+1. **System Check**: The web interface automatically verifies mkcert and OpenSSL installation
+2. **Root CA Installation**: Install the mkcert root CA if prompted (`mkcert -install`)
+3. **Authentication**: Log in with configured credentials (default: admin/admin123)
 
-### Certificate Generation
+### 🔐 Certificate Generation
 
-1. **Access the Web Interface**: Navigate to `http://localhost:3000`
-2. **Enter Domains**: In the generation form, enter domain names (one per line):
+1. **Access Interface**: Navigate to `http://localhost:3000`
+2. **Enter Domains**: Add domain names (one per line):
    ```
    localhost
    127.0.0.1
@@ -318,116 +151,100 @@ sudo systemctl reload nginx
    example.com
    myapp.local
    ```
-3. **Select Format**:
-   - **PEM Format**: Standard format (.pem certificate, -key.pem private key)
-   - **CRT Format**: Common for web servers (.crt certificate, .key private key)
+3. **Select Format**: Choose PEM (.pem/.key) or CRT (.crt/.key) format
 4. **Generate**: Click "Generate Certificate"
 
-### Certificate Organization
+### 📁 Certificate Organization
 
-Certificates are automatically organized in a hierarchical structure:
+Certificates are automatically organized with timestamps:
 ```
 certificates/
-├── root/                           # Legacy certificates (read-only)
-│   ├── example.pem
-│   └── example-key.pem
-└── 2025-07-25/                     # Date-based folders
-    ├── 2025-07-25T10-30-45_localhost_127-0-0-1/
-    │   ├── localhost_127-0-0-1.pem
-    │   └── localhost_127-0-0-1-key.pem
-    └── 2025-07-25T14-15-20_example_com/
-        ├── example_com.crt
-        └── example_com.key
+├── root/                           # Legacy certificates (protected)
+└── 2025-01-20/                     # Date-based organization
+    ├── 2025-01-20T10-30-45_localhost/
+    │   ├── localhost.pem
+    │   ├── localhost-key.pem
+    │   └── localhost.pfx           # Generated on-demand
+    └── 2025-01-20T14-15-20_example/
+        ├── example.crt
+        └── example.key
 ```
 
-### Certificate Management
+### 🔧 Certificate Management
 
-#### Viewing Certificates
-- **Certificate List**: Shows all certificates with details:
-  - Domain names covered
-  - Expiry date and status
-  - File format (PEM/CRT)
-  - Creation date and file size
-  - Storage location
+- **📋 View Details**: Domain coverage, expiry dates, file sizes
+- **⬇️ Download**: Individual files, ZIP bundles, or PFX format  
+- **🔑 PFX Generation**: Create password-protected PKCS#12 files on-demand
+- **🗑️ Delete**: Remove certificates (root certificates are protected)
+- **📊 System Status**: View Root CA information and installation status
 
-#### Downloading Certificates
-- **Individual Files**: Download certificate or key files separately
-- **Bundle Download**: Download both files as a ZIP archive
-- **Root CA**: Download the mkcert root certificate for system installation
+### 🌐 Advanced Usage
 
-#### Certificate Deletion
-- **Subfolder Certificates**: Can be deleted (includes automatic cleanup of empty folders)
-- **Root Certificates**: Protected from deletion (read-only)
+For production deployments, reverse proxy configurations, and advanced Docker setups, see [DOCKER.md](DOCKER.md).
 
-### Root CA Management
+## 🔗 API Reference
 
-#### Viewing CA Information
-The Root CA section displays:
-- Certificate subject and issuer
-- Validity period and expiry status
-- SHA256 fingerprint for verification
-- File system path
-- Installation status
+The application provides REST API endpoints for programmatic access. When authentication is enabled, establish a session first via `POST /login`.
 
-#### Installing Root CA on Other Systems
+### Key Endpoints
 
-**Linux (Ubuntu/Debian)**:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/status` | System status and mkcert installation |
+| `POST` | `/api/generate` | Generate new certificates |
+| `GET` | `/api/certificates` | List all certificates |
+| `GET` | `/api/download/bundle/:folder/:certname` | Download certificate bundle |
+| `POST` | `/api/generate/pfx/*` | Generate PFX file on-demand |
+
+Example certificate generation:
 ```bash
-# Download the root CA from the web interface, then:
-sudo cp mkcert-rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt
-sudo update-ca-certificates
+# Generate certificate via API
+curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"domains":["localhost","127.0.0.1"],"format":"pem"}'
 ```
 
-**Windows**:
-1. Download root CA from web interface
-2. Double-click the .pem file
-3. Install to "Trusted Root Certification Authorities"
+## 🤝 Contributing
 
-**macOS**:
-1. Download root CA from web interface
-2. Double-click to add to Keychain
-3. Set trust settings to "Always Trust"
-**Browser Trust**:
-1. Import the root CA into browser security settings
-2. Add to "Authorities" or "Certificate Authorities" section
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Commit changes: `git commit -am 'Add new feature'`
+4. Push to branch: `git push origin feature/new-feature`
+5. Submit a pull request
 
-## API Documentation
+## 📄 License
 
-### REST API Endpoints
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-The application provides a comprehensive REST API for programmatic access.
+## 🙏 Acknowledgments
 
-**🔒 Authentication Note**: When authentication is enabled, API endpoints require valid session cookies. For programmatic access, you may need to:
-1. Disable authentication by setting `DISABLE_AUTH=true` in your `.env` file, or
-2. First authenticate via `POST /login` to establish a session before making API calls
+- [mkcert](https://github.com/FiloSottile/mkcert) - Simple tool for making locally-trusted development certificates
+- [Express.js](https://expressjs.com/) - Web application framework
+- [Node.js](https://nodejs.org/) - JavaScript runtime
 
-#### Authentication
-- `POST /login` - Authenticate user and establish session
-- `POST /logout` - Destroy current session
+## 📞 Support
 
-#### System Status  
-- `GET /api/status` - Get mkcert installation and CA status
-- `POST /api/install-ca` - Install the mkcert root CA (requires user confirmation)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
+- 📖 **Documentation**: [README.md](README.md) and [DOCKER.md](DOCKER.md)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)
+4. Push to branch: `git push origin feature/new-feature`
+5. Submit a pull request
 
-#### Root CA Management
-- `GET /api/rootca/info` - Get detailed root CA certificate information
-- `GET /api/download/rootca` - Download root CA certificate file
+## 📄 License
 
-#### Certificate Management
-- `POST /api/generate` - Generate new certificates
-- `GET /api/certificates` - List all certificates with metadata
-- `DELETE /api/certificates/:folder/:certname` - Delete specific certificate
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-#### File Downloads
-- `GET /api/download/cert/:folder/:filename` - Download certificate file
-- `GET /api/download/key/:folder/:filename` - Download private key file
-- `GET /api/download/bundle/:folder/:certname` - Download certificate bundle (ZIP)
+## 🙏 Acknowledgments
 
-### API Usage Examples
+- [mkcert](https://github.com/FiloSottile/mkcert) - Simple tool for making locally-trusted development certificates
+- [Express.js](https://expressjs.com/) - Web application framework
+- [Node.js](https://nodejs.org/) - JavaScript runtime
 
-#### Generate Certificate (using wget - built into Ubuntu)
-```bash
-# Generate PEM format certificate
+## 📞 Support
+
+- 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
+- 📖 **Documentation**: [README.md](README.md) and [DOCKER.md](DOCKER.md)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)
 wget --post-data='{"domains":["localhost","127.0.0.1","*.local.dev"],"format":"pem"}' \
      --header='Content-Type: application/json' \
      http://localhost:3000/api/generate \
