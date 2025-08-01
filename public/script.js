@@ -439,7 +439,7 @@ function displayCertificates(certificates) {
 
         // Format folder display
         const folderDisplay = cert.folder === 'root' ? 'Root folder' : cert.folder;
-        const folderParam = cert.folder; // send folder string as-is, with slashes
+        const folderParam = cert.folder === 'root' ? 'root' : cert.folder.replace(/\//g, '_'); // encode slashes as underscores
         const isRootCert = cert.folder === 'root';
         const isArchived = cert.isArchived || false;
         
