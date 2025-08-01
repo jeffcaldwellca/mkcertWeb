@@ -893,6 +893,126 @@ app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
   archive.finalize();
 });
 
+// Generate PFX file from certificate and key
+app.post('/api/generate/pfx/*', requireAuth, async (req, res) => {
+  try {
+    // Parse the wildcard path to extract folder and certname
+    const fullPath = req.params[0]; // Get the wildcard part
+    const pathParts = fullPath.split('/');
+    
+    if (pathParts.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid path format. Expected: /folder/certname'
+      });
+    }
+    
+    // Last part is certname, everything else is folder path
+    const certName = pathParts.pop();
+    const encodedFolder = pathParts.join('/');
+    const folder = encodedFolder === 'root' ? '' : decodeURIComponent(encodedFolder);
+    const password = req.body.password || '';
+    
+    console.log('PFX generation request:', { encodedFolder, folder, certName });
+    
+    // Protect root directory certificates
+    if (encodedFolder === 'root' || folder === '') {
+      return res.status(403).json({
+        success: false,
+        error: 'PFX generation not available for root certificates'
+      });
+    }
+    
+    // Find certificate and key files
+    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
+    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
+    
+    let certPath = null;
+    let keyPath = null;
+    
+    for (const cert of possibleCertFiles) {
+      const testPath = path.join(CERT_DIR, folder, cert);
+      if (fs.existsSync(testPath)) {
+        certPath = testPath;
+        break;
+      }
+    }
+    
+    for (const key of possibleKeyFiles) {
+      const testPath = path.join(CERT_DIR, folder, key);
+      if (fs.existsSync(testPath)) {
+        keyPath = testPath;
+        break;
+      }
+    }
+    
+    if (!certPath || !keyPath) {
+      return res.status(404).json({
+        success: false,
+        error: 'Certificate or key file not found'
+      });
+    }
+    
+    // Create temporary PFX file
+    const tempDir = path.join(__dirname, 'temp');
+    await fs.ensureDir(tempDir);
+    const tempPfxPath = path.join(tempDir, `${certName}_${Date.now()}.pfx`);
+    
+    try {
+      // Generate PFX using OpenSSL
+      const opensslCmd = password 
+        ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass:"${password}"`
+        : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass:`;
+      
+      await executeCommand(opensslCmd);
+      
+      // Check if PFX file was created
+      if (!fs.existsSync(tempPfxPath)) {
+        throw new Error('PFX file generation failed');
+      }
+      
+      // Set headers for download
+      res.setHeader('Content-Type', 'application/x-pkcs12');
+      res.setHeader('Content-Disposition', `attachment; filename="${certName}.pfx"`);
+      res.setHeader('Cache-Control', 'no-cache');
+      
+      // Stream the file and clean up
+      const fileStream = fs.createReadStream(tempPfxPath);
+      fileStream.pipe(res);
+      
+      fileStream.on('end', () => {
+        // Clean up temp file
+        fs.unlink(tempPfxPath).catch(err => {
+          console.error('Failed to cleanup temp PFX file:', err);
+        });
+      });
+      
+      fileStream.on('error', (error) => {
+        console.error('Error streaming PFX file:', error);
+        fs.unlink(tempPfxPath).catch(() => {});
+        res.status(500).json({
+          success: false,
+          error: 'Failed to download PFX file'
+        });
+      });
+      
+    } catch (error) {
+      // Clean up temp file on error
+      if (fs.existsSync(tempPfxPath)) {
+        fs.unlinkSync(tempPfxPath);
+      }
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('PFX generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'PFX generation failed: ' + error.message
+    });
+  }
+});
+
 // Archive certificate (instead of deleting)
 app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
   try {

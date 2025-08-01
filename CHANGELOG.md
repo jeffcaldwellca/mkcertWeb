@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-08-01
+
+### Added
+- **PFX Generation**: On-demand PKCS#12 (.pfx) file generation for Windows/IIS compatibility
+- User-friendly password modal for PFX protection with optional encryption
+- Enhanced certificate card layout with improved text handling for long filenames
+- Better responsive design for mobile devices with optimized button sizes
+- Text truncation with tooltips for long domain lists (100+ characters)
+- Structured file information display with dedicated styling for certificate and key files
+- URL encoding fixes for proper handling of complex folder paths with special characters
+
+### Changed
+- **Certificate Cards**: Complete redesign with better organization and overflow handling
+- Improved mobile responsiveness with single-column layout on small screens
+- Enhanced button styling and spacing for better user experience
+- Updated certificate information display with clearer visual hierarchy
+- Better word wrapping and text breaking for long strings
+
+### Fixed
+- **Download Functionality**: Fixed 404 errors in download buttons due to URL encoding issues
+- **PFX Generation**: Resolved routing issues with complex folder paths containing slashes
+- **Archive/Restore**: Fixed double URL encoding problems in certificate management
+- **UI Consistency**: Removed confusing question mark cursor from filename displays
+- **Mobile Layout**: Fixed text overflow and improved touch-friendly button sizing
+
+### Removed
+- Debug console logging from production PFX generation
+- Unnecessary cursor help indicators from file name displays
+
 ## [1.2.0] - 2025-07-29
 
 ### Added
@@ -115,7 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v1.1.0**: Enhanced UI with red/green theme and improved authentication  
 - **v1.1.1**: Dark/Light mode toggle with theme persistence
 - **v1.2.0**: Complete Docker containerization support
-- **Current**: Full-featured mkcert Web UI with Docker deployment options
+- **v1.3.0**: PFX generation, improved UI/UX, and enhanced certificate management
+- **Current**: Full-featured mkcert Web UI with comprehensive certificate format support
 
 ## Contributing
 
