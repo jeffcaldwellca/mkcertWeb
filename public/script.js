@@ -270,9 +270,9 @@ async function loadRootCAInfo() {
             '<button id="install-ca-btn" class="btn btn-primary">' +
             '<i class="fas fa-shield-alt"></i> Install CA in System' +
             '</button>' +
-            '<a href="/api/download/rootca" class="btn btn-success" download>' +
+            '<button onclick="downloadRootCA()" class="btn btn-success">' +
             '<i class="fas fa-download"></i> Download Root CA' +
-            '</a>' +
+            '</button>' +
             '</div>' +
             '<div class="ca-usage-info">' +
             '<h4><i class="fas fa-info-circle"></i> Installation Instructions</h4>' +
@@ -466,16 +466,16 @@ function displayCertificates(certificates) {
                '<div><strong>Status:</strong> ' + (isArchived ? 'Archived' : 'Active') + '</div>' +
                '</div>' +
                '<div class="certificate-actions">' +
-               '<a href="' + API_BASE + '/download/cert/' + folderParam + '/' + cert.certFile + '" ' +
-               'class="btn btn-success btn-small" download>' +
-               '<i class="fas fa-download"></i> Download Cert</a>' +
+               '<button onclick="downloadCert(\'' + folderParam + '\', \'' + cert.certFile + '\')" ' +
+               'class="btn btn-success btn-small">' +
+               '<i class="fas fa-download"></i> Download Cert</button>' +
                (cert.keyFile ? 
-                '<a href="' + API_BASE + '/download/key/' + folderParam + '/' + cert.keyFile + '" ' +
-                'class="btn btn-success btn-small" download>' +
-                '<i class="fas fa-key"></i> Download Key</a>' : '') +
-               '<a href="' + API_BASE + '/download/bundle/' + folderParam + '/' + cert.name + '" ' +
-               'class="btn btn-primary btn-small" download>' +
-               '<i class="fas fa-file-archive"></i> Download Bundle</a>' +
+                '<button onclick="downloadKey(\'' + folderParam + '\', \'' + cert.keyFile + '\')" ' +
+                'class="btn btn-success btn-small">' +
+                '<i class="fas fa-key"></i> Download Key</button>' : '') +
+               '<button onclick="downloadBundle(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
+               'class="btn btn-primary btn-small">' +
+               '<i class="fas fa-file-archive"></i> Download Bundle</button>' +
                (!isRootCert && !isArchived ? 
                 '<button onclick="archiveCertificate(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
                 'class="btn btn-warning btn-small" title="Archive this certificate">' +
@@ -773,4 +773,51 @@ function updateThemeToggleButton() {
             text.textContent = ' Dark Mode';
         }
     }
+}
+
+// Download functions for authenticated file downloads
+async function downloadFile(url, filename) {
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'same-origin' // Include session cookies
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        console.error('Download error:', error);
+        showAlert('Download failed: ' + error.message, 'error');
+    }
+}
+
+function downloadCert(folderParam, filename) {
+    const url = API_BASE + '/download/cert/' + folderParam + '/' + filename;
+    downloadFile(url, filename);
+}
+
+function downloadKey(folderParam, filename) {
+    const url = API_BASE + '/download/key/' + folderParam + '/' + filename;
+    downloadFile(url, filename);
+}
+
+function downloadBundle(folderParam, certname) {
+    const url = API_BASE + '/download/bundle/' + folderParam + '/' + certname;
+    downloadFile(url, certname + '.zip');
+}
+
+function downloadRootCA() {
+    const url = API_BASE + '/download/rootca';
+    downloadFile(url, 'mkcert-rootCA.pem');
 }
