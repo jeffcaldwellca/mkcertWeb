@@ -501,6 +501,103 @@ const isCommandSafe = (command) => {
   return true;
 };
 
+// Path validation function to prevent directory traversal attacks
+// SECURITY: This function validates and sanitizes user-provided paths to prevent
+// access to files outside the certificates directory
+const validateAndSanitizePath = (userPath, allowedBasePath = CERT_DIR) => {
+  if (!userPath || typeof userPath !== 'string') {
+    throw new Error('Invalid path: path must be a non-empty string');
+  }
+
+  // Remove any null bytes which could be used to bypass filters
+  const cleanPath = userPath.replace(/\0/g, '');
+  
+  // Decode URI component safely
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(cleanPath);
+  } catch (error) {
+    throw new Error('Invalid path: malformed URI encoding');
+  }
+
+  // Reject paths with dangerous patterns
+  const dangerousPatterns = [
+    /\.\.\//,           // Directory traversal
+    /\.\.\\/, 
+    /\.\.\\/,
+    /\.\.$/,            // Ends with ..
+    /\/\.\./,           // Starts with /..
+    /\\\.\./,           // Starts with \..
+    /^~\//,             // Home directory
+    /^\/[^/]/,          // Absolute paths (starts with /)
+    /^[A-Za-z]:\\/,     // Windows absolute paths (C:\)
+    /\0/,               // Null bytes
+    /[<>"|*?]/,         // Invalid filename characters
+    /\/\//,             // Double slashes
+    /\\\\/,             // Double backslashes
+    /\/$|\\$/           // Trailing slashes/backslashes
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(decodedPath)) {
+      throw new Error(`Invalid path: contains unsafe pattern '${decodedPath}'`);
+    }
+  }
+
+  // Normalize the path and resolve it relative to the allowed base
+  const normalizedPath = path.normalize(decodedPath);
+  const resolvedPath = path.resolve(allowedBasePath, normalizedPath);
+  
+  // Ensure the resolved path is within the allowed base directory
+  const relativePath = path.relative(allowedBasePath, resolvedPath);
+  
+  // Check if the path tries to escape the base directory
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error(`Access denied: path outside allowed directory '${decodedPath}'`);
+  }
+
+  return {
+    safe: true,
+    sanitized: normalizedPath,
+    resolved: resolvedPath,
+    relative: relativePath
+  };
+};
+
+// Secure filename validation to prevent malicious filenames
+const validateFilename = (filename) => {
+  if (!filename || typeof filename !== 'string') {
+    throw new Error('Invalid filename: must be a non-empty string');
+  }
+
+  // Remove any null bytes
+  const cleanFilename = filename.replace(/\0/g, '');
+
+  // Check for dangerous patterns in filenames
+  const dangerousFilenamePatterns = [
+    /\.\.\./,           // Multiple dots
+    /^\.\.?$/,          // . or .. filename
+    /[<>"|*?\\\/]/,     // Invalid filename characters and path separators
+    /\0/,               // Null bytes
+    /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, // Windows reserved names
+    /\s+$/,             // Trailing spaces
+    /\.+$/              // Trailing dots
+  ];
+
+  for (const pattern of dangerousFilenamePatterns) {
+    if (pattern.test(cleanFilename)) {
+      throw new Error(`Invalid filename: contains unsafe pattern '${cleanFilename}'`);
+    }
+  }
+
+  // Additional length check
+  if (cleanFilename.length > 255) {
+    throw new Error('Invalid filename: too long');
+  }
+
+  return cleanFilename;
+};
+
 // Routes
 
 // Apply comprehensive API rate limiting to all API routes
@@ -1235,168 +1332,324 @@ app.post('/api/certificates/upload', requireAuth, upload.array('certificates', 1
 
 // Download certificate file
 app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, folder, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
+  try {
+    // Validate and sanitize the folder path
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      sanitizedFolder = '';
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
+    }
+
+    // Validate and sanitize the filename
+    const sanitizedFilename = validateFilename(req.params.filename);
+    
+    // Construct the safe file path
+    const filePath = path.join(CERT_DIR, sanitizedFolder, sanitizedFilename);
+    
+    // Additional security check: ensure the resolved path is still within CERT_DIR
+    const resolvedPath = path.resolve(filePath);
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativePath = path.relative(resolvedCertDir, resolvedPath);
+    
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      console.error('Security: Blocked path traversal attempt in cert download:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid file path'
+      });
+    }
+    
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Certificate file not found'
+      });
+    }
+    
+    // Set proper headers for download
+    res.setHeader('Content-Type', 'application/x-pem-file');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    res.download(resolvedPath, sanitizedFilename);
+  } catch (error) {
+    console.error('Security: Invalid path in cert download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Certificate file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  // Set proper headers for download
-  res.setHeader('Content-Type', 'application/x-pem-file');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-cache');
-  
-  res.download(filePath, filename);
 });
 
 // Download key file
 app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, folder, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
+  try {
+    // Validate and sanitize the folder path
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      sanitizedFolder = '';
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
+    }
+
+    // Validate and sanitize the filename
+    const sanitizedFilename = validateFilename(req.params.filename);
+    
+    // Construct the safe file path
+    const filePath = path.join(CERT_DIR, sanitizedFolder, sanitizedFilename);
+    
+    // Additional security check: ensure the resolved path is still within CERT_DIR
+    const resolvedPath = path.resolve(filePath);
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativePath = path.relative(resolvedCertDir, resolvedPath);
+    
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      console.error('Security: Blocked path traversal attempt in key download:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid file path'
+      });
+    }
+    
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Key file not found'
+      });
+    }
+    
+    // Set proper headers for download
+    res.setHeader('Content-Type', 'application/x-pem-file');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    res.download(resolvedPath, sanitizedFilename);
+  } catch (error) {
+    console.error('Security: Invalid path in key download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Key file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  // Set proper headers for download
-  res.setHeader('Content-Type', 'application/x-pem-file');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-cache');
-  
-  res.download(filePath, filename);
 });
 
 // Download both cert and key as zip
 app.get('/api/download/bundle/:folder/:certname', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const certName = req.params.certname;
-  
-  // Try both formats
-  const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-  const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-  
-  let certFile, keyFile, certPath, keyPath;
-  
-  // Find existing files
-  for (const cert of possibleCertFiles) {
-    const testPath = path.join(CERT_DIR, folder, cert);
-    if (fs.existsSync(testPath)) {
-      certFile = cert;
-      certPath = testPath;
-      break;
+  try {
+    // Validate and sanitize the folder path
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      sanitizedFolder = '';
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
     }
-  }
-  
-  for (const key of possibleKeyFiles) {
-    const testPath = path.join(CERT_DIR, folder, key);
-    if (fs.existsSync(testPath)) {
-      keyFile = key;
-      keyPath = testPath;
-      break;
+
+    // Validate and sanitize the certificate name
+    const sanitizedCertName = validateFilename(req.params.certname);
+    
+    // Try both formats with sanitized names
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
+    
+    let certFile, keyFile, certPath, keyPath;
+    
+    // Find existing files with path validation
+    for (const cert of possibleCertFiles) {
+      const validatedCert = validateFilename(cert);
+      const testPath = path.resolve(CERT_DIR, sanitizedFolder, validatedCert);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
+        certFile = validatedCert;
+        certPath = testPath;
+        break;
+      }
     }
-  }
-  
-  if (!certPath || !keyPath) {
-    return res.status(404).json({
+    
+    for (const key of possibleKeyFiles) {
+      const validatedKey = validateFilename(key);
+      const testPath = path.resolve(CERT_DIR, sanitizedFolder, validatedKey);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
+        keyFile = validatedKey;
+        keyPath = testPath;
+        break;
+      }
+    }
+    
+    if (!certPath || !keyPath) {
+      return res.status(404).json({
+        success: false,
+        error: 'Certificate or key file not found'
+      });
+    }
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedCertName}.zip"`);
+    
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+    
+    archive.file(certPath, { name: certFile });
+    archive.file(keyPath, { name: keyFile });
+    
+    archive.finalize();
+  } catch (error) {
+    console.error('Security: Invalid path in bundle download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Certificate or key file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${certName}.zip"`);
-  
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(res);
-  
-  archive.file(certPath, { name: certFile });
-  archive.file(keyPath, { name: keyFile });
-  
-  archive.finalize();
 });
 
 // Legacy download endpoints for backward compatibility
 app.get('/api/download/cert/:filename', requireAuth, (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
+  try {
+    // Validate and sanitize the filename
+    const sanitizedFilename = validateFilename(req.params.filename);
+    const filePath = path.resolve(CERT_DIR, sanitizedFilename);
+    
+    // Security check: ensure path is within CERT_DIR
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativePath = path.relative(resolvedCertDir, filePath);
+    
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      console.error('Security: Blocked path traversal attempt in legacy cert download:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid file path'
+      });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Certificate file not found'
+      });
+    }
+    
+    res.download(filePath, sanitizedFilename);
+  } catch (error) {
+    console.error('Security: Invalid path in legacy cert download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Certificate file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  res.download(filePath, filename);
 });
 
 app.get('/api/download/key/:filename', requireAuth, (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
+  try {
+    // Validate and sanitize the filename
+    const sanitizedFilename = validateFilename(req.params.filename);
+    const filePath = path.resolve(CERT_DIR, sanitizedFilename);
+    
+    // Security check: ensure path is within CERT_DIR
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativePath = path.relative(resolvedCertDir, filePath);
+    
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      console.error('Security: Blocked path traversal attempt in legacy key download:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid file path'
+      });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Key file not found'
+      });
+    }
+    
+    res.download(filePath, sanitizedFilename);
+  } catch (error) {
+    console.error('Security: Invalid path in legacy key download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Key file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  res.download(filePath, filename);
 });
 
 app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
-  const certName = req.params.certname;
-  
-  // Try both formats in root directory
-  const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-  const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-  
-  let certFile, keyFile, certPath, keyPath;
-  
-  for (const cert of possibleCertFiles) {
-    const testPath = path.join(CERT_DIR, cert);
-    if (fs.existsSync(testPath)) {
-      certFile = cert;
-      certPath = testPath;
-      break;
+  try {
+    // Validate and sanitize the certificate name
+    const sanitizedCertName = validateFilename(req.params.certname);
+    
+    // Try both formats in root directory with sanitized names
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
+    
+    let certFile, keyFile, certPath, keyPath;
+    
+    for (const cert of possibleCertFiles) {
+      const validatedCert = validateFilename(cert);
+      const testPath = path.resolve(CERT_DIR, validatedCert);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
+        certFile = validatedCert;
+        certPath = testPath;
+        break;
+      }
     }
-  }
-  
-  for (const key of possibleKeyFiles) {
-    const testPath = path.join(CERT_DIR, key);
-    if (fs.existsSync(testPath)) {
-      keyFile = key;
-      keyPath = testPath;
-      break;
+    
+    for (const key of possibleKeyFiles) {
+      const validatedKey = validateFilename(key);
+      const testPath = path.resolve(CERT_DIR, validatedKey);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
+        keyFile = validatedKey;
+        keyPath = testPath;
+        break;
+      }
     }
-  }
-  
-  if (!certPath || !keyPath) {
-    return res.status(404).json({
+    
+    if (!certPath || !keyPath) {
+      return res.status(404).json({
+        success: false,
+        error: 'Certificate or key file not found'
+      });
+    }
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedCertName}.zip"`);
+    
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+    
+    archive.file(certPath, { name: certFile });
+    archive.file(keyPath, { name: keyFile });
+    
+    archive.finalize();
+  } catch (error) {
+    console.error('Security: Invalid path in legacy bundle download:', error.message);
+    res.status(400).json({
       success: false,
-      error: 'Certificate or key file not found'
+      error: 'Invalid file path'
     });
   }
-  
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${certName}.zip"`);
-  
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(res);
-  
-  archive.file(certPath, { name: certFile });
-  archive.file(keyPath, { name: keyFile });
-  
-  archive.finalize();
 });
 
 // Generate PFX file from certificate and key
@@ -1414,39 +1667,57 @@ app.post('/api/generate/pfx/*', requireAuth, cliRateLimiter, async (req, res) =>
     }
     
     // Last part is certname, everything else is folder path
-    const certName = pathParts.pop();
-    const encodedFolder = pathParts.join('/');
-    const folder = encodedFolder === 'root' ? '' : decodeURIComponent(encodedFolder);
-    const password = req.body.password || '';
+    const rawCertName = pathParts.pop();
+    const rawEncodedFolder = pathParts.join('/');
     
-    console.log('PFX generation request:', { encodedFolder, folder, certName });
+    // Validate and sanitize inputs
+    const sanitizedCertName = validateFilename(rawCertName);
+    let sanitizedFolder;
     
-    // Protect root directory certificates
-    if (encodedFolder === 'root' || folder === '') {
+    if (rawEncodedFolder === 'root' || rawEncodedFolder === '') {
       return res.status(403).json({
         success: false,
         error: 'PFX generation not available for root certificates'
       });
+    } else {
+      const pathValidation = validateAndSanitizePath(rawEncodedFolder);
+      sanitizedFolder = pathValidation.sanitized;
     }
     
-    // Find certificate and key files
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
+    const password = req.body.password || '';
+    
+    console.log('PFX generation request:', { rawEncodedFolder, sanitizedFolder, sanitizedCertName });
+    
+    // Find certificate and key files with secure path handling
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
     
     let certPath = null;
     let keyPath = null;
     
     for (const cert of possibleCertFiles) {
-      const testPath = path.join(CERT_DIR, folder, cert);
-      if (fs.existsSync(testPath)) {
+      const validatedCert = validateFilename(cert);
+      const testPath = path.resolve(CERT_DIR, sanitizedFolder, validatedCert);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
         certPath = testPath;
         break;
       }
     }
     
     for (const key of possibleKeyFiles) {
-      const testPath = path.join(CERT_DIR, folder, key);
-      if (fs.existsSync(testPath)) {
+      const validatedKey = validateFilename(key);
+      const testPath = path.resolve(CERT_DIR, sanitizedFolder, validatedKey);
+      
+      // Security check: ensure path is within CERT_DIR
+      const resolvedCertDir = path.resolve(CERT_DIR);
+      const relativePath = path.relative(resolvedCertDir, testPath);
+      
+      if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath) && fs.existsSync(testPath)) {
         keyPath = testPath;
         break;
       }
@@ -1459,11 +1730,11 @@ app.post('/api/generate/pfx/*', requireAuth, cliRateLimiter, async (req, res) =>
       });
     }
     
-    // Create temporary PFX file
+    // Create temporary PFX file with sanitized cert name
     const tempDir = path.join(__dirname, 'temp');
     await fs.ensureDir(tempDir);
     const timestamp = Date.now();
-    const tempPfxPath = path.join(tempDir, `${certName}_${timestamp}.pfx`);
+    const tempPfxPath = path.join(tempDir, `${sanitizedCertName}_${timestamp}.pfx`);
     const tempPassFile = path.join(tempDir, `pass_${timestamp}.txt`);
     
     try {
@@ -1575,56 +1846,90 @@ app.post('/api/generate/pfx/*', requireAuth, cliRateLimiter, async (req, res) =>
 // Archive certificate (instead of deleting)
 app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
+    // Validate and sanitize inputs
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      sanitizedFolder = '';
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
+    }
+    
+    const sanitizedCertName = validateFilename(req.params.certname);
     
     // Protect root directory certificates from archiving
-    if (req.params.folder === 'root' || folder === '') {
+    if (req.params.folder === 'root' || sanitizedFolder === '') {
       return res.status(403).json({
         success: false,
         error: 'Certificates in the root directory are read-only and cannot be archived'
       });
     }
     
-    // Source folder path
-    const sourceFolderPath = path.join(CERT_DIR, folder);
+    // Source folder path with security validation
+    const sourceFolderPath = path.resolve(CERT_DIR, sanitizedFolder);
+    
+    // Ensure source folder is within CERT_DIR
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativeFolderPath = path.relative(resolvedCertDir, sourceFolderPath);
+    
+    if (relativeFolderPath.startsWith('..') || path.isAbsolute(relativeFolderPath)) {
+      console.error('Security: Blocked path traversal attempt in archive:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid folder path'
+      });
+    }
     
     // Create archive folder within the same directory
     const archiveFolderPath = path.join(sourceFolderPath, 'archive');
     await fs.ensureDir(archiveFolderPath);
     
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
+    // Check for both .pem and .crt formats with sanitized names
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
     
     let archived = [];
     
-    // Archive certificate files
+    // Archive certificate files with path validation
     for (const certFile of possibleCertFiles) {
-      const sourcePath = path.join(sourceFolderPath, certFile);
-      const destPath = path.join(archiveFolderPath, certFile);
+      const validatedCertFile = validateFilename(certFile);
+      const sourcePath = path.resolve(sourceFolderPath, validatedCertFile);
+      const destPath = path.resolve(archiveFolderPath, validatedCertFile);
       
-      if (await fs.pathExists(sourcePath)) {
+      // Security checks for both source and destination
+      const relativeSourcePath = path.relative(resolvedCertDir, sourcePath);
+      const relativeDestPath = path.relative(resolvedCertDir, destPath);
+      
+      if (!relativeSourcePath.startsWith('..') && !path.isAbsolute(relativeSourcePath) && 
+          !relativeDestPath.startsWith('..') && !path.isAbsolute(relativeDestPath) &&
+          await fs.pathExists(sourcePath)) {
         await fs.move(sourcePath, destPath);
-        archived.push(certFile);
+        archived.push(validatedCertFile);
       }
     }
     
-    // Archive key files
+    // Archive key files with path validation
     for (const keyFile of possibleKeyFiles) {
-      const sourcePath = path.join(sourceFolderPath, keyFile);
-      const destPath = path.join(archiveFolderPath, keyFile);
+      const validatedKeyFile = validateFilename(keyFile);
+      const sourcePath = path.resolve(sourceFolderPath, validatedKeyFile);
+      const destPath = path.resolve(archiveFolderPath, validatedKeyFile);
       
-      if (await fs.pathExists(sourcePath)) {
+      // Security checks for both source and destination
+      const relativeSourcePath = path.relative(resolvedCertDir, sourcePath);
+      const relativeDestPath = path.relative(resolvedCertDir, destPath);
+      
+      if (!relativeSourcePath.startsWith('..') && !path.isAbsolute(relativeSourcePath) && 
+          !relativeDestPath.startsWith('..') && !path.isAbsolute(relativeDestPath) &&
+          await fs.pathExists(sourcePath)) {
         await fs.move(sourcePath, destPath);
-        archived.push(keyFile);
+        archived.push(validatedKeyFile);
       }
     }
     
     if (archived.length === 0) {
-      // Show all file paths checked for debugging
-      const checkedCertPaths = possibleCertFiles.map(f => path.join(sourceFolderPath, f));
-      const checkedKeyPaths = possibleKeyFiles.map(f => path.join(sourceFolderPath, f));
+      // Show all file paths checked for debugging (sanitized)
+      const checkedCertPaths = possibleCertFiles.map(f => path.join(relativeFolderPath, f));
+      const checkedKeyPaths = possibleKeyFiles.map(f => path.join(relativeFolderPath, f));
       return res.status(404).json({
         success: false,
         error: 'Certificate files not found',
@@ -1637,9 +1942,10 @@ app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req,
       success: true,
       message: 'Certificate archived successfully',
       archived,
-      archivePath: path.join(folder, 'archive')
+      archivePath: path.join(relativeFolderPath, 'archive')
     });
   } catch (error) {
+    console.error('Security: Error in archive operation:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -1650,52 +1956,90 @@ app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req,
 // Restore certificate from archive
 app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
+    // Validate and sanitize inputs
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      sanitizedFolder = '';
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
+    }
     
-    // Source folder paths
-    const folderPath = path.join(CERT_DIR, folder);
-    const archiveFolderPath = path.join(folderPath, 'archive');
+    const sanitizedCertName = validateFilename(req.params.certname);
     
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
+    // Source folder paths with security validation
+    const folderPath = path.resolve(CERT_DIR, sanitizedFolder);
+    const archiveFolderPath = path.resolve(folderPath, 'archive');
+    
+    // Ensure paths are within CERT_DIR
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativeFolderPath = path.relative(resolvedCertDir, folderPath);
+    const relativeArchivePath = path.relative(resolvedCertDir, archiveFolderPath);
+    
+    if (relativeFolderPath.startsWith('..') || path.isAbsolute(relativeFolderPath) ||
+        relativeArchivePath.startsWith('..') || path.isAbsolute(relativeArchivePath)) {
+      console.error('Security: Blocked path traversal attempt in restore:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid folder path'
+      });
+    }
+    
+    // Check for both .pem and .crt formats with sanitized names
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
     
     let restored = [];
     
-    // Restore certificate files
+    // Restore certificate files with path validation
     for (const certFile of possibleCertFiles) {
-      const sourcePath = path.join(archiveFolderPath, certFile);
-      const destPath = path.join(folderPath, certFile);
+      const validatedCertFile = validateFilename(certFile);
+      const sourcePath = path.resolve(archiveFolderPath, validatedCertFile);
+      const destPath = path.resolve(folderPath, validatedCertFile);
       
-      if (await fs.pathExists(sourcePath)) {
+      // Security checks for both source and destination
+      const relativeSourcePath = path.relative(resolvedCertDir, sourcePath);
+      const relativeDestPath = path.relative(resolvedCertDir, destPath);
+      
+      if (!relativeSourcePath.startsWith('..') && !path.isAbsolute(relativeSourcePath) && 
+          !relativeDestPath.startsWith('..') && !path.isAbsolute(relativeDestPath) &&
+          await fs.pathExists(sourcePath)) {
+        
         // Check if destination file already exists
         if (await fs.pathExists(destPath)) {
           return res.status(409).json({
             success: false,
-            error: `Certificate file ${certFile} already exists in the active directory`
+            error: `Certificate file ${validatedCertFile} already exists in the active directory`
           });
         }
         await fs.move(sourcePath, destPath);
-        restored.push(certFile);
+        restored.push(validatedCertFile);
       }
     }
     
-    // Restore key files
+    // Restore key files with path validation
     for (const keyFile of possibleKeyFiles) {
-      const sourcePath = path.join(archiveFolderPath, keyFile);
-      const destPath = path.join(folderPath, keyFile);
+      const validatedKeyFile = validateFilename(keyFile);
+      const sourcePath = path.resolve(archiveFolderPath, validatedKeyFile);
+      const destPath = path.resolve(folderPath, validatedKeyFile);
       
-      if (await fs.pathExists(sourcePath)) {
+      // Security checks for both source and destination
+      const relativeSourcePath = path.relative(resolvedCertDir, sourcePath);
+      const relativeDestPath = path.relative(resolvedCertDir, destPath);
+      
+      if (!relativeSourcePath.startsWith('..') && !path.isAbsolute(relativeSourcePath) && 
+          !relativeDestPath.startsWith('..') && !path.isAbsolute(relativeDestPath) &&
+          await fs.pathExists(sourcePath)) {
+        
         // Check if destination file already exists
         if (await fs.pathExists(destPath)) {
           return res.status(409).json({
             success: false,
-            error: `Key file ${keyFile} already exists in the active directory`
+            error: `Key file ${validatedKeyFile} already exists in the active directory`
           });
         }
         await fs.move(sourcePath, destPath);
-        restored.push(keyFile);
+        restored.push(validatedKeyFile);
       }
     }
     
@@ -1732,38 +2076,70 @@ app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req,
 // Delete certificate permanently from archive
 app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) => {
   try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
+    // Validate and sanitize inputs
+    let sanitizedFolder;
+    if (req.params.folder === 'root') {
+      return res.status(403).json({
+        success: false,
+        error: 'Root certificates cannot be deleted'
+      });
+    } else {
+      const pathValidation = validateAndSanitizePath(req.params.folder);
+      sanitizedFolder = pathValidation.sanitized;
+    }
+    
+    const sanitizedCertName = validateFilename(req.params.certname);
     
     // Only allow deletion from archive folders
-    if (!folder.includes('archive')) {
+    if (!sanitizedFolder.includes('archive')) {
       return res.status(403).json({
         success: false,
         error: 'Certificates can only be permanently deleted from archive folders. Use archive endpoint instead.'
       });
     }
     
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
+    // Ensure folder path is within CERT_DIR
+    const folderPath = path.resolve(CERT_DIR, sanitizedFolder);
+    const resolvedCertDir = path.resolve(CERT_DIR);
+    const relativeFolderPath = path.relative(resolvedCertDir, folderPath);
+    
+    if (relativeFolderPath.startsWith('..') || path.isAbsolute(relativeFolderPath)) {
+      console.error('Security: Blocked path traversal attempt in delete:', req.params);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: invalid folder path'
+      });
+    }
+    
+    // Check for both .pem and .crt formats with sanitized names
+    const possibleCertFiles = [`${sanitizedCertName}.pem`, `${sanitizedCertName}.crt`];
+    const possibleKeyFiles = [`${sanitizedCertName}-key.pem`, `${sanitizedCertName}.key`];
     
     let deleted = [];
     
-    // Delete certificate files
+    // Delete certificate files with path validation
     for (const certFile of possibleCertFiles) {
-      const certPath = path.join(CERT_DIR, folder, certFile);
-      if (await fs.pathExists(certPath)) {
+      const validatedCertFile = validateFilename(certFile);
+      const certPath = path.resolve(folderPath, validatedCertFile);
+      
+      // Security check
+      const relativeCertPath = path.relative(resolvedCertDir, certPath);
+      if (!relativeCertPath.startsWith('..') && !path.isAbsolute(relativeCertPath) && await fs.pathExists(certPath)) {
         await fs.remove(certPath);
-        deleted.push(certFile);
+        deleted.push(validatedCertFile);
       }
     }
     
-    // Delete key files
+    // Delete key files with path validation
     for (const keyFile of possibleKeyFiles) {
-      const keyPath = path.join(CERT_DIR, folder, keyFile);
-      if (await fs.pathExists(keyPath)) {
+      const validatedKeyFile = validateFilename(keyFile);
+      const keyPath = path.resolve(folderPath, validatedKeyFile);
+      
+      // Security check
+      const relativeKeyPath = path.relative(resolvedCertDir, keyPath);
+      if (!relativeKeyPath.startsWith('..') && !path.isAbsolute(relativeKeyPath) && await fs.pathExists(keyPath)) {
         await fs.remove(keyPath);
-        deleted.push(keyFile);
+        deleted.push(validatedKeyFile);
       }
     }
     
@@ -1775,12 +2151,11 @@ app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) 
     }
     
     // Check if archive folder is empty and remove it if so
-    const archiveFolderPath = path.join(CERT_DIR, folder);
     try {
-      const remainingFiles = await fs.readdir(archiveFolderPath);
+      const remainingFiles = await fs.readdir(folderPath);
       if (remainingFiles.length === 0) {
-        await fs.remove(archiveFolderPath);
-        deleted.push(`archive folder: ${folder}`);
+        await fs.remove(folderPath);
+        deleted.push(`archive folder: ${relativeFolderPath}`);
       }
     } catch (error) {
       // Folder might already be removed or not exist
@@ -1792,6 +2167,7 @@ app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) 
       deleted
     });
   } catch (error) {
+    console.error('Security: Error in delete operation:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
@@ -1802,7 +2178,8 @@ app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) 
 // Legacy delete endpoint for backward compatibility
 app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
   try {
-    const certName = req.params.certname;
+    // Validate filename to prevent any path traversal attempts
+    const sanitizedCertName = validateFilename(req.params.certname);
     
     // Protect root directory certificates from deletion
     return res.status(403).json({
@@ -1810,6 +2187,7 @@ app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
       error: 'Certificates in the root directory are read-only and cannot be deleted'
     });
   } catch (error) {
+    console.error('Security: Error in legacy delete operation:', error.message);
     res.status(500).json({
       success: false,
       error: error.message
