@@ -707,7 +707,7 @@ async function handleGenerateCA() {
         
         if (result.success) {
             // Show immediate success notification
-            showNotification(result.message, 'success');
+            showAlert(result.message, 'success');
             
             // Update progress indicator to show completion
             if (rootCAInfo) {

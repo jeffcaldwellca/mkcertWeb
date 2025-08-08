@@ -1057,47 +1057,11 @@ app.post('/api/certificates/upload', requireAuth, upload.array('certificates', 1
     // Move files to final destination and organize them
     for (const pair of completePairs) {
       try {
-        // Determine appropriate extensions and filenames
-        const certExt = path.extname(pair.cert.filename).toLowerCase();
-        const keyExt = path.extname(pair.key.filename).toLowerCase();
-        
-        let finalCertName, finalKeyName;
-        if (certExt === '.pem') {
-          finalCertName = `${pair.certName}.pem`;
-          finalKeyName = `${pair.certName}-key.pem`;
-        } else {
-          finalCertName = `${pair.certName}${certExt}`;
-          finalKeyName = `${pair.certName}${keyExt}`;
-        }
-
-        // Move files from upload directory to certificates directory
-        const finalCertPath = path.join(CERT_DIR, 'uploaded', finalCertName);
-        const finalKeyPath = path.join(CERT_DIR, 'uploaded', finalKeyName);
-
-        // Move cert file
-        if (pair.cert.filename !== finalCertName) {
-          await fs.move(pair.cert.path, finalCertPath);
-        }
-
-        // Move key file
-        if (pair.key.filename !== finalKeyName) {
-          await fs.move(pair.key.path, finalKeyPath);
-        }
-
+        // Files are already stored in the correct location by multer
+        // Just log success
         console.log(`Successfully uploaded certificate pair: ${pair.certName}`);
-      } catch (moveError) {
-        errors.push(`Error finalizing certificate ${pair.certName}: ${moveError.message}`);
-      }
-    }
-
-    // Clean up any temporary files that weren't moved
-    for (const file of req.files) {
-      try {
-        if (await fs.pathExists(file.path)) {
-          await fs.remove(file.path);
-        }
-      } catch (cleanupError) {
-        console.warn(`Failed to clean up temp file ${file.path}:`, cleanupError);
+      } catch (processError) {
+        errors.push(`Error processing certificate ${pair.certName}: ${processError.message}`);
       }
     }
 
