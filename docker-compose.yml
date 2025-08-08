@@ -23,6 +23,22 @@ services:
       - AUTH_USERNAME=admin
       - AUTH_PASSWORD=admin
       - SESSION_SECRET=mkcert-web-ui-secret-key-change-in-production
+      
+      # Rate Limiting Configuration
+      - CLI_RATE_LIMIT_WINDOW=900000   # CLI operations window (15 minutes)
+      - CLI_RATE_LIMIT_MAX=10          # Max CLI operations per window
+      - API_RATE_LIMIT_WINDOW=900000   # API requests window (15 minutes)  
+      - API_RATE_LIMIT_MAX=100         # Max API requests per window
+      - AUTH_RATE_LIMIT_WINDOW=900000  # Auth attempts window (15 minutes)
+      - AUTH_RATE_LIMIT_MAX=5          # Max auth attempts per window
+      
+      # OpenID Connect (OIDC) SSO Configuration
+      # - ENABLE_OIDC=false
+      # - OIDC_ISSUER=
+      # - OIDC_CLIENT_ID=
+      # - OIDC_CLIENT_SECRET=
+      # - OIDC_CALLBACK_URL=
+      # - OIDC_SCOPE=openid profile email
     volumes:
       # Persist certificates and data
       - mkcert_certificates:/app/certificates

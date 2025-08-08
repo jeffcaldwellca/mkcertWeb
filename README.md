@@ -1,212 +1,114 @@
 # mkcert Web UI
 
-A modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with an intuitive web interface featuring Docker support, PFX generation, and comprehensive certificate management.
+A modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with an intuitive web interface.
 
-## ✨ Features
+## ✨ Key Features
 
-- **🔐 Certificate Generation**: Create SSL certificates for multiple domains and IP addresses
-- **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates on-demand
-- **🔒 Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect (OIDC)
-- **🏢 Enterprise SSO**: OpenID Connect integration for Azure AD, Google, and other OIDC providers
-- **🛡️ Rate Limiting**: Built-in protection against CLI command abuse and automated attacks
-- **🌐 HTTPS Support**: Auto-generated SSL certificates for secure web interface
-- **📋 Certificate Management**: View, download, archive, and restore certificates
-- **🎨 Modern UI**: Dark/light themes with responsive design and mobile support
-- **🐳 Docker Support**: Complete containerization with docker-compose deployment
-- **🔑 Root CA Management**: Install, view, and download the mkcert Certificate Authority
-- **📊 Certificate Details**: Comprehensive information including expiry tracking
-- **🔄 Automatic Organization**: Timestamp-based folder structure for easy management
+- **🔐 SSL Certificate Generation**: Create certificates for multiple domains and IP addresses
+- **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
+- **🔒 Flexible Authentication**: Basic auth and enterprise SSO with OpenID Connect
+- **🛡️ Security**: Built-in rate limiting and command injection protection
+- **🌐 HTTPS Support**: Auto-generated SSL certificates for secure access
+- **� Certificate Management**: View, download, archive, and restore certificates
+- **🎨 Modern UI**: Dark/light themes with responsive design
+- **🐳 Docker Ready**: Complete containerization with docker-compose
 
-## 🚀 Quick Start with Docker
+## 🚀 Quick Start
 
-The fastest way to get started is using Docker:
+### Using Docker (Recommended)
 
 ```bash
-# Clone the repository
+# Clone and start
 git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
-
-# Start with Docker Compose (includes automatic CA generation)
 docker-compose up -d
-
-# Access the application
-open http://localhost:3000
-```
-
-**For detailed Docker setup, configuration, and deployment options, see [DOCKER.md](DOCKER.md)**
-
-For local installation without Docker, you'll need Node.js 16+, mkcert, and OpenSSL. See [Installation Guide](#-installation) below for detailed setup instructions.
-
-## 📸 Screenshot
-
-![mkcert Web UI Screenshot](public/assets/screenshot.png)
-
-*The mkcert Web UI featuring the modern terminal-style theme with certificate management, system status, and Root CA information.*
-
-## 🔧 Installation
-
-### Method 1: Docker (Recommended)
-
-See the [Quick Start with Docker](#-quick-start-with-docker) section above, or [DOCKER.md](DOCKER.md) for comprehensive Docker deployment options.
-
-### Method 2: Local Installation
-
-#### Prerequisites
-- **Node.js** (version 16 or higher)
-- **mkcert** CLI tool  
-- **OpenSSL** (usually pre-installed on most systems)
-
-#### Ubuntu/Debian Setup
-```bash
-# Install Node.js
-sudo apt update
-sudo apt install -y nodejs npm
-
-# Install mkcert dependencies and download mkcert
-sudo apt install -y libnss3-tools wget
-wget -O mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-amd64
-chmod +x mkcert
-sudo mv mkcert /usr/local/bin/
-
-# Verify installations
-node --version  # Should be v16+
-mkcert -version
-openssl version
-```
-
-#### Application Setup
-```bash
-# Clone and install
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-npm install
-
-# Initialize mkcert (first time only)
-mkcert -install
-
-# Start the application
-npm start
 
 # Access at http://localhost:3000
 ```
 
-## ⚙️ Configuration
-
-### Environment Variables
-
-Configure the application using a `.env` file (see `.env.example`) or environment variables:
+### Local Installation
 
 ```bash
-# Authentication Configuration
-ENABLE_AUTH=true             # Enable user authentication (default: true)
-USERNAME=admin               # Username for basic authentication  
-PASSWORD=admin123            # Password for basic authentication
+# Prerequisites: Node.js 16+, mkcert, OpenSSL
+npm install
+mkcert -install    # First time only
+npm start
+```
 
-# OpenID Connect (OIDC) SSO Authentication
-ENABLE_OIDC=false            # Enable OIDC SSO authentication (default: false)
-OIDC_ISSUER=                 # OIDC provider issuer URL
-OIDC_CLIENT_ID=              # OIDC client application ID
-OIDC_CLIENT_SECRET=          # OIDC client secret
-OIDC_CALLBACK_URL=           # OIDC callback URL (auto-configured)
-OIDC_SCOPE=openid profile email  # OIDC scopes to request
+**For detailed setup instructions, see [DOCKER.md](DOCKER.md)**
 
+## ⚙️ Configuration
+
+### Essential Environment Variables
+
+```bash
 # Server Configuration
 PORT=3000                    # HTTP server port
 ENABLE_HTTPS=true            # Enable HTTPS server
 HTTPS_PORT=3443              # HTTPS server port
-SSL_DOMAIN=localhost         # Domain for SSL certificate
-FORCE_HTTPS=true             # Redirect HTTP to HTTPS
 
-# Certificate Settings
-CERTIFICATE_FORMAT=pem       # Default format: 'pem' or 'crt'
+# Authentication 
+ENABLE_AUTH=true             # Enable user authentication
+AUTH_USERNAME=admin          # Username for basic authentication
+AUTH_PASSWORD=admin123       # Password for basic authentication
 
-# Rate Limiting Configuration
-CLI_RATE_LIMIT_WINDOW=900000 # CLI operations window in ms (default: 15 minutes)
-CLI_RATE_LIMIT_MAX=10        # Max CLI operations per window (default: 10)
-API_RATE_LIMIT_WINDOW=900000 # API requests window in ms (default: 15 minutes)
-API_RATE_LIMIT_MAX=100       # Max API requests per window (default: 100)
+# Rate Limiting Security
+CLI_RATE_LIMIT_MAX=10        # Max CLI operations per 15min window
+API_RATE_LIMIT_MAX=100       # Max API requests per 15min window  
+AUTH_RATE_LIMIT_MAX=5        # Max auth attempts per 15min window
+
+# OpenID Connect SSO (Optional)
+ENABLE_OIDC=false            # Enable OIDC SSO authentication
+OIDC_ISSUER=                 # OIDC provider URL
+OIDC_CLIENT_ID=              # OIDC client ID
+OIDC_CLIENT_SECRET=          # OIDC client secret
 ```
 
-### Authentication Setup
+### Advanced Configuration
 
-The application supports two authentication methods that can be used together or independently:
-
-#### Basic Authentication (Default)
-```bash
-ENABLE_AUTH=true
-USERNAME=admin
-PASSWORD=your-secure-password
-```
-
-#### Enterprise SSO with OpenID Connect
-```bash
-# Enable OIDC alongside basic auth
-ENABLE_OIDC=true
-OIDC_ISSUER=https://login.microsoftonline.com/your-tenant-id/v2.0
-OIDC_CLIENT_ID=your-azure-app-id
-OIDC_CLIENT_SECRET=your-client-secret
-```
-
-**Supported OIDC Providers:**
-- Microsoft Azure AD / Entra ID
-- Google Workspace
-- Okta
-- Auth0
-- Any OpenID Connect compliant provider
-
-For detailed OIDC setup instructions, see the `.env.example` file.
-
-### HTTPS Setup
-
-The application supports automatic HTTPS with mkcert-generated certificates:
-
-```bash
-# HTTPS with HTTP fallback (recommended for development)
-npm run https
-
-# HTTPS only (redirects HTTP to HTTPS)
-npm run https-only
-
-# Custom domain
-SSL_DOMAIN=myapp.local ENABLE_HTTPS=true npm start
-```
-
-SSL certificates are automatically generated and stored in the `./ssl/` directory. Since they're created with mkcert, they're automatically trusted by your browser.
-
-### Production Deployment
-
-For production deployments, consider using Docker or see [DOCKER.md](DOCKER.md) for comprehensive deployment options including reverse proxy configurations and security best practices.
+For complete configuration options including rate limiting windows, SSL domains, and OIDC scopes, see the `.env.example` file or [DOCKER.md](DOCKER.md).
 
 ## 📚 Usage
 
-### First Time Setup
+### Getting Started
 
-1. **System Check**: The web interface automatically verifies mkcert and OpenSSL installation
-2. **Root CA Installation**: Install the mkcert root CA if prompted (`mkcert -install`)
-3. **Authentication**: Choose your authentication method:
-   - **Basic Auth**: Log in with configured credentials (default: admin/admin123)
-   - **OIDC SSO**: Use your organization's single sign-on when OIDC is configured
+1. **Access**: Navigate to `http://localhost:3000`
+2. **Login**: Use configured credentials (default: admin/admin)
+3. **Generate**: Enter domains (one per line) and select format
+4. **Download**: Get certificates in PEM, CRT, or PFX format
+5. **Manage**: View, archive, or restore certificates
 
-### 🔐 Certificate Generation
+### API Usage
 
-1. **Access Interface**: Navigate to `http://localhost:3000`
-2. **Enter Domains**: Add domain names (one per line):
-   ```
-   localhost
-   127.0.0.1
-   *.example.com
-   example.com
-   myapp.local
-   ```
-3. **Select Format**: Choose PEM (.pem/.key) or CRT (.crt/.key) format
-4. **Generate**: Click "Generate Certificate"
+```bash
+# Generate certificate
+curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"domains":["localhost","127.0.0.1"],"format":"pem"}'
 
-### 📁 Certificate Organization
-
-Certificates are automatically organized with timestamps:
+# Download bundle
+wget http://localhost:3000/api/download/bundle/folder/certname -O bundle.zip
 ```
-certificates/
-├── root/                           # Legacy certificates (protected)
+
+## 🔒 Security Features
+
+- **Rate Limiting**: Comprehensive protection against abuse
+  - CLI Operations: 10 per 15 minutes
+  - API Requests: 100 per 15 minutes
+  - Auth Attempts: 5 per 15 minutes
+- **Command Injection Protection**: Validated shell execution
+- **Enterprise SSO**: OpenID Connect integration
+- **HTTPS Support**: Auto-generated trusted certificates
+
+## � Support
+
+- 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
+- 📖 **Documentation**: Complete docs in [DOCKER.md](DOCKER.md)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 └── 2025-01-20/                     # Date-based organization
     ├── 2025-01-20T10-30-45_localhost/
     │   ├── localhost.pem
