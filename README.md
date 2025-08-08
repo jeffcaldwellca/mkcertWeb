@@ -1,17 +1,19 @@
 # mkcert Web UI
 
-A modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with an intuitive web interface.
+A secure, modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with enterprise-grade security and an intuitive web interface.
 
 ## ✨ Key Features
 
 - **🔐 SSL Certificate Generation**: Create certificates for multiple domains and IP addresses
-- **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
+- **�️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting
+- **�📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
 - **🔒 Flexible Authentication**: Basic auth and enterprise SSO with OpenID Connect
-- **🛡️ Security**: Built-in rate limiting and command injection protection
+- **🏗️ Modular Architecture**: Clean, maintainable codebase with utility-based design
 - **🌐 HTTPS Support**: Auto-generated SSL certificates for secure access
-- **� Certificate Management**: View, download, archive, and restore certificates
+- **📊 Certificate Management**: View, download, archive, and restore certificates
 - **🎨 Modern UI**: Dark/light themes with responsive design
 - **🐳 Docker Ready**: Complete containerization with docker-compose
+- **📈 Monitoring Ready**: Standardized logging and structured API responses
 
 ## 🚀 Quick Start
 
@@ -52,10 +54,13 @@ ENABLE_AUTH=true             # Enable user authentication
 AUTH_USERNAME=admin          # Username for basic authentication
 AUTH_PASSWORD=admin123       # Password for basic authentication
 
-# Rate Limiting Security
+# Security & Rate Limiting (NEW in v2.0)
 CLI_RATE_LIMIT_MAX=10        # Max CLI operations per 15min window
 API_RATE_LIMIT_MAX=100       # Max API requests per 15min window  
 AUTH_RATE_LIMIT_MAX=5        # Max auth attempts per 15min window
+CLI_RATE_LIMIT_WINDOW=900000 # CLI rate limit window (15 minutes)
+API_RATE_LIMIT_WINDOW=900000 # API rate limit window (15 minutes)
+AUTH_RATE_LIMIT_WINDOW=900000 # Auth rate limit window (15 minutes)
 
 # OpenID Connect SSO (Optional)
 ENABLE_OIDC=false            # Enable OIDC SSO authentication
@@ -81,24 +86,45 @@ For complete configuration options including rate limiting windows, SSL domains,
 ### API Usage
 
 ```bash
-# Generate certificate
-curl -X POST http://localhost:3000/api/generate \
+# Generate certificate (v2.0 standardized response format)
+curl -X POST http://localhost:3000/api/execute \
   -H "Content-Type: application/json" \
-  -d '{"domains":["localhost","127.0.0.1"],"format":"pem"}'
+  -d '{"command":"generate","input":"localhost example.com"}'
 
-# Download bundle
-wget http://localhost:3000/api/download/bundle/folder/certname -O bundle.zip
+# Response format (NEW in v2.0)
+{
+  "success": true,
+  "output": "Created certificate for localhost and example.com",
+  "command": "mkcert localhost example.com"
+}
+
+# List certificates
+curl http://localhost:3000/api/certificates
+# Returns: { "success": true, "certificates": [...], "total": 5 }
+
+# Download certificate file
+wget http://localhost:3000/download/localhost.pem -O localhost.pem
 ```
 
-## 🔒 Security Features
+## 🔒 Security Features (Enhanced in v2.0)
 
-- **Rate Limiting**: Comprehensive protection against abuse
-  - CLI Operations: 10 per 15 minutes
-  - API Requests: 100 per 15 minutes
-  - Auth Attempts: 5 per 15 minutes
-- **Command Injection Protection**: Validated shell execution
-- **Enterprise SSO**: OpenID Connect integration
-- **HTTPS Support**: Auto-generated trusted certificates
+### Enterprise-Grade Security
+- **🛡️ Command Injection Protection**: Strict allowlist-based command validation prevents malicious shell injection
+- **🔐 Path Traversal Prevention**: Comprehensive file access validation prevents directory traversal attacks
+- **📝 Input Sanitization**: All user inputs validated and sanitized before processing
+- **🚫 Filename Validation**: Prevents malicious filename patterns and null byte attacks
+
+### Multi-Tier Rate Limiting
+- **CLI Operations**: 10 per 15 minutes (prevents command abuse)
+- **API Requests**: 100 per 15 minutes (prevents API flooding)  
+- **Authentication**: 5 attempts per 15 minutes (prevents brute force)
+- **General Access**: 200 requests per 15 minutes (overall protection)
+
+### Additional Security
+- **🔑 Enterprise SSO**: OpenID Connect integration with role-based access
+- **🌐 HTTPS Support**: Auto-generated trusted certificates with secure headers
+- **📊 Audit Logging**: Comprehensive logging of security events and blocked attempts
+- **🔄 Auto-Recovery**: Graceful error handling prevents service disruption
 
 ## � Support
 
@@ -225,12 +251,29 @@ wget -qO- http://localhost:3000/api/status | python3 -m json.tool
 wget -qO- http://localhost:3000/api/certificates | python3 -m json.tool
 ```
 
-## File Structure
+## File Structure (v2.0 Modular Architecture)
 
 ```
 mkcertWeb/
-├── server.js                 # Express server and API routes
+├── server.js                 # Main application entry point (modular)
 ├── package.json             # Node.js dependencies and scripts  
+├── src/                     # Modular application source (NEW in v2.0)
+│   ├── config/             # Configuration management
+│   │   └── index.js        # Centralized environment configuration
+│   ├── security/           # Security utilities
+│   │   └── index.js        # Command validation, path sanitization
+│   ├── middleware/         # Express middleware
+│   │   ├── auth.js         # Authentication middleware factory
+│   │   └── rateLimiting.js # Rate limiting middleware factory
+│   ├── routes/             # Route handlers (organized by functionality)
+│   │   ├── auth.js         # Authentication routes
+│   │   ├── certificates.js # Certificate management routes
+│   │   ├── files.js        # File upload/download routes
+│   │   └── system.js       # System and API information routes
+│   └── utils/              # Utility functions
+│       ├── certificates.js # Certificate parsing helpers
+│       ├── fileValidation.js # File validation utilities
+│       └── responses.js    # Standardized response utilities
 ├── public/                  # Frontend static assets
 │   ├── index.html          # Main web interface
 │   ├── login.html          # Authentication login page
@@ -240,11 +283,11 @@ mkcertWeb/
 ├── certificates/            # Certificate storage (organized by date)
 │   ├── root/               # Legacy certificates (read-only)
 │   └── YYYY-MM-DD/         # Date-based organization
-│       └── YYYY-MM-DDTHH-MM-SS_domains/  # Timestamped folders
 ├── .env.example            # Environment configuration template
-├── README.md               # Comprehensive documentation
-├── CHANGELOG.md            # Version history and release notes
-├── TESTING.md              # Testing procedures and validation
+├── CHANGELOG.md            # Version history and release notes (updated for v2.0)
+├── DEDUPLICATION_COMPLETE.md # Architecture improvement documentation (NEW)
+├── TESTING.md              # Testing procedures and validation (updated)
+├── DOCKER.md               # Docker deployment guide (updated)
 └── package-lock.json       # Dependency lock file
 ```
 
@@ -252,20 +295,20 @@ mkcertWeb/
 
 ## Security & Best Practices
 
-### Security Model
-- **Development Focus**: Designed for local development environments
+### Security Model (Enhanced in v2.0)
+- **Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive input validation
+- **Development & Production Ready**: Secure for both local development and production deployments
 - **Flexible Authentication**: Basic authentication and enterprise SSO with OpenID Connect
-- **Enterprise SSO**: Secure OIDC integration with proper token validation and session management
-- **Rate Limiting Protection**: Built-in protection against CLI command abuse and automated attacks
-  - **CLI Operations**: Limited to 10 operations per 15-minute window (certificate generation, CA management)
-  - **API Requests**: Limited to 100 requests per 15-minute window (general API endpoints)
-  - **Per-User Limiting**: Rate limits applied per IP address and authenticated user
-  - **Configurable Limits**: All rate limits can be adjusted via environment variables
-- **Regular User Execution**: Runs without root privileges (except for `mkcert -install`)
-- **Read-Only Protection**: Root directory certificates cannot be deleted
+- **Multi-Tier Rate Limiting**: Comprehensive protection against abuse with configurable limits
+  - **CLI Operations**: 10 per 15 minutes (certificate generation, CA management)
+  - **API Requests**: 100 per 15 minutes (general API endpoints)
+  - **Authentication**: 5 attempts per 15 minutes (brute force protection)
+  - **General Access**: 200 per 15 minutes (overall protection)
+- **Secure File Handling**: All file operations validated against path traversal and malicious filenames
+- **Command Validation**: Strict allowlist prevents shell injection attacks
 - **Session Security**: HTTP-only cookies with CSRF protection and secure OIDC flows
-- **Organized Storage**: Timestamp-based folders prevent conflicts
-- **Provider Security**: OIDC callback validation and secure provider configuration
+- **Audit Logging**: Comprehensive security event logging for monitoring
+- **Graceful Error Handling**: Prevents information disclosure through consistent error responses
 
 ### Network Security
 - **HTTP Only**: Suitable for localhost development (consider HTTPS proxy for production)

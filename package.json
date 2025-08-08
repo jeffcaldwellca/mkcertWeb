@@ -1,7 +1,7 @@
 {
   "name": "mkcert-web-ui",
-  "version": "1.5.2",
-  "description": "Web UI middleware for managing mkcert CLI and certificate files",
+  "version": "2.0.0",
+  "description": "Secure, modular Web UI for managing mkcert CLI and certificate files",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -817,8 +817,14 @@ async function handleInstallCA() {
     installCaBtn.disabled = true;
     
     try {
-        await apiRequest('/install-ca', {
-            method: 'POST'
+        await apiRequest('/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                command: 'install-ca'
+            })
         });
         
         showAlert('Root CA installed successfully', 'success');

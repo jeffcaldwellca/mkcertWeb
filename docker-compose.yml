@@ -8,6 +8,7 @@ services:
       # Server Configuration
       - PORT=3000
       - HTTPS_PORT=3443
+      - HOST=0.0.0.0
       
       # SSL/HTTPS Configuration
       - ENABLE_HTTPS=false
