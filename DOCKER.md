@@ -1,6 +1,6 @@
 # Docker Usage Guide
 
-This document provides comprehensive instructions for running mkcert Web UI using Docker.
+This document provides comprehensive instructions for running mkcert Web UI v2.0 using Docker. Version 2.0 includes enhanced security features, modular architecture, and standardized API responses.
 
 ## Quick Start
 
@@ -20,6 +20,18 @@ docker-compose up -d
 That's it! The application will be available at:
 - **HTTP**: http://localhost:3000
 - **HTTPS**: http://localhost:3443 (if enabled)
+
+### Version 2.0 API Changes
+
+⚠️ **Breaking Changes in v2.0**
+
+If upgrading from v1.x, note that API responses have been standardized:
+- All API responses now include a `success` boolean field
+- Error responses include standardized `error` messages
+- Some endpoint response formats have changed for consistency
+- Enhanced error handling with detailed validation messages
+
+See the [CHANGELOG.md](CHANGELOG.md) for complete migration details.
 
 ### Alternative: Manual Docker Run
 
@@ -135,12 +147,12 @@ docker run -d \
 | `ENABLE_HTTPS` | `false` | Enable HTTPS server |
 | `SSL_DOMAIN` | `localhost` | Domain name for SSL certificate |
 | `FORCE_HTTPS` | `false` | Redirect HTTP to HTTPS |
-| `NODE_ENV` | `production` | Environment mode |
+| `NODE_ENV` | `production` | Environment mode (enables security features in production) |
 | `DEFAULT_THEME` | `dark` | Default theme (dark/light) |
-| `ENABLE_AUTH` | `false` | Enable user authentication |
+| `ENABLE_AUTH` | `false` | Enable user authentication (recommended for production) |
 | `AUTH_USERNAME` | `admin` | Username for authentication |
 | `AUTH_PASSWORD` | `admin` | Password for authentication |
-| `SESSION_SECRET` | `mkcert-web-ui-secret-key-change-in-production` | Session secret |
+| `SESSION_SECRET` | `auto-generated` | Session secret (auto-generated if not provided) |
 
 ## Docker Compose Management
 
@@ -214,9 +226,11 @@ docker-compose up -d
 - ✅ Generate secure `SESSION_SECRET`
 - ✅ Enable HTTPS with your domain
 - ✅ Configure proper SSL_DOMAIN
-- ✅ Set NODE_ENV=production
-- ✅ Enable authentication
+- ✅ Set NODE_ENV=production (enables security features)
+- ✅ Enable authentication (`ENABLE_AUTH=true`)
 - ✅ Configure reverse proxy if needed
+- ✅ Review rate limiting settings for your use case
+- ✅ Ensure container receives regular security updates
 
 ## Building and Running
 
@@ -329,8 +343,9 @@ docker volume inspect mkcertWeb_mkcert_data
 The Docker image includes all required dependencies:
 - **mkcert**: Pre-installed for certificate generation
 - **OpenSSL**: Included for certificate analysis and operations
-- **Node.js**: Runtime environment
-- **Alpine Linux**: Minimal base image
+- **Node.js**: Runtime environment with security enhancements
+- **Alpine Linux**: Minimal base image with security updates
+- **Security Modules**: Built-in rate limiting, input validation, and path protection
 
 If you encounter issues, verify the container has the required tools:
 ```bash
@@ -347,11 +362,39 @@ docker exec mkcert-web-ui openssl version
 
 ## Security Considerations
 
+⚠️ **Version 2.0 Security Enhancements**
+
+mkcert Web UI v2.0 includes comprehensive security improvements:
+
+### Built-in Security Features
+
+1. **Command Injection Protection**: All user inputs are sanitized and validated
+2. **Path Traversal Prevention**: File operations are restricted to authorized directories
+3. **Rate Limiting**: Multi-tier protection against abuse:
+   - General API: 100 requests per 15 minutes per IP
+   - Certificate operations: 10 requests per 15 minutes per IP
+   - File operations: 20 requests per 15 minutes per IP
+4. **Input Validation**: Comprehensive validation of all user inputs
+5. **Secure Headers**: Security headers automatically applied to all responses
+
+### Production Security Checklist
+
 1. **Change Default Credentials**: Always change `AUTH_USERNAME` and `AUTH_PASSWORD` in production
 2. **Session Secret**: Use a strong, randomly generated `SESSION_SECRET`
 3. **HTTPS**: Enable HTTPS for production deployments
 4. **Network**: Consider using Docker networks for isolation
 5. **Updates**: Regularly update the container image for security patches
+6. **Authentication**: Enable authentication in production environments
+7. **Reverse Proxy**: Use nginx or similar for additional security layers
+
+### Security Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_AUTH` | `false` | Enable user authentication (recommended for production) |
+| `SESSION_SECRET` | `auto-generated` | Session secret (change in production) |
+| `FORCE_HTTPS` | `false` | Force HTTPS redirects |
+| `NODE_ENV` | `production` | Production mode enables additional security features |
 
 ## Examples
 

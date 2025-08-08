@@ -1,6 +1,19 @@
-# Testing mkcert Web UI on Ubuntu
+# Testing mkcert Web UI v2.0 on Ubuntu
 
-This document provides comprehensive testing procedures for the mkcert Web UI application on Ubuntu systems. All tests use built-in Ubuntu tools and avoid external curl calls where possible.
+This document provides comprehensive testing procedures for the mkcert Web UI application version 2.0 on Ubuntu systems. This version includes significant security enhancements, modular architecture, and standardized API responses.
+
+## What's New in v2.0 Testing
+
+### Security Testing Requirements
+- Command injection protection validation
+- Path traversal prevention testing  
+- Rate limiting verification across all endpoints
+- Standardized API response format validation
+
+### API Response Format Changes
+All API endpoints now return standardized JSON format:
+- Success: `{"success": true, "data": {...}, "message": "optional"}`
+- Error: `{"success": false, "error": "description"}`
 
 ## Prerequisites Verification
 
@@ -107,6 +120,74 @@ sleep 3
 # Verify server is running
 ps aux | grep node
 netstat -tlnp | grep :3000
+```
+
+## v2.0 API Response Format Testing
+
+### 1. Health Check Endpoint (Standardized Response)
+```bash
+# Test health endpoint - should return standardized format
+wget -qO- http://localhost:3000/api/health | python3 -m json.tool
+
+# Expected v2.0 format:
+# {
+#   "success": true,
+#   "status": "ok",
+#   "timestamp": "2025-08-08T...",
+#   "uptime": 30.054,
+#   "version": "2.0.0"
+# }
+```
+
+### 2. Commands Endpoint (New Standardized Format)
+```bash
+# Test commands endpoint - should return standardized format
+wget -qO- http://localhost:3000/api/commands | python3 -m json.tool
+
+# Expected v2.0 format:
+# {
+#   "success": true,
+#   "commands": [
+#     {
+#       "name": "Install CA",
+#       "key": "install-ca",
+#       "description": "Install the local CA certificate",
+#       "dangerous": false
+#     },
+#     ...
+#   ]
+# }
+```
+
+### 3. Error Response Format Testing
+```bash
+# Test invalid endpoint to verify error format
+wget -qO- http://localhost:3000/api/nonexistent 2>/dev/null | python3 -m json.tool
+
+# Expected v2.0 error format:
+# {
+#   "success": false,
+#   "error": "API endpoint not found",
+#   "path": "/api/nonexistent",
+#   "method": "GET"
+# }
+```
+
+### 4. Security Validation Testing
+```bash
+# Test command injection protection (should fail safely)
+wget --post-data='{"command":"invalid; rm -rf /"}' \
+     --header='Content-Type: application/json' \
+     http://localhost:3000/api/execute \
+     -O /tmp/security-test.json 2>/dev/null
+
+cat /tmp/security-test.json | python3 -m json.tool
+
+# Expected security response:
+# {
+#   "success": false,
+#   "error": "Invalid command"
+# }
 ```
 
 ## Authentication Testing
