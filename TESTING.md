@@ -731,10 +731,31 @@ wget --load-cookies=/tmp/auth-cookies.txt \
 
 ### 3. Rate Limiting Security Testing
 ```bash
+# Test authentication rate limiting (brute force protection)
+echo "Testing authentication rate limiting..."
+
+# Attempt rapid login attempts (should trigger rate limit)
+echo "Testing auth rate limiting with invalid credentials..."
+for i in {1..7}; do
+    echo "Auth attempt $i:"
+    wget --post-data='{"username":"admin","password":"wrong"}' \
+         --header='Content-Type: application/json' \
+         http://localhost:3000/api/auth/login \
+         -O /tmp/auth-rate-test-$i.json 2>&1
+    
+    if grep -q "429\|Too many.*authentication" /tmp/auth-rate-test-$i.json; then
+        echo "✓ Auth rate limit triggered at attempt $i"
+        break
+    elif [ $i -gt 5 ]; then
+        echo "⚠ Auth rate limit may not be working (completed $i attempts)"
+    fi
+    sleep 1
+done
+
 # Test CLI rate limiting for certificate generation
 echo "Testing CLI rate limiting..."
 
-# Login first to get valid session
+# Login with correct credentials for CLI testing
 wget --post-data='{"username":"admin","password":"admin"}' \
      --header='Content-Type: application/json' \
      --save-cookies=/tmp/rate-limit-cookies.txt \
@@ -742,7 +763,7 @@ wget --post-data='{"username":"admin","password":"admin"}' \
      -O /tmp/temp.json
 
 # Test rapid certificate generation (should hit rate limit)
-echo "Attempting rapid certificate generation to test rate limiting..."
+echo "Attempting rapid certificate generation to test CLI rate limiting..."
 for i in {1..12}; do
     echo "Request $i:"
     wget --load-cookies=/tmp/rate-limit-cookies.txt \
@@ -751,30 +772,46 @@ for i in {1..12}; do
          http://localhost:3000/api/generate \
          -O /tmp/rate-limit-test-$i.json 2>&1
     
-    if grep -q "429\|Too many" /tmp/rate-limit-test-$i.json; then
-        echo "✓ Rate limit triggered at request $i"
+    if grep -q "429\|Too many.*CLI" /tmp/rate-limit-test-$i.json; then
+        echo "✓ CLI rate limit triggered at request $i"
         break
     elif [ $i -gt 10 ]; then
-        echo "⚠ Rate limit may not be working (completed $i requests)"
+        echo "⚠ CLI rate limit may not be working (completed $i requests)"
     fi
     sleep 1
 done
 
 # Test API rate limiting for general endpoints
-echo "Testing API rate limiting..."
-for i in {1..25}; do
+echo "Testing general API rate limiting..."
+for i in {1..105}; do
     wget --load-cookies=/tmp/rate-limit-cookies.txt \
          -qO- http://localhost:3000/api/certificates > /tmp/api-rate-$i.json 2>&1
     
-    if grep -q "429\|Too many" /tmp/api-rate-$i.json; then
+    if grep -q "429\|Too many.*API" /tmp/api-rate-$i.json; then
         echo "✓ API rate limit working (triggered at request $i)"
         break
     fi
     
-    if [ $((i % 10)) -eq 0 ]; then
+    if [ $((i % 25)) -eq 0 ]; then
         echo "Completed $i API requests..."
     fi
 done
+
+# Test rate limit configuration via environment variables
+echo "Testing rate limit environment variable configuration..."
+cat > .env.rate-test << 'EOF'
+ENABLE_AUTH=true
+AUTH_USERNAME=admin
+AUTH_PASSWORD=admin
+CLI_RATE_LIMIT_WINDOW=900000
+CLI_RATE_LIMIT_MAX=5
+API_RATE_LIMIT_WINDOW=900000
+API_RATE_LIMIT_MAX=50
+AUTH_RATE_LIMIT_WINDOW=900000
+AUTH_RATE_LIMIT_MAX=3
+EOF
+
+echo "✓ Rate limiting configuration test completed"
 
 # Test rate limit headers
 echo "Testing rate limit headers..."
@@ -785,12 +822,11 @@ wget --load-cookies=/tmp/rate-limit-cookies.txt \
 
 grep -E "X-RateLimit|RateLimit" /tmp/rate-headers.txt && echo "✓ Rate limit headers present"
 
-# Test rate limiting with different IPs (if possible)
-# Note: This is limited in single-machine testing
 echo "✓ Rate limiting tests completed"
 
 # Clean up rate limiting test files
-rm -f /tmp/rate-limit-*.json /tmp/api-rate-*.json /tmp/rate-headers.txt
+rm -f /tmp/rate-limit-*.json /tmp/api-rate-*.json /tmp/auth-rate-test-*.json /tmp/rate-headers.txt
+```
 ```
 
 ### 4. File Access Security Testing

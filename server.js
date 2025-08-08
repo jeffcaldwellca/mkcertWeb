@@ -43,6 +43,8 @@ const CLI_RATE_LIMIT_WINDOW = parseInt(process.env.CLI_RATE_LIMIT_WINDOW) || 15 
 const CLI_RATE_LIMIT_MAX = parseInt(process.env.CLI_RATE_LIMIT_MAX) || 10; // 10 requests per window
 const API_RATE_LIMIT_WINDOW = parseInt(process.env.API_RATE_LIMIT_WINDOW) || 15 * 60 * 1000; // 15 minutes  
 const API_RATE_LIMIT_MAX = parseInt(process.env.API_RATE_LIMIT_MAX) || 100; // 100 requests per window
+const AUTH_RATE_LIMIT_WINDOW = parseInt(process.env.AUTH_RATE_LIMIT_WINDOW) || 15 * 60 * 1000; // 15 minutes
+const AUTH_RATE_LIMIT_MAX = parseInt(process.env.AUTH_RATE_LIMIT_MAX) || 5; // 5 login attempts per window
 
 // Create rate limiters
 const cliRateLimiter = rateLimit({
@@ -75,6 +77,41 @@ const apiRateLimiter = rateLimit({
     const ip = req.ip || req.connection.remoteAddress;
     const user = req.user?.username || req.session?.username || 'anonymous';
     return `api:${ip}:${user}`;
+  }
+});
+
+// Authentication rate limiter to prevent brute force attacks
+const authRateLimiter = rateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW,
+  max: AUTH_RATE_LIMIT_MAX,
+  message: {
+    error: 'Too many authentication attempts, please try again later.',
+    retryAfter: Math.ceil(AUTH_RATE_LIMIT_WINDOW / 1000)
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return `auth:${ip}`;
+  },
+  // Strict rate limiting for auth - applies to all auth attempts from same IP
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false
+});
+
+// General rate limiter for static content and non-API routes
+const generalRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // 200 requests per window (more lenient for static content)
+  message: {
+    error: 'Too many requests, please try again later.',
+    retryAfter: Math.ceil(15 * 60) // 15 minutes in seconds
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    return `general:${ip}`;
   }
 });
 
@@ -149,7 +186,8 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-// Serve static files with conditional authentication
+// Serve static files with conditional authentication and rate limiting
+app.use(generalRateLimiter);
 app.use(express.static('public', {
   setHeaders: (res, path) => {
     // No special headers needed for static files
@@ -159,7 +197,7 @@ app.use(express.static('public', {
 // Authentication routes
 if (ENABLE_AUTH) {
   // Login page route
-  app.get('/login', (req, res) => {
+  app.get('/login', generalRateLimiter, (req, res) => {
     if (req.session && req.session.authenticated) {
       return res.redirect('/');
     }
@@ -167,7 +205,7 @@ if (ENABLE_AUTH) {
   });
 
   // Login API
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', authRateLimiter, async (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
@@ -224,12 +262,12 @@ if (ENABLE_AUTH) {
   // OIDC Authentication Routes
   if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
     // Initiate OIDC login
-    app.get('/auth/oidc',
+    app.get('/auth/oidc', authRateLimiter,
       passport.authenticate('oidc')
     );
 
     // OIDC callback
-    app.get('/auth/oidc/callback',
+    app.get('/auth/oidc/callback', authRateLimiter,
       passport.authenticate('oidc', { failureRedirect: '/login?error=oidc_failed' }),
       (req, res) => {
         // Successful authentication, redirect to main page
@@ -249,7 +287,7 @@ if (ENABLE_AUTH) {
   });
 
   // Traditional form-based login route
-  app.post('/login', async (req, res) => {
+  app.post('/login', authRateLimiter, async (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
@@ -266,7 +304,7 @@ if (ENABLE_AUTH) {
   });
 
   // Redirect root to login if not authenticated
-  app.get('/', (req, res, next) => {
+  app.get('/', generalRateLimiter, (req, res, next) => {
     // Check both session authentication and OIDC authentication
     if ((!req.session || !req.session.authenticated) && (!req.user || !req.isAuthenticated())) {
       return res.redirect('/login');
@@ -276,17 +314,17 @@ if (ENABLE_AUTH) {
   });
 } else {
   // When authentication is disabled, serve index.html directly
-  app.get('/', (req, res) => {
+  app.get('/', generalRateLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
   
   // Redirect login page to main page when auth is disabled
-  app.get('/login', (req, res) => {
+  app.get('/login', generalRateLimiter, (req, res) => {
     res.redirect('/');
   });
   
   // Handle POST /login when auth is disabled (redirect to main page)
-  app.post('/login', (req, res) => {
+  app.post('/login', authRateLimiter, (req, res) => {
     res.redirect('/');
   });
 }
@@ -367,12 +405,29 @@ const upload = multer({
   }
 });
 
-// Helper function to execute shell commands
+// Secure command execution with validation
+// SECURITY: This function validates all commands against an allowlist to prevent 
+// command injection attacks. Only specific mkcert and openssl commands are permitted.
 const executeCommand = (command) => {
   return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
+    // Validate and sanitize command
+    if (!isCommandSafe(command)) {
+      console.error('Security: Blocked unsafe command execution attempt:', command);
+      reject({ 
+        error: 'Command not allowed for security reasons', 
+        stderr: 'Invalid or potentially dangerous command detected' 
+      });
+      return;
+    }
+
+    // Add timeout to prevent hanging processes
+    exec(command, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
-        reject({ error: error.message, stderr });
+        if (error.code === 'ETIMEDOUT') {
+          reject({ error: 'Command timed out after 30 seconds', stderr });
+        } else {
+          reject({ error: error.message, stderr });
+        }
       } else {
         resolve({ stdout, stderr });
       }
@@ -380,13 +435,84 @@ const executeCommand = (command) => {
   });
 };
 
+// Command validation function - only allows specific safe commands
+const isCommandSafe = (command) => {
+  if (!command || typeof command !== 'string') {
+    return false;
+  }
+
+  // Trim the command
+  const trimmedCommand = command.trim();
+  
+  // Define allowed command patterns
+  const allowedPatterns = [
+    // mkcert commands - basic operations
+    /^mkcert\s+(-CAROOT|--help|-help|-install)$/,
+    
+    // mkcert certificate generation - standalone
+    /^mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+[\w\.\-\s\*]+$/,
+    
+    // mkcert certificate generation - with cd command (for organized folders)
+    /^cd\s+"[^"]+"\s+&&\s+mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+[\w\.\-\s\*]+$/,
+    
+    // OpenSSL commands for certificate inspection (read-only)
+    /^openssl\s+version$/,
+    /^openssl\s+x509\s+-in\s+"[^"]+"\s+-noout\s+[^\|;&`$(){}[\]<>]+$/,
+    
+    // OpenSSL PKCS12 commands for PFX generation
+    /^openssl\s+pkcs12\s+-export\s+-out\s+"[^"]+"\s+-inkey\s+"[^"]+"\s+-in\s+"[^"]+"\s+(-certfile\s+"[^"]+"\s+)?-passout\s+(pass:|file:"[^"]+")(\s+-legacy)?$/
+  ];
+
+  // Check if command matches any allowed pattern
+  const isAllowed = allowedPatterns.some(pattern => pattern.test(trimmedCommand));
+  
+  if (!isAllowed) {
+    console.warn('Blocked potentially unsafe command:', trimmedCommand);
+    return false;
+  }
+
+  // Additional security checks
+  // Block commands with dangerous characters or sequences
+  const dangerousPatterns = [
+    /[;&|`$(){}[\]<>]/,  // Shell metacharacters (except & in cd && mkcert pattern)
+    /\.\.\//,            // Directory traversal
+    /\/etc\/|\/bin\/|\/usr\/bin\/|\/sbin\//, // System directories
+    /rm\s+|del\s+|format\s+/i, // Deletion commands
+    />\s*\/|>>\s*\//, // Output redirection to system paths
+    /sudo|su\s/i,     // Privilege escalation
+  ];
+
+  // Special handling for cd && mkcert commands - allow the && operator
+  const isCdMkcertCommand = /^cd\s+"[^"]+"\s+&&\s+mkcert/.test(trimmedCommand);
+  
+  const hasDangerousPattern = dangerousPatterns.some(pattern => {
+    if (isCdMkcertCommand && pattern.source.includes('&')) {
+      // For cd && mkcert commands, only check for other dangerous patterns
+      return false;
+    }
+    return pattern.test(trimmedCommand);
+  });
+  
+  if (hasDangerousPattern) {
+    console.warn('Blocked command with dangerous pattern:', trimmedCommand);
+    return false;
+  }
+
+  return true;
+};
+
 // Routes
 
-// Apply general API rate limiting to all API routes (except auth endpoints)
+// Apply comprehensive API rate limiting to all API routes
 app.use('/api/certificates', apiRateLimiter);
 app.use('/api/download', apiRateLimiter);
 app.use('/api/rootca', apiRateLimiter);
 app.use('/api/config', apiRateLimiter);
+app.use('/api/status', apiRateLimiter);
+app.use('/api/generate', apiRateLimiter);
+app.use('/api/auth/status', apiRateLimiter);
+app.use('/api/auth/methods', apiRateLimiter);
+app.use('/api/auth/logout', apiRateLimiter);
 
 // Get mkcert status and CA info
 app.get('/api/status', requireAuth, cliRateLimiter, async (req, res) => {
