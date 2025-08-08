@@ -5,7 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.1] - 2025-08-01
+## [1.5.0] - 2025-08-08
+
+### Added
+- **Drag & Drop Certificate Upload**: New upload interface for importing existing certificate/key pairs
+  - Intuitive drag & drop zone with visual feedback and hover effects
+  - Click-to-browse file selection with multi-file support
+  - Smart certificate-key pairing (automatically matches .crt with .key files, .pem with -key.pem files)
+  - Comprehensive file validation (supports .pem, .crt, .key, .cer, .p7b, .p7c, .pfx, .p12 formats)
+  - Real-time upload progress tracking with visual progress bar
+  - Detailed upload results with success/error reporting for each file
+  - Uploaded certificates stored in dedicated "uploaded" folder for organization
+  - Full integration with existing certificate management (download, archive, bundle, PFX generation)
+
+### Fixed
+- **Root CA Generation Error**: Fixed `showNotification is not defined` JavaScript error
+  - Changed incorrect `showNotification` function call to use existing `showAlert` function
+  - Root CA generation now completes successfully without JavaScript errors
+- **CA Installation Timing Issues**: Improved CA installation status refresh mechanism
+  - Added retry mechanism with exponential backoff for CA status checking
+  - Eliminates need for manual page refresh after CA installation
+  - More reliable detection of newly installed Certificate Authorities
+
+### Enhanced
+- **Certificate Listing**: Enhanced recursive directory scanning to properly display uploaded certificates
+- **Upload Processing**: Streamlined file processing logic to prevent duplicate file operations
+- **User Experience**: Improved visual feedback and error handling throughout upload process
+
+## [1.4.1]
 
 ### Added
 - **Rate Limiting Protection**: Comprehensive rate limiting to prevent CLI command abuse
@@ -197,7 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v1.3.0**: PFX generation, improved UI/UX, and enhanced certificate management
 - **v1.4.0**: OpenID Connect SSO authentication and enhanced Root CA management
 - **v1.4.1**: Rate limiting protection and security enhancements
-- **Current**: Full-featured mkcert Web UI with comprehensive certificate format support, enterprise SSO, and rate limiting protection
+- **v1.5.0**: Drag & drop certificate upload functionality with smart pairing and comprehensive file validation
+- **Current**: Full-featured mkcert Web UI with drag & drop uploads, comprehensive certificate format support, enterprise SSO, and rate limiting protection
 
 ## Contributing
 
