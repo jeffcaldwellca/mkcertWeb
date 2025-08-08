@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.5.0] - 2025-08-08
+## [1.5.5] - 2025-08-08
+
+### Security
+- **Comprehensive Rate Limiting Enhancement**: Applied rate limiting protection to all previously unprotected routes
+  - Added authentication rate limiter (5 attempts per 15 minutes) to prevent brute force attacks on login endpoints
+  - Added general rate limiter (200 requests per 15 minutes) for static content and non-API routes
+  - Extended API rate limiting coverage to `/api/status`, `/api/generate`, and auth status endpoints
+  - Protected OIDC authentication routes with rate limiting
+  - Added rate limiting to all authentication-related routes including traditional form login
+  - Configured environment variables for authentication rate limits (AUTH_RATE_LIMIT_WINDOW, AUTH_RATE_LIMIT_MAX)
+
+- **Critical Security Fix**: Implemented command validation and input sanitization for shell command execution
+  - Added allowlist-based command validation to prevent command injection attacks
+  - Restricted shell command execution to specific safe patterns for mkcert and openssl operations
+  - Added timeout and buffer limits for command execution
+  - Enhanced logging of blocked command attempts for security monitoring
+  - **BREAKING**: Commands not matching allowed patterns will now be rejected
+
+## [1.5.0]
 
 ### Added
 - **Drag & Drop Certificate Upload**: New upload interface for importing existing certificate/key pairs
