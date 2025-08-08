@@ -507,6 +507,221 @@ section h2::before {
     transition: color 0.3s ease;
 }
 
+/* Certificate Upload Drag & Drop */
+.upload-section {
+    margin-top: 2rem;
+}
+
+.upload-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: inset 0 1px 0 var(--glow-primary);
+    transition: all 0.3s ease;
+}
+
+.upload-dropzone {
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    background: var(--card-bg-secondary);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.upload-dropzone:hover {
+    border-color: var(--primary-color);
+    background: var(--button-hover-bg);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.upload-dropzone.dragover {
+    border-color: var(--success-color);
+    background: var(--glow-primary);
+    box-shadow: 0 0 20px var(--glow-primary);
+    border-style: solid;
+}
+
+.upload-dropzone .upload-icon {
+    font-size: 3rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.upload-dropzone:hover .upload-icon,
+.upload-dropzone.dragover .upload-icon {
+    color: var(--success-color);
+    transform: scale(1.1);
+}
+
+.upload-dropzone .upload-text {
+    color: var(--text-color);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.upload-dropzone .upload-subtext {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.upload-dropzone .file-types {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.upload-progress {
+    margin-top: 1rem;
+    display: none;
+}
+
+.upload-progress.visible {
+    display: block;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px var(--shadow-color);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--success-color), var(--primary-color));
+    border-radius: 9px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 10px var(--glow-primary);
+}
+
+.progress-text {
+    text-align: center;
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.upload-results {
+    margin-top: 1rem;
+    display: none;
+}
+
+.upload-results.visible {
+    display: block;
+}
+
+.upload-success {
+    padding: 1rem;
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid var(--success-color);
+    border-radius: 6px;
+    color: var(--success-color);
+    margin-bottom: 0.5rem;
+}
+
+.upload-warning {
+    padding: 1rem;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid var(--warning-color);
+    border-radius: 6px;
+    color: var(--warning-color);
+    margin-bottom: 0.5rem;
+}
+
+.upload-error {
+    padding: 1rem;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid var(--error-color);
+    border-radius: 6px;
+    color: var(--error-color);
+    margin-bottom: 0.5rem;
+}
+
+.file-list {
+    margin-top: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.file-item:hover {
+    background: var(--button-hover-bg);
+    border-color: var(--primary-color);
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-grow: 1;
+}
+
+.file-icon {
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+.file-name {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.file-size {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+}
+
+.file-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.file-status.success {
+    color: var(--success-color);
+}
+
+.file-status.error {
+    color: var(--error-color);
+}
+
+.file-status.warning {
+    color: var(--warning-color);
+}
+
+#file-input {
+    display: none;
+}
+
 /* Buttons */
 .btn {
     display: inline-flex;

@@ -13,6 +13,7 @@ let certificatesList, generateForm, domainsInput, formatSelect;
 let installCaBtn, showCaBtn, hideModal, caModal;
 let themeToggle;
 let statusIndicators = {};
+let uploadDropzone, fileInput, uploadProgress, uploadResults, fileList;
 
 // Theme management
 // Theme management
@@ -89,6 +90,22 @@ function initializeElements() {
     caModal = document.getElementById('ca-modal');
     themeToggle = document.getElementById('theme-toggle');
     
+    // Upload elements
+    uploadDropzone = document.getElementById('upload-dropzone');
+    fileInput = document.getElementById('file-input');
+    uploadProgress = document.getElementById('upload-progress');
+    uploadResults = document.getElementById('upload-results');
+    fileList = document.getElementById('file-list');
+    
+    // Debug: Check if upload elements are found
+    console.log('Upload elements found:', {
+        uploadDropzone: !!uploadDropzone,
+        fileInput: !!fileInput,
+        uploadProgress: !!uploadProgress,
+        uploadResults: !!uploadResults,
+        fileList: !!fileList
+    });
+    
     // Status indicators
     statusIndicators.mkcert = document.getElementById('mkcert-status');
     statusIndicators.ca = document.getElementById('ca-status');
@@ -146,6 +163,9 @@ function setupEventListeners() {
     if (themeToggle) {
         themeToggle.addEventListener('click', toggleTheme);
     }
+    
+    // Upload event listeners
+    setupUploadEventListeners();
     
     // Add logout button event listener
     const logoutBtn = document.getElementById('logout-btn');
@@ -803,13 +823,42 @@ async function handleInstallCA() {
         
         showAlert('Root CA installed successfully', 'success');
         hideModalDialog();
-        loadSystemStatus();
+        
+        // Add a small delay and retry mechanism to ensure CA installation is reflected
+        await waitForCAInstallation();
     } catch (error) {
         showAlert('Failed to install CA: ' + error.message, 'error');
     } finally {
         installCaBtn.innerHTML = '<i class="fas fa-download"></i> Install CA';
         installCaBtn.disabled = false;
     }
+}
+
+// Helper function to wait for CA installation to be reflected in status
+async function waitForCAInstallation(maxRetries = 5, delay = 500) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            // Wait a bit before checking
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            // Check if CA now exists
+            const status = await apiRequest('/status');
+            if (status.caExists) {
+                // CA is now available, reload the status
+                await loadSystemStatus();
+                return;
+            }
+            
+            // Double the delay for next attempt (exponential backoff)
+            delay *= 1.5;
+        } catch (error) {
+            console.warn(`Attempt ${i + 1} to check CA status failed:`, error);
+        }
+    }
+    
+    // If we get here, fallback to loading status anyway
+    console.warn('CA status check retries exhausted, loading status anyway');
+    await loadSystemStatus();
 }
 
 // Utility functions
@@ -847,6 +896,338 @@ function hideAlert(alertId) {
     if (alert) {
         alert.remove();
     }
+}
+
+// Certificate Upload Functionality
+function setupUploadEventListeners() {
+    console.log('Setting up upload event listeners...', { uploadDropzone: !!uploadDropzone, fileInput: !!fileInput });
+    
+    if (!uploadDropzone || !fileInput) {
+        console.warn('Upload elements not found, skipping setup');
+        return;
+    }
+    
+    console.log('Upload elements found, setting up listeners...');
+    
+    // Click to select files
+    uploadDropzone.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', handleFileSelect);
+    
+    // Drag and drop events
+    uploadDropzone.addEventListener('dragover', handleDragOver);
+    uploadDropzone.addEventListener('dragenter', handleDragEnter);
+    uploadDropzone.addEventListener('dragleave', handleDragLeave);
+    uploadDropzone.addEventListener('drop', handleDrop);
+    
+    // Prevent default drag behaviors on the document
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => e.preventDefault());
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadDropzone.classList.add('dragover');
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadDropzone.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only remove dragover if we're leaving the dropzone entirely
+    if (!uploadDropzone.contains(e.relatedTarget)) {
+        uploadDropzone.classList.remove('dragover');
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadDropzone.classList.remove('dragover');
+    
+    const files = Array.from(e.dataTransfer.files);
+    handleFiles(files);
+}
+
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    handleFiles(files);
+}
+
+function handleFiles(files) {
+    if (files.length === 0) return;
+    
+    // Filter valid files
+    const validExtensions = ['.pem', '.crt', '.key', '.cer', '.p7b', '.p7c', '.pfx', '.p12'];
+    const validFiles = files.filter(file => {
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        return validExtensions.includes(ext);
+    });
+    
+    const invalidFiles = files.filter(file => {
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        return !validExtensions.includes(ext);
+    });
+    
+    if (invalidFiles.length > 0) {
+        showAlert(
+            `Skipped ${invalidFiles.length} invalid file(s). Only certificate and key files are allowed.`,
+            'warning'
+        );
+    }
+    
+    if (validFiles.length === 0) {
+        showAlert('No valid certificate files selected.', 'error');
+        return;
+    }
+    
+    // Show file list
+    displayFileList(validFiles);
+    
+    // Upload files
+    uploadFiles(validFiles);
+}
+
+function displayFileList(files) {
+    if (!fileList) return;
+    
+    fileList.innerHTML = '';
+    files.forEach(file => {
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        const isKey = file.name.includes('-key') || file.name.includes('.key') || ext === '.key';
+        const isCert = ['.pem', '.crt', '.cer'].includes(ext) && !isKey;
+        
+        let icon, type;
+        if (isCert) {
+            icon = 'certificate';
+            type = 'Certificate';
+        } else if (isKey) {
+            icon = 'key';
+            type = 'Private Key';
+        } else {
+            icon = 'file-alt';
+            type = 'Certificate File';
+        }
+        
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.innerHTML = `
+            <div class="file-info">
+                <i class="fas fa-${icon} file-icon"></i>
+                <span class="file-name">${file.name}</span>
+                <span class="file-size">(${formatFileSize(file.size)})</span>
+            </div>
+            <div class="file-status" data-file="${file.name}">
+                <i class="fas fa-clock"></i>
+                <span>Pending</span>
+            </div>
+        `;
+        fileList.appendChild(fileItem);
+    });
+}
+
+async function uploadFiles(files) {
+    if (!files || files.length === 0) return;
+    
+    // Show progress
+    if (uploadProgress) {
+        uploadProgress.classList.add('visible');
+        updateProgress(0, 'Preparing upload...');
+    }
+    
+    // Clear previous results
+    if (uploadResults) {
+        uploadResults.classList.remove('visible');
+        uploadResults.innerHTML = '';
+    }
+    
+    try {
+        const formData = new FormData();
+        files.forEach(file => {
+            formData.append('certificates', file);
+        });
+        
+        // Update progress
+        updateProgress(25, 'Uploading files...');
+        
+        const response = await fetch('/api/certificates/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        });
+        
+        updateProgress(75, 'Processing files...');
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Upload failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        updateProgress(100, 'Upload complete!');
+        
+        // Hide progress after a moment
+        setTimeout(() => {
+            if (uploadProgress) {
+                uploadProgress.classList.remove('visible');
+            }
+        }, 1500);
+        
+        // Update file statuses
+        updateFileStatuses(result);
+        
+        // Show results
+        displayUploadResults(result);
+        
+        // Refresh certificates list
+        if (result.success && result.completePairs > 0) {
+            setTimeout(() => {
+                loadCertificates();
+            }, 1000);
+        }
+        
+        // Clear file input
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        
+        // Hide progress
+        if (uploadProgress) {
+            uploadProgress.classList.remove('visible');
+        }
+        
+        // Update all file statuses to error
+        const fileStatuses = document.querySelectorAll('.file-status');
+        fileStatuses.forEach(status => {
+            status.className = 'file-status error';
+            status.innerHTML = '<i class="fas fa-times"></i><span>Failed</span>';
+        });
+        
+        showAlert('Upload failed: ' + error.message, 'error');
+    }
+}
+
+function updateProgress(percent, text) {
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    if (progressFill) {
+        progressFill.style.width = `${percent}%`;
+    }
+    
+    if (progressText) {
+        progressText.textContent = text;
+    }
+}
+
+function updateFileStatuses(result) {
+    const fileStatuses = document.querySelectorAll('.file-status');
+    
+    // Mark all as success initially
+    fileStatuses.forEach(status => {
+        status.className = 'file-status success';
+        status.innerHTML = '<i class="fas fa-check"></i><span>Uploaded</span>';
+    });
+    
+    // Update specific files with errors if any
+    if (result.errors && result.errors.length > 0) {
+        result.errors.forEach(error => {
+            // Try to match error to specific files (basic matching)
+            fileStatuses.forEach(status => {
+                const fileName = status.getAttribute('data-file');
+                if (error.includes(fileName)) {
+                    status.className = 'file-status error';
+                    status.innerHTML = '<i class="fas fa-times"></i><span>Error</span>';
+                }
+            });
+        });
+    }
+    
+    // Mark incomplete pairs as warnings
+    if (result.incompletePairs && result.incompletePairs.length > 0) {
+        result.incompletePairs.forEach(incomplete => {
+            fileStatuses.forEach(status => {
+                const fileName = status.getAttribute('data-file');
+                if (fileName.includes(incomplete.certName)) {
+                    status.className = 'file-status warning';
+                    status.innerHTML = `<i class="fas fa-exclamation-triangle"></i><span>Missing ${incomplete.missing}</span>`;
+                }
+            });
+        });
+    }
+}
+
+function displayUploadResults(result) {
+    if (!uploadResults) return;
+    
+    let html = '';
+    
+    if (result.success && result.completePairs > 0) {
+        html += `
+            <div class="upload-success">
+                <i class="fas fa-check-circle"></i>
+                <strong>Success!</strong> Uploaded ${result.completePairs} certificate pair(s) to the "uploaded" folder.
+            </div>
+        `;
+    }
+    
+    if (result.incompletePairs && result.incompletePairs.length > 0) {
+        html += `
+            <div class="upload-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Incomplete Pairs:</strong> ${result.incompletePairs.length} file(s) are missing their certificate or key pair.
+                <ul style="margin-top: 0.5rem; margin-left: 1rem;">
+                    ${result.incompletePairs.map(pair => 
+                        `<li>${pair.certName}: Missing ${pair.missing} (has: ${pair.hasFile})</li>`
+                    ).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    if (result.errors && result.errors.length > 0) {
+        html += `
+            <div class="upload-error">
+                <i class="fas fa-times-circle"></i>
+                <strong>Errors:</strong>
+                <ul style="margin-top: 0.5rem; margin-left: 1rem;">
+                    ${result.errors.map(error => `<li>${error}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    if (!result.success && (!result.errors || result.errors.length === 0)) {
+        html += `
+            <div class="upload-error">
+                <i class="fas fa-times-circle"></i>
+                <strong>Upload failed:</strong> No files were successfully processed.
+            </div>
+        `;
+    }
+    
+    uploadResults.innerHTML = html;
+    uploadResults.classList.add('visible');
+    
+    // Auto-hide results after 10 seconds
+    setTimeout(() => {
+        if (uploadResults) {
+            uploadResults.classList.remove('visible');
+        }
+    }, 10000);
 }
 
 // Theme management functions

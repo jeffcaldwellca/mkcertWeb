@@ -72,6 +72,33 @@
             </div>
         </section>
 
+        <!-- Certificate Upload Section -->
+        <section class="upload-section">
+            <h2><i class="fas fa-upload"></i> Upload Certificate Files</h2>
+            <div class="upload-card">
+                <div class="upload-dropzone" id="upload-dropzone">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="upload-text">Drag & Drop Certificate Files</div>
+                    <div class="upload-subtext">or click to select files</div>
+                    <div class="file-types">Supported: .pem, .crt, .key, .cer files</div>
+                </div>
+                <input type="file" id="file-input" multiple accept=".pem,.crt,.key,.cer,.p7b,.p7c,.pfx,.p12">
+                
+                <div class="upload-progress" id="upload-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">Uploading files...</div>
+                </div>
+                
+                <div class="upload-results" id="upload-results"></div>
+                
+                <div class="file-list" id="file-list"></div>
+            </div>
+        </section>
+
         <!-- Certificates List Section -->
         <section class="certificates-section">
             <h2><i class="fas fa-list"></i> Existing Certificates</h2>

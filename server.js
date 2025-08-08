@@ -15,6 +15,7 @@ const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const OpenIDConnectStrategy = require('passport-openidconnect');
 const rateLimit = require('express-rate-limit');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -320,6 +321,51 @@ const CERT_DIR = path.join(__dirname, 'certificates');
 
 // Ensure certificates directory exists
 fs.ensureDirSync(CERT_DIR);
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Create uploads folder if it doesn't exist
+    const uploadDir = path.join(CERT_DIR, 'uploaded');
+    fs.ensureDirSync(uploadDir);
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Keep original filename
+    cb(null, file.originalname);
+  }
+});
+
+// File filter to only allow certificate and key files
+const fileFilter = (req, file, cb) => {
+  const allowedExtensions = ['.pem', '.crt', '.key', '.cer', '.p7b', '.p7c', '.pfx', '.p12'];
+  const allowedMimeTypes = [
+    'application/x-pem-file',
+    'application/x-x509-ca-cert',
+    'application/pkix-cert',
+    'application/x-pkcs12',
+    'text/plain',
+    'application/octet-stream'
+  ];
+  
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mimeType = file.mimetype;
+  
+  if (allowedExtensions.includes(ext) || allowedMimeTypes.includes(mimeType)) {
+    cb(null, true);
+  } else {
+    cb(new Error(`Invalid file type. Allowed extensions: ${allowedExtensions.join(', ')}`), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+    files: 10 // Max 10 files at once
+  }
+});
 
 // Helper function to execute shell commands
 const executeCommand = (command) => {
@@ -895,6 +941,204 @@ app.get('/api/certificates', requireAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Upload certificate and key files
+app.post('/api/certificates/upload', requireAuth, upload.array('certificates', 10), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No files uploaded'
+      });
+    }
+
+    const uploadedFiles = [];
+    const errors = [];
+    const processedCerts = new Map(); // Track cert-key pairs
+
+    // Process uploaded files
+    for (const file of req.files) {
+      try {
+        const ext = path.extname(file.filename).toLowerCase();
+        const basename = path.basename(file.filename, ext);
+        
+        // Determine if this is a certificate or key file
+        const isCertFile = ['.pem', '.crt', '.cer'].includes(ext) && !file.filename.includes('-key') && !file.filename.includes('.key');
+        const isKeyFile = file.filename.includes('-key') || file.filename.includes('.key') || ext === '.key';
+
+        let certName;
+        if (isCertFile) {
+          // For cert files, use the basename as cert name
+          if (ext === '.pem') {
+            certName = basename;
+          } else {
+            certName = basename;
+          }
+        } else if (isKeyFile) {
+          // For key files, derive cert name
+          if (file.filename.includes('-key')) {
+            certName = basename.replace('-key', '');
+          } else if (ext === '.key') {
+            certName = basename;
+          } else {
+            certName = basename;
+          }
+        }
+
+        if (!certName) {
+          errors.push(`Unable to determine certificate name for file: ${file.filename}`);
+          continue;
+        }
+
+        // Validate file content by trying to read it
+        const fileContent = await fs.readFile(file.path, 'utf8');
+        
+        if (isCertFile) {
+          // Validate certificate format
+          if (!fileContent.includes('BEGIN CERTIFICATE') && !fileContent.includes('BEGIN TRUSTED CERTIFICATE')) {
+            errors.push(`Invalid certificate format in file: ${file.filename}`);
+            continue;
+          }
+        } else if (isKeyFile) {
+          // Validate key format
+          if (!fileContent.includes('BEGIN PRIVATE KEY') && 
+              !fileContent.includes('BEGIN RSA PRIVATE KEY') && 
+              !fileContent.includes('BEGIN EC PRIVATE KEY') &&
+              !fileContent.includes('BEGIN ENCRYPTED PRIVATE KEY')) {
+            errors.push(`Invalid private key format in file: ${file.filename}`);
+            continue;
+          }
+        }
+
+        // Track this file
+        if (!processedCerts.has(certName)) {
+          processedCerts.set(certName, { cert: null, key: null });
+        }
+
+        const certInfo = processedCerts.get(certName);
+        if (isCertFile) {
+          certInfo.cert = file;
+        } else if (isKeyFile) {
+          certInfo.key = file;
+        }
+
+        uploadedFiles.push({
+          originalname: file.originalname,
+          filename: file.filename,
+          size: file.size,
+          type: isCertFile ? 'certificate' : 'private_key',
+          certName: certName
+        });
+
+      } catch (fileError) {
+        errors.push(`Error processing file ${file.filename}: ${fileError.message}`);
+      }
+    }
+
+    // Validate that we have at least some complete cert-key pairs
+    const completePairs = [];
+    const incompletePairs = [];
+
+    for (const [certName, files] of processedCerts.entries()) {
+      if (files.cert && files.key) {
+        completePairs.push({ certName, ...files });
+      } else if (files.cert || files.key) {
+        incompletePairs.push({
+          certName,
+          missing: files.cert ? 'private key' : 'certificate',
+          hasFile: files.cert ? files.cert.filename : files.key.filename
+        });
+      }
+    }
+
+    // Move files to final destination and organize them
+    for (const pair of completePairs) {
+      try {
+        // Determine appropriate extensions and filenames
+        const certExt = path.extname(pair.cert.filename).toLowerCase();
+        const keyExt = path.extname(pair.key.filename).toLowerCase();
+        
+        let finalCertName, finalKeyName;
+        if (certExt === '.pem') {
+          finalCertName = `${pair.certName}.pem`;
+          finalKeyName = `${pair.certName}-key.pem`;
+        } else {
+          finalCertName = `${pair.certName}${certExt}`;
+          finalKeyName = `${pair.certName}${keyExt}`;
+        }
+
+        // Move files from upload directory to certificates directory
+        const finalCertPath = path.join(CERT_DIR, 'uploaded', finalCertName);
+        const finalKeyPath = path.join(CERT_DIR, 'uploaded', finalKeyName);
+
+        // Move cert file
+        if (pair.cert.filename !== finalCertName) {
+          await fs.move(pair.cert.path, finalCertPath);
+        }
+
+        // Move key file
+        if (pair.key.filename !== finalKeyName) {
+          await fs.move(pair.key.path, finalKeyPath);
+        }
+
+        console.log(`Successfully uploaded certificate pair: ${pair.certName}`);
+      } catch (moveError) {
+        errors.push(`Error finalizing certificate ${pair.certName}: ${moveError.message}`);
+      }
+    }
+
+    // Clean up any temporary files that weren't moved
+    for (const file of req.files) {
+      try {
+        if (await fs.pathExists(file.path)) {
+          await fs.remove(file.path);
+        }
+      } catch (cleanupError) {
+        console.warn(`Failed to clean up temp file ${file.path}:`, cleanupError);
+      }
+    }
+
+    // Prepare response
+    const response = {
+      success: completePairs.length > 0 || uploadedFiles.length > 0,
+      uploaded: uploadedFiles,
+      completePairs: completePairs.length,
+      incompletePairs: incompletePairs,
+      errors: errors
+    };
+
+    if (completePairs.length > 0) {
+      response.message = `Successfully uploaded ${completePairs.length} certificate pair(s)`;
+    }
+
+    if (errors.length > 0) {
+      response.message += errors.length > 0 ? ` (${errors.length} error(s))` : '';
+    }
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    
+    // Clean up uploaded files in case of error
+    if (req.files) {
+      for (const file of req.files) {
+        try {
+          if (await fs.pathExists(file.path)) {
+            await fs.remove(file.path);
+          }
+        } catch (cleanupError) {
+          console.warn(`Failed to clean up temp file after error:`, cleanupError);
+        }
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Upload failed'
     });
   }
 });
