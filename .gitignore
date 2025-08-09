@@ -118,3 +118,5 @@ Thumbs.db
 .dockerignore
 docker-compose.override.yml
 .docker/
+
+.github/
