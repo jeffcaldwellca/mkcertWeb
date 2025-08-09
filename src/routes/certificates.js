@@ -11,6 +11,42 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
   const router = express.Router();
   const { cliRateLimiter, generalRateLimiter } = rateLimiters;
 
+  // Helper function to validate and sanitize path parameters
+  const validatePathParams = (folder, certname, filename) => {
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    try {
+      // Validate folder parameter if provided
+      if (folder) {
+        if (folder === 'interface-ssl' || folder === 'legacy') {
+          // These are allowed special folder names
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+          // Date-based folder format is allowed
+          const folderResult = security.validateAndSanitizePath(folder, certificatesDir);
+          folder = folderResult.sanitized;
+        } else {
+          throw new Error('Invalid folder parameter');
+        }
+      }
+      
+      // Validate certificate name if provided
+      if (certname) {
+        const sanitizedCertname = security.validateFilename(certname);
+        certname = sanitizedCertname;
+      }
+      
+      // Validate filename if provided
+      if (filename) {
+        const sanitizedFilename = security.validateFilename(filename);
+        filename = sanitizedFilename;
+      }
+      
+      return { folder, certname, filename };
+    } catch (error) {
+      throw new Error(`Path validation failed: ${error.message}`);
+    }
+  };
+
   // Get all available commands
   router.get('/api/commands', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
     const commands = [
@@ -411,25 +447,28 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
 
   // Generate PFX certificate endpoint
   router.post('/api/generate/pfx/:folder/:certname', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, certname } = req.params;
+    const { folder: rawFolder, certname: rawCertname } = req.params;
     const { password } = req.body;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the source directory based on folder parameter
-    let sourceDir;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      sourceDir = certificatesDir;
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      sourceDir = path.join(certificatesDir, folder);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
-    
-    const certFile = path.join(sourceDir, `${certname}.pem`);
-    const keyFile = path.join(sourceDir, `${certname}-key.pem`);
-    const pfxFile = path.join(sourceDir, `${certname}.pfx`);
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, certname } = validatePathParams(rawFolder, rawCertname);
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the source directory based on folder parameter
+      let sourceDir;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        sourceDir = certificatesDir;
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        sourceDir = path.join(certificatesDir, folder);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
+      const certFile = path.join(sourceDir, `${certname}.pem`);
+      const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+      const pfxFile = path.join(sourceDir, `${certname}.pfx`);
+      
       const fs = require('fs');
       
       // Check if certificate and key files exist
@@ -461,30 +500,36 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       });
     } catch (error) {
       console.error('PFX generation error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to generate PFX: ${error.message}`);
     }
   }));
 
   // Archive certificate endpoint
   router.post('/api/certificates/:folder/:certname/archive', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, certname } = req.params;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the source directory based on folder parameter
-    let sourceDir;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      sourceDir = certificatesDir;
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      sourceDir = path.join(certificatesDir, folder);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
-    
-    const archiveDir = path.join(sourceDir, 'archive');
-    const certFile = path.join(sourceDir, `${certname}.pem`);
-    const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+    const { folder: rawFolder, certname: rawCertname } = req.params;
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, certname } = validatePathParams(rawFolder, rawCertname);
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the source directory based on folder parameter
+      let sourceDir;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        sourceDir = certificatesDir;
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        sourceDir = path.join(certificatesDir, folder);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
+      const archiveDir = path.join(sourceDir, 'archive');
+      const certFile = path.join(sourceDir, `${certname}.pem`);
+      const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+      
       // Ensure archive directory exists
       if (!require('fs').existsSync(archiveDir)) {
         require('fs').mkdirSync(archiveDir, { recursive: true });
@@ -502,30 +547,36 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
     } catch (error) {
       console.error('Archive error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to archive certificate: ${error.message}`);
     }
   }));
 
   // Restore certificate from archive endpoint
   router.post('/api/certificates/:folder/:certname/restore', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, certname } = req.params;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the target directory based on folder parameter
-    let targetDir;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      targetDir = certificatesDir;
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      targetDir = path.join(certificatesDir, folder);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
-    
-    const archiveDir = path.join(targetDir, 'archive');
-    const certFile = path.join(archiveDir, `${certname}.pem`);
-    const keyFile = path.join(archiveDir, `${certname}-key.pem`);
+    const { folder: rawFolder, certname: rawCertname } = req.params;
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, certname } = validatePathParams(rawFolder, rawCertname);
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the target directory based on folder parameter
+      let targetDir;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        targetDir = certificatesDir;
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        targetDir = path.join(certificatesDir, folder);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
+      const archiveDir = path.join(targetDir, 'archive');
+      const certFile = path.join(archiveDir, `${certname}.pem`);
+      const keyFile = path.join(archiveDir, `${certname}-key.pem`);
+      
       // Move certificate files from archive back to main directory
       const fs = require('fs');
       if (fs.existsSync(certFile)) {
@@ -538,26 +589,38 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       apiResponse.success(res, { message: `Certificate ${certname} restored successfully` });
     } catch (error) {
       console.error('Restore error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to restore certificate: ${error.message}`);
     }
   }));
 
   // Download certificate file
   router.get('/api/download/cert/:folder/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, filename } = req.params;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the file path based on folder parameter
-    let filePath;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      filePath = path.join(certificatesDir, filename);
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      filePath = path.join(certificatesDir, folder, filename);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
+    const { folder: rawFolder, filename: rawFilename } = req.params;
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, filename } = validatePathParams(rawFolder, null, rawFilename);
+      
+      // Double-check for path traversal attempts (belt and suspenders)
+      if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return apiResponse.badRequest(res, 'Invalid filename: path traversal attempt detected');
+      }
+      
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the file path based on folder parameter
+      let filePath;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        filePath = path.join(certificatesDir, filename);
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        filePath = path.join(certificatesDir, folder, filename);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
       const fs = require('fs');
       if (!fs.existsSync(filePath)) {
         return apiResponse.notFound(res, 'Certificate file not found');
@@ -566,26 +629,32 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       res.download(filePath, filename);
     } catch (error) {
       console.error('Download error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to download certificate: ${error.message}`);
     }
   }));
 
   // Download private key file
   router.get('/api/download/key/:folder/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, filename } = req.params;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the file path based on folder parameter
-    let filePath;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      filePath = path.join(certificatesDir, filename);
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      filePath = path.join(certificatesDir, folder, filename);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
+    const { folder: rawFolder, filename: rawFilename } = req.params;
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, filename } = validatePathParams(rawFolder, null, rawFilename);
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the file path based on folder parameter
+      let filePath;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        filePath = path.join(certificatesDir, filename);
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        filePath = path.join(certificatesDir, folder, filename);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
       const fs = require('fs');
       if (!fs.existsSync(filePath)) {
         return apiResponse.notFound(res, 'Key file not found');
@@ -594,29 +663,35 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       res.download(filePath, filename);
     } catch (error) {
       console.error('Download error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to download key: ${error.message}`);
     }
   }));
 
   // Download certificate bundle as ZIP
   router.get('/api/download/bundle/:folder/:certname', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { folder, certname } = req.params;
-    const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Determine the source directory based on folder parameter
-    let sourceDir;
-    if (folder === 'interface-ssl' || folder === 'legacy') {
-      sourceDir = certificatesDir;
-    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
-      sourceDir = path.join(certificatesDir, folder);
-    } else {
-      return apiResponse.badRequest(res, 'Invalid folder parameter');
-    }
-    
-    const certFile = path.join(sourceDir, `${certname}.pem`);
-    const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+    const { folder: rawFolder, certname: rawCertname } = req.params;
     
     try {
+      // Validate and sanitize path parameters
+      const { folder, certname } = validatePathParams(rawFolder, rawCertname);
+      const certificatesDir = path.join(process.cwd(), 'certificates');
+      
+      // Determine the source directory based on folder parameter
+      let sourceDir;
+      if (folder === 'interface-ssl' || folder === 'legacy') {
+        sourceDir = certificatesDir;
+      } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+        sourceDir = path.join(certificatesDir, folder);
+      } else {
+        return apiResponse.badRequest(res, 'Invalid folder parameter');
+      }
+      
+      const certFile = path.join(sourceDir, `${certname}.pem`);
+      const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+      
       const fs = require('fs');
       const archiver = require('archiver');
       
@@ -640,6 +715,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       await archive.finalize();
     } catch (error) {
       console.error('Bundle download error:', error);
+      if (error.message.includes('Path validation failed')) {
+        return apiResponse.badRequest(res, error.message);
+      }
       apiResponse.serverError(res, `Failed to download bundle: ${error.message}`);
     }
   }));
