@@ -127,11 +127,52 @@ async function startServer() {
     if (config.server.enableHttps) {
       try {
         const fs = require('fs');
-        const keyPath = `${config.server.sslDomain}-key.pem`;
-        const certPath = `${config.server.sslDomain}.pem`;
+        // Use certificates folder for interface SSL certificates
+        const certificatesDir = path.join(__dirname, 'certificates');
+        const keyPath = path.join(certificatesDir, `${config.server.sslDomain}-key.pem`);
+        const certPath = path.join(certificatesDir, `${config.server.sslDomain}.pem`);
+        
+        // Ensure certificates directory exists
+        if (!fs.existsSync(certificatesDir)) {
+          fs.mkdirSync(certificatesDir, { recursive: true });
+        }
+        
+        // Check if SSL certificates exist in certificates folder, fallback to root
+        let certificatesFound = fs.existsSync(keyPath) && fs.existsSync(certPath);
+        
+        if (!certificatesFound) {
+          // Check for legacy certificates in root directory
+          const rootKeyPath = path.join(__dirname, `${config.server.sslDomain}-key.pem`);
+          const rootCertPath = path.join(__dirname, `${config.server.sslDomain}.pem`);
+          
+          if (fs.existsSync(rootKeyPath) && fs.existsSync(rootCertPath)) {
+            console.log('📋 Found existing SSL certificates in root directory, moving to certificates folder...');
+            fs.copyFileSync(rootKeyPath, keyPath);
+            fs.copyFileSync(rootCertPath, certPath);
+            // Remove old certificates from root
+            fs.unlinkSync(rootKeyPath);
+            fs.unlinkSync(rootCertPath);
+            certificatesFound = true;
+          } else {
+            // Auto-generate SSL certificates for the interface
+            console.log(`🔧 Auto-generating SSL certificates for ${config.server.sslDomain}...`);
+            const security = require('./src/security');
+            try {
+              await security.executeCommand(
+                `mkcert -cert-file "${config.server.sslDomain}.pem" -key-file "${config.server.sslDomain}-key.pem" ${config.server.sslDomain}`,
+                { cwd: certificatesDir }
+              );
+              console.log('✅ SSL certificates generated successfully');
+              certificatesFound = true;
+            } catch (error) {
+              console.log(`⚠️  Could not auto-generate SSL certificates: ${error.message}`);
+              console.log('💡 Please generate certificates manually with: mkcert localhost');
+            }
+          }
+        }
         
         // Check if SSL certificates exist
-        if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+        if (certificatesFound && fs.existsSync(keyPath) && fs.existsSync(certPath)) {
           const httpsOptions = {
             key: fs.readFileSync(keyPath),
             cert: fs.readFileSync(certPath)

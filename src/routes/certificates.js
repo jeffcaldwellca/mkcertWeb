@@ -100,8 +100,38 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           if (!sanitizedInput) {
             return apiResponse.badRequest(res, 'Domain names are required for certificate generation');
           }
-          fullCommand = `mkcert ${sanitizedInput}`;
-          break;
+          // Create date-based folder structure: certificates/YYYY-MM-DD/
+          const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+          const certDir = path.join(process.cwd(), 'certificates', today);
+          const fs = require('fs');
+          
+          // Ensure the directory exists
+          if (!fs.existsSync(path.join(process.cwd(), 'certificates'))) {
+            fs.mkdirSync(path.join(process.cwd(), 'certificates'), { recursive: true });
+          }
+          if (!fs.existsSync(certDir)) {
+            fs.mkdirSync(certDir, { recursive: true });
+          }
+          
+          // Generate certificates in the date-based folder using cwd option
+          const domainName = sanitizedInput.split(' ')[0];
+          fullCommand = `mkcert -cert-file "${domainName}.pem" -key-file "${domainName}-key.pem" ${sanitizedInput}`;
+          
+          // Execute with working directory set to the date-based folder
+          try {
+            const result = await security.executeCommand(fullCommand, { cwd: certDir });
+            return apiResponse.success(res, {
+              output: result.stdout || result.stderr,
+              command: fullCommand,
+              certificateDir: certDir
+            });
+          } catch (error) {
+            console.error('Certificate generation error:', error);
+            return apiResponse.error(res, 
+              `Certificate generation failed: ${error.error || error.message}`, 
+              error.stderr
+            );
+          }
         case 'caroot':
           fullCommand = 'mkcert -CAROOT';
           break;
@@ -112,24 +142,42 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           return apiResponse.badRequest(res, 'Invalid command');
       }
 
-      const result = await security.executeCommand(fullCommand);
-      
-      apiResponse.success(res, {
-        output: result.output,
-        command: fullCommand
-      });
+      // Execute command (generate case handles its own execution above)
+      if (command !== 'generate') {
+        const result = await security.executeCommand(fullCommand);
+        
+        apiResponse.success(res, {
+          output: result.output,
+          command: fullCommand
+        });
+      }
     })
   );
 
   // List certificate files with metadata
   router.get('/api/certificates', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const files = await certificateUtils.findAllCertificateFiles(process.cwd());
+    // Search in certificates directory instead of cwd
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    const files = await certificateUtils.findAllCertificateFiles(certificatesDir);
     
     const certificates = await Promise.all(files.map(async (fileInfo) => {
       try {
         const stats = await fs.stat(fileInfo.fullPath);
-        const expiry = await certificateUtils.getCertificateExpiry(fileInfo.fullPath);
-        const domains = await certificateUtils.getCertificateDomains(fileInfo.fullPath);
+        const isKeyFile = fileInfo.name.endsWith('-key.pem');
+        
+        // Only get certificate info for actual certificate files, not key files
+        const expiry = isKeyFile ? null : await certificateUtils.getCertificateExpiry(fileInfo.fullPath);
+        const domains = isKeyFile ? [] : await certificateUtils.getCertificateDomains(fileInfo.fullPath);
+        const fingerprint = isKeyFile ? null : await certificateUtils.getCertificateFingerprint(fileInfo.fullPath);
+        
+        // Extract folder information from path
+        const relativePath = path.relative(certificatesDir, fileInfo.fullPath);
+        const pathParts = relativePath.split(path.sep);
+        const dateFolder = pathParts.length > 1 ? pathParts[0] : null;
+        const isArchived = pathParts.includes('archive');
+        
+        // Check if this is an interface SSL certificate (directly in certificates folder, not in subfolders)
+        const isInterfaceSSLCert = pathParts.length === 1;
         
         return {
           filename: fileInfo.name,
@@ -138,7 +186,14 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           modified: stats.mtime,
           expiry: expiry,
           domains: domains,
-          type: fileInfo.name.endsWith('-key.pem') ? 'key' : 'cert'
+          fingerprint: fingerprint,
+          type: isKeyFile ? 'key' : 'cert',
+          folder: dateFolder,
+          folderDate: dateFolder && /^\d{4}-\d{2}-\d{2}$/.test(dateFolder) ? dateFolder : null,
+          isArchived: isArchived,
+          isInterfaceSSL: isInterfaceSSLCert,
+          canEdit: pathParts[0] !== 'uploaded' && !isInterfaceSSLCert, // Read-only for uploaded certs and interface SSL certs
+          relativePath: fileInfo.relativePath
         };
       } catch (err) {
         console.error(`Error processing certificate ${fileInfo.fullPath}:`, err);
@@ -163,7 +218,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           cert: null,
           key: null,
           domains: [],
-          expiry: null
+          expiry: null,
+          fingerprint: null,
+          folder: cert.folder || null,
+          folderDate: cert.folderDate || null,
+          isArchived: cert.isArchived || false,
+          isInterfaceSSL: cert.isInterfaceSSL || false,
+          canEdit: cert.canEdit !== false // Default to true unless explicitly false
         };
       }
       
@@ -171,6 +232,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
         grouped[baseName].cert = cert;
         grouped[baseName].domains = cert.domains || [];
         grouped[baseName].expiry = cert.expiry;
+        grouped[baseName].fingerprint = cert.fingerprint;
       } else {
         grouped[baseName].key = cert;
       }
@@ -193,6 +255,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const stats = await fs.stat(safePath);
     const expiry = await certificateUtils.getCertificateExpiry(safePath);
     const domains = await certificateUtils.getCertificateDomains(safePath);
+    const fingerprint = await certificateUtils.getCertificateFingerprint(safePath);
     
     apiResponse.success(res, {
       filename: filename,
@@ -200,6 +263,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       modified: stats.mtime,
       expiry: expiry,
       domains: domains,
+      fingerprint: fingerprint,
       type: filename.endsWith('-key.pem') ? 'key' : 'cert'
     });
   }));

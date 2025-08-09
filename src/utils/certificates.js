@@ -19,6 +19,22 @@ const getCertificateExpiry = async (certPath) => {
   }
 };
 
+// Helper function to get certificate fingerprint
+const getCertificateFingerprint = async (certPath) => {
+  try {
+    const result = await executeCommand(`openssl x509 -in "${certPath}" -noout -fingerprint -sha256`);
+    // Parse output like "SHA256 Fingerprint=12:34:56:78:90:AB:CD:EF..."
+    const match = result.stdout.match(/SHA256 Fingerprint=(.+)/);
+    if (match) {
+      return match[1].trim();
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting certificate fingerprint:', error);
+    return null;
+  }
+};
+
 // Helper function to get certificate domains
 const getCertificateDomains = async (certPath) => {
   try {
@@ -63,9 +79,8 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
       const subFiles = await findAllCertificateFiles(fullPath, relativeFilePath);
       files.push(...subFiles);
     } else if (entry.isFile()) {
-      // Check if it's a certificate file
-      if ((entry.name.endsWith('.pem') && !entry.name.endsWith('-key.pem')) || 
-          entry.name.endsWith('.crt')) {
+      // Check if it's a certificate file (including key files)
+      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt')) {
         files.push({
           name: entry.name,
           fullPath,
@@ -82,5 +97,6 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
 module.exports = {
   getCertificateExpiry,
   getCertificateDomains,
+  getCertificateFingerprint,
   findAllCertificateFiles
 };

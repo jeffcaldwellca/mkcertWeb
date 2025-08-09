@@ -4,7 +4,7 @@ const path = require('path');
 
 // SECURITY: This function validates all commands against an allowlist to prevent 
 // command injection attacks. Only specific mkcert and openssl commands are permitted.
-const executeCommand = (command) => {
+const executeCommand = (command, options = {}) => {
   return new Promise((resolve, reject) => {
     // Validate and sanitize command
     if (!isCommandSafe(command)) {
@@ -16,8 +16,15 @@ const executeCommand = (command) => {
       return;
     }
 
+    // Prepare exec options
+    const execOptions = { 
+      timeout: 30000, 
+      maxBuffer: 1024 * 1024,
+      ...options
+    };
+
     // Add timeout to prevent hanging processes
-    exec(command, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+    exec(command, execOptions, (error, stdout, stderr) => {
       if (error) {
         if (error.code === 'ETIMEDOUT') {
           reject({ error: 'Command timed out after 30 seconds', stderr });
