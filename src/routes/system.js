@@ -83,6 +83,24 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
 
   // Server status endpoint
   router.get('/api/status', generalRateLimiter, asyncHandler(async (req, res) => {
+    // Check mkcert availability
+    let mkcertInstalled = false;
+    try {
+      await executeCommand('mkcert -help');
+      mkcertInstalled = true;
+    } catch (error) {
+      console.log('mkcert not available:', error.message);
+    }
+
+    // Check OpenSSL availability
+    let opensslAvailable = false;
+    try {
+      await executeCommand('openssl version');
+      opensslAvailable = true;
+    } catch (error) {
+      console.log('OpenSSL not available:', error.message);
+    }
+
     // Check CA status
     let caExists = false;
     let caRoot = null;
@@ -113,7 +131,9 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
         exists: caExists,
         root: caRoot
       },
-      // Legacy properties for backward compatibility
+      // Frontend compatibility properties
+      mkcertInstalled: mkcertInstalled,
+      opensslAvailable: opensslAvailable,
       caExists: caExists,
       caRoot: caRoot,
       features: {

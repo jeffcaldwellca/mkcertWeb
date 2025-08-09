@@ -223,7 +223,12 @@ async function loadSystemStatus() {
         // Load Root CA information if CA exists
         if (status.caExists) {
             console.log('CA exists, loading Root CA info...');
-            await loadRootCAInfo();
+            try {
+                await loadRootCAInfo();
+                console.log('Root CA info loaded successfully');
+            } catch (error) {
+                console.error('Error loading Root CA info:', error);
+            }
         } else {
             console.log('CA does not exist, showing manual generation option...');
             // Show manual generation option if auto-generation failed
@@ -241,9 +246,12 @@ async function loadSystemStatus() {
 
 // Load and display Root CA information
 async function loadRootCAInfo() {
+    console.log('loadRootCAInfo: Starting...');
     try {
+        console.log('loadRootCAInfo: Making API request...');
         const response = await apiRequest('/rootca/info');
-        const caInfo = response.caInfo; // Extract the nested caInfo object
+        console.log('loadRootCAInfo: API response:', response);
+        const caInfo = response; // Data is at root level, not nested in caInfo
         
         let expiryInfo, expiryClass = '';
         if (caInfo.daysUntilExpiry < 0) {
@@ -260,8 +268,8 @@ async function loadRootCAInfo() {
             expiryClass = 'expiry-good';
         }
         
-        if (caInfo.validTo) {
-            expiryInfo += ' (' + caInfo.validTo + ')';
+        if (caInfo.expiry) {
+            expiryInfo += ' (' + caInfo.expiry + ')';
         }
         
         const rootCAHtml = 
@@ -309,21 +317,29 @@ async function loadRootCAInfo() {
             '</div>' +
             '</div>';
         
+        // Show the Root CA section
+        console.log('loadRootCAInfo: Showing Root CA section...');
+        const rootCASection = document.getElementById('rootca-section');
+        if (rootCASection) {
+            rootCASection.style.display = 'block';
+            console.log('loadRootCAInfo: Root CA section displayed');
+        } else {
+            console.log('loadRootCAInfo: Root CA section element not found');
+        }
+        
         // Update the rootca-info div
+        console.log('loadRootCAInfo: Updating rootca-info div...');
         const rootCAInfo = document.getElementById('rootca-info');
         if (rootCAInfo) {
             rootCAInfo.innerHTML = rootCAHtml;
+            console.log('loadRootCAInfo: HTML content updated');
             // Add highlight effect to show the section was updated
             rootCAInfo.classList.add('ca-updated');
             setTimeout(() => {
                 rootCAInfo.classList.remove('ca-updated');
             }, 3000);
-        }
-        
-        // Show the Root CA section
-        const rootCASection = document.getElementById('rootca-section');
-        if (rootCASection) {
-            rootCASection.style.display = 'block';
+        } else {
+            console.log('loadRootCAInfo: rootca-info element not found');
         }
         
         // Re-attach event listener for install CA button
@@ -400,13 +416,16 @@ async function handleGenerate(event) {
     }
     
     try {
-        const result = await apiRequest('/generate', {
+        const result = await apiRequest('/execute', {
             method: 'POST',
-            body: JSON.stringify({ domains, format })
+            body: JSON.stringify({ 
+                command: 'generate', 
+                input: domains.join(' ') 
+            })
         });
         
         const formatName = format.toUpperCase();
-        showAlert(formatName + ' certificate generated successfully for: ' + domains.join(', '), 'success');
+        showAlert('Certificate generated successfully for: ' + domains.join(', '), 'success');
         loadCertificates();
         generateForm.reset();
     } catch (error) {
@@ -440,26 +459,35 @@ function displayCertificates(certificates) {
             domainsDisplay = `<span title="${domainsDisplay}">${truncated}</span>`;
         }
         
-        const createdDate = new Date(cert.created).toLocaleDateString();
-        const createdTime = new Date(cert.created).toLocaleTimeString();
+        // Use the modification date from the cert file, or current date if not available
+        const createdDate = cert.cert ? new Date(cert.cert.modified).toLocaleDateString() : new Date().toLocaleDateString();
+        const createdTime = cert.cert ? new Date(cert.cert.modified).toLocaleTimeString() : new Date().toLocaleTimeString();
+        
+        // Get file size from cert file
+        const certFileSize = cert.cert ? cert.cert.size : 0;
         
         const formatBadge = cert.format ? 
             '<span class="format-badge format-' + cert.format.toLowerCase() + '">' + cert.format.toUpperCase() + '</span>' : '';
         
         let expiryInfo, expiryClass = '';
         if (cert.expiry) {
-            const expiryDateStr = new Date(cert.expiry).toLocaleDateString();
-            if (cert.daysUntilExpiry < 0) {
-                expiryInfo = 'Expired ' + Math.abs(cert.daysUntilExpiry) + ' days ago';
+            const expiryDate = new Date(cert.expiry);
+            const now = new Date();
+            const daysUntilExpiry = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+            
+            const expiryDateStr = expiryDate.toLocaleDateString();
+            if (daysUntilExpiry < 0) {
+                expiryInfo = 'Expired ' + Math.abs(daysUntilExpiry) + ' days ago';
                 expiryClass = 'expiry-expired';
-            } else if (cert.daysUntilExpiry <= 30) {
-                expiryInfo = 'Expires in ' + cert.daysUntilExpiry + ' days';
+                cert.isExpired = true;
+            } else if (daysUntilExpiry <= 30) {
+                expiryInfo = 'Expires in ' + daysUntilExpiry + ' days';
                 expiryClass = 'expiry-warning';
-            } else if (cert.daysUntilExpiry <= 90) {
-                expiryInfo = 'Expires in ' + cert.daysUntilExpiry + ' days';
+            } else if (daysUntilExpiry <= 90) {
+                expiryInfo = 'Expires in ' + daysUntilExpiry + ' days';
                 expiryClass = 'expiry-caution';
             } else {
-                expiryInfo = 'Expires in ' + cert.daysUntilExpiry + ' days';
+                expiryInfo = 'Expires in ' + daysUntilExpiry + ' days';
                 expiryClass = 'expiry-good';
             }
             expiryInfo += ' (' + expiryDateStr + ')';
@@ -467,12 +495,36 @@ function displayCertificates(certificates) {
             expiryInfo = 'Unknown';
         }
 
-        // Format folder display
-        const folderDisplay = cert.folder === 'root' ? 'Root folder' : cert.folder;
-        const folderParam = cert.folder === 'root' ? 'root' : encodeURIComponent(cert.folder); // URL encode the folder path
-        const isRootCert = cert.folder === 'root';
+        // Format folder display - use actual certificate folder information
+        let folderDisplay, folderParam, isRootCert;
+        
+        if (cert.isInterfaceSSL) {
+            // Interface SSL certificates (in root certificates folder)
+            folderDisplay = 'Interface SSL';
+            folderParam = 'interface-ssl';
+            isRootCert = true; // Interface SSL certs are read-only
+        } else if (cert.folder) {
+            // Date-based certificates (user-generated)
+            folderDisplay = cert.folder;
+            folderParam = cert.folder;
+            isRootCert = false; // User-generated certificates are editable
+        } else if (cert.name === 'mkcert-rootCA' || (cert.cert && cert.cert.filename === 'mkcert-rootCA.pem')) {
+            // Actual root CA certificates
+            folderDisplay = 'Root CA';
+            folderParam = 'root-ca';
+            isRootCert = true; // Root CA is read-only
+        } else {
+            // Legacy certificates (uploaded or other)
+            folderDisplay = 'Legacy';
+            folderParam = 'legacy';
+            isRootCert = cert.canEdit === false; // Use canEdit flag from backend
+        }
         const isArchived = cert.isArchived || false;
-        const isRootCA = cert.name === 'mkcert-rootCA' || cert.certFile === 'mkcert-rootCA.pem';
+        const isRootCA = cert.name === 'mkcert-rootCA' || (cert.cert && cert.cert.filename === 'mkcert-rootCA.pem');
+        
+        // Extract filenames for compatibility
+        const certFile = cert.cert ? cert.cert.filename : null;
+        const keyFile = cert.key ? cert.key.filename : null;
         
         return '<div class="certificate-card ' + 
                (cert.isExpired ? 'certificate-expired' : '') + ' ' +
@@ -497,9 +549,9 @@ function displayCertificates(certificates) {
                '<div><strong>Location:</strong><br>' + folderDisplay + '</div>' +
                '<div><strong>Created:</strong><br>' + createdDate + ' ' + createdTime + '</div>' +
                '<div class="' + expiryClass + '"><strong>Expiry:</strong><br>' + expiryInfo + '</div>' +
-               '<div><strong>Certificate File:</strong><div class="file-name">' + cert.certFile + '</div></div>' +
-               '<div><strong>Private Key File:</strong><div class="file-name">' + (cert.keyFile || '<em>Missing</em>') + '</div></div>' +
-               '<div><strong>File Size:</strong><br>' + formatFileSize(cert.size) + '</div>' +
+               '<div><strong>Certificate File:</strong><div class="file-name">' + (certFile || 'Unknown') + '</div></div>' +
+               '<div><strong>Private Key File:</strong><div class="file-name">' + (keyFile || '<em>Missing</em>') + '</div></div>' +
+               '<div><strong>File Size:</strong><br>' + formatFileSize(certFileSize) + '</div>' +
                '<div><strong>Status:</strong><br>' + (isArchived ? 'Archived' : 'Active') + '</div>' +
                '</div>' +
                (isRootCA ? 
@@ -509,17 +561,17 @@ function displayCertificates(certificates) {
                 '<p><strong>Installation:</strong> Download and install this certificate to trust all mkcert-generated certificates on this system.</p>' +
                 '</div>' : '') +
                '<div class="certificate-actions">' +
-               '<button onclick="downloadCert(\'' + folderParam + '\', \'' + cert.certFile + '\')" ' +
+               '<button onclick="downloadCert(\'' + folderParam + '\', \'' + (certFile || '') + '\')" ' +
                'class="btn btn-success btn-small">' +
                '<i class="fas fa-download"></i> Download Cert</button>' +
-               (cert.keyFile ? 
-                '<button onclick="downloadKey(\'' + folderParam + '\', \'' + cert.keyFile + '\')" ' +
+               (keyFile ? 
+                '<button onclick="downloadKey(\'' + folderParam + '\', \'' + keyFile + '\')" ' +
                 'class="btn btn-success btn-small">' +
                 '<i class="fas fa-key"></i> Download Key</button>' : '') +
                '<button onclick="downloadBundle(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
                'class="btn btn-primary btn-small">' +
                '<i class="fas fa-file-archive"></i> Download Bundle</button>' +
-               (cert.keyFile && !isRootCert ? 
+               (keyFile && !isRootCert ? 
                 '<button onclick="testPFX(\'' + folderParam + '\', \'' + cert.name + '\')" ' +
                 'class="btn btn-windows btn-small" title="Generate password-protected PFX file">' +
                 '<i class="fas fa-shield-alt"></i> Generate PFX</button>' : '') +
@@ -574,9 +626,17 @@ async function deleteCertificate(folder, certName) {
 }
 
 async function archiveCertificate(folder, certName) {
-    // Check if this is a root certificate
-    if (folder === 'root') {
-        showAlert('Root certificates are read-only and cannot be archived', 'error');
+    // Check if this is a read-only certificate that cannot be archived
+    if (folder === 'interface-ssl') {
+        showAlert('Interface SSL certificates cannot be archived', 'error');
+        return;
+    }
+    if (folder === 'root-ca') {
+        showAlert('Root CA certificates cannot be archived', 'error');
+        return;
+    }
+    if (folder === 'legacy') {
+        showAlert('Legacy certificates may be read-only and cannot be archived', 'error');
         return;
     }
     if (!confirm('Are you sure you want to archive the certificate "' + certName + '"?')) {
