@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2025-08-08
+## [2.0.0] - 2025-08-09
 
 ### 🚨 MAJOR RELEASE - Security & Architecture Overhaul
 
@@ -97,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Direct shell command execution without validation (now blocked)
 - Unvalidated file path access (now secured)
 
-## [1.5.5] - 2025-08-08 (Legacy)
+## [1.5.5]
 
 ### Security
 - **Comprehensive Rate Limiting Enhancement**: Applied rate limiting protection to all previously unprotected routes
