@@ -23,10 +23,10 @@ const getCertificateExpiry = async (certPath) => {
 const getCertificateFingerprint = async (certPath) => {
   try {
     const result = await executeCommand(`openssl x509 -in "${certPath}" -noout -fingerprint -sha256`);
-    // Parse output like "SHA256 Fingerprint=12:34:56:78:90:AB:CD:EF..."
-    const match = result.stdout.match(/SHA256 Fingerprint=(.+)/);
+    // Parse output like "sha256 Fingerprint=12:34:56:78:90:AB:CD:EF..." (may span multiple lines)
+    const match = result.stdout.match(/sha256 Fingerprint=(.+)/is);
     if (match) {
-      return match[1].trim();
+      return match[1].replace(/\s+/g, '').trim();
     }
     return null;
   } catch (error) {
@@ -80,7 +80,7 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
       files.push(...subFiles);
     } else if (entry.isFile()) {
       // Check if it's a certificate file (including key files)
-      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt')) {
+      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt') || entry.name.endsWith('.key')) {
         files.push({
           name: entry.name,
           fullPath,

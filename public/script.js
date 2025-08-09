@@ -420,7 +420,8 @@ async function handleGenerate(event) {
             method: 'POST',
             body: JSON.stringify({ 
                 command: 'generate', 
-                input: domains.join(' ') 
+                input: domains.join(' '),
+                format: format
             })
         });
         

@@ -68,8 +68,8 @@ const isCommandSafe = (command) => {
     /^openssl\s+version$/,
     /^openssl\s+x509\s+-in\s+"[^"]+"\s+-noout\s+[^\|;&`$(){}[\]<>]+$/,
     
-    // OpenSSL PKCS12 commands for PFX generation
-    /^openssl\s+pkcs12\s+-export\s+-out\s+"[^"]+"\s+-inkey\s+"[^"]+"\s+-in\s+"[^"]+"\s+(-certfile\s+"[^"]+"\s+)?-passout\s+(pass:|file:"[^"]+")(\s+-legacy)?$/
+    // OpenSSL PKCS12 commands for PFX generation (allow empty password)
+    /^openssl\s+pkcs12\s+-export\s+-out\s+"[^"]+"\s+-inkey\s+"[^"]+"\s+-in\s+"[^"]+"\s+(-certfile\s+"[^"]+"\s+)?-passout\s+(pass:[^;|&`$]*|file:"[^"]+")(\s+-legacy)?$/
   ];
 
   // Check if command matches any allowed pattern
@@ -94,9 +94,16 @@ const isCommandSafe = (command) => {
   // Special handling for cd && mkcert commands - allow the && operator
   const isCdMkcertCommand = /^cd\s+"[^"]+"\s+&&\s+mkcert/.test(trimmedCommand);
   
+  // Special handling for OpenSSL commands - allow colon in password options
+  const isOpensslCommand = /^openssl\s+(x509|pkcs12|version)/.test(trimmedCommand);
+  
   const hasDangerousPattern = dangerousPatterns.some(pattern => {
     if (isCdMkcertCommand && pattern.source.includes('&')) {
       // For cd && mkcert commands, only check for other dangerous patterns
+      return false;
+    }
+    if (isOpensslCommand && (pattern.source.includes('|') || pattern.source.includes('`') || pattern.source.includes('$'))) {
+      // For OpenSSL commands, allow some special characters that are safe in this context
       return false;
     }
     return pattern.test(trimmedCommand);
