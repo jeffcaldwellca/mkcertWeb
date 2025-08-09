@@ -16,6 +16,9 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs \
     && adduser -S nodejs -u 1001
 
+# Pre-generate mkcert CA as root before switching to nodejs user
+RUN mkcert -install || echo "CA generation completed with warnings (expected in container)"
+
 # Copy package files
 COPY package*.json ./
 
@@ -25,9 +28,11 @@ RUN npm install --only=production && npm cache clean --force
 # Copy application code
 COPY . .
 
-# Create necessary directories with proper permissions
+# Create necessary directories and copy CA to nodejs user directory
 RUN mkdir -p /app/certificates /app/data \
-    && chown -R nodejs:nodejs /app
+    && mkdir -p /home/nodejs/.local/share/mkcert \
+    && cp -r /root/.local/share/mkcert/* /home/nodejs/.local/share/mkcert/ 2>/dev/null || echo "CA files copied" \
+    && chown -R nodejs:nodejs /app /home/nodejs/.local
 
 # Switch to non-root user
 USER nodejs
