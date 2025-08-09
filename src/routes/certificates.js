@@ -366,6 +366,204 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     }
   }));
 
+  // Archive certificate endpoint
+  router.post('/certificates/:folder/:certname/archive', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, certname } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Determine the source directory based on folder parameter
+    let sourceDir;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      sourceDir = certificatesDir;
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      sourceDir = path.join(certificatesDir, folder);
+    } else {
+      return apiResponse.badRequest(res, 'Invalid folder parameter');
+    }
+    
+    const archiveDir = path.join(sourceDir, 'archive');
+    const certFile = path.join(sourceDir, `${certname}.pem`);
+    const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+    
+    try {
+      // Ensure archive directory exists
+      if (!require('fs').existsSync(archiveDir)) {
+        require('fs').mkdirSync(archiveDir, { recursive: true });
+      }
+      
+      // Move certificate files to archive
+      const fs = require('fs');
+      if (fs.existsSync(certFile)) {
+        fs.renameSync(certFile, path.join(archiveDir, `${certname}.pem`));
+      }
+      if (fs.existsSync(keyFile)) {
+        fs.renameSync(keyFile, path.join(archiveDir, `${certname}-key.pem`));
+      }
+      
+      apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
+    } catch (error) {
+      console.error('Archive error:', error);
+      apiResponse.error(res, `Failed to archive certificate: ${error.message}`, 500);
+    }
+  }));
+
+  // Restore certificate from archive endpoint
+  router.post('/certificates/:folder/:certname/restore', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, certname } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Determine the target directory based on folder parameter
+    let targetDir;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      targetDir = certificatesDir;
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      targetDir = path.join(certificatesDir, folder);
+    } else {
+      return apiResponse.badRequest(res, 'Invalid folder parameter');
+    }
+    
+    const archiveDir = path.join(targetDir, 'archive');
+    const certFile = path.join(archiveDir, `${certname}.pem`);
+    const keyFile = path.join(archiveDir, `${certname}-key.pem`);
+    
+    try {
+      // Move certificate files from archive back to main directory
+      const fs = require('fs');
+      if (fs.existsSync(certFile)) {
+        fs.renameSync(certFile, path.join(targetDir, `${certname}.pem`));
+      }
+      if (fs.existsSync(keyFile)) {
+        fs.renameSync(keyFile, path.join(targetDir, `${certname}-key.pem`));
+      }
+      
+      apiResponse.success(res, { message: `Certificate ${certname} restored successfully` });
+    } catch (error) {
+      console.error('Restore error:', error);
+      apiResponse.error(res, `Failed to restore certificate: ${error.message}`, 500);
+    }
+  }));
+
+  // Download certificate file
+  router.get('/download/cert/:folder/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, filename } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Determine the file path based on folder parameter
+    let filePath;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      filePath = path.join(certificatesDir, filename);
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      filePath = path.join(certificatesDir, folder, filename);
+    } else {
+      return apiResponse.error(res, 'Invalid folder parameter', 400);
+    }
+    
+    try {
+      const fs = require('fs');
+      if (!fs.existsSync(filePath)) {
+        return apiResponse.error(res, 'Certificate file not found', 404);
+      }
+      
+      res.download(filePath, filename);
+    } catch (error) {
+      console.error('Download error:', error);
+      apiResponse.error(res, `Failed to download certificate: ${error.message}`, 500);
+    }
+  }));
+
+  // Download private key file
+  router.get('/download/key/:folder/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, filename } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Determine the file path based on folder parameter
+    let filePath;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      filePath = path.join(certificatesDir, filename);
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      filePath = path.join(certificatesDir, folder, filename);
+    } else {
+      return apiResponse.error(res, 'Invalid folder parameter', 400);
+    }
+    
+    try {
+      const fs = require('fs');
+      if (!fs.existsSync(filePath)) {
+        return apiResponse.error(res, 'Key file not found', 404);
+      }
+      
+      res.download(filePath, filename);
+    } catch (error) {
+      console.error('Download error:', error);
+      apiResponse.error(res, `Failed to download key: ${error.message}`, 500);
+    }
+  }));
+
+  // Download certificate bundle as ZIP
+  router.get('/download/bundle/:folder/:certname', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, certname } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Determine the source directory based on folder parameter
+    let sourceDir;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      sourceDir = certificatesDir;
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      sourceDir = path.join(certificatesDir, folder);
+    } else {
+      return apiResponse.error(res, 'Invalid folder parameter', 400);
+    }
+    
+    const certFile = path.join(sourceDir, `${certname}.pem`);
+    const keyFile = path.join(sourceDir, `${certname}-key.pem`);
+    
+    try {
+      const fs = require('fs');
+      const archiver = require('archiver');
+      
+      if (!fs.existsSync(certFile) && !fs.existsSync(keyFile)) {
+        return apiResponse.error(res, 'Certificate files not found', 404);
+      }
+      
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${certname}.zip"`);
+      
+      const archive = archiver('zip', { zlib: { level: 9 }});
+      archive.pipe(res);
+      
+      if (fs.existsSync(certFile)) {
+        archive.file(certFile, { name: `${certname}.pem` });
+      }
+      if (fs.existsSync(keyFile)) {
+        archive.file(keyFile, { name: `${certname}-key.pem` });
+      }
+      
+      await archive.finalize();
+    } catch (error) {
+      console.error('Bundle download error:', error);
+      apiResponse.error(res, `Failed to download bundle: ${error.message}`, 500);
+    }
+  }));
+
+  // Download root CA certificate
+  router.get('/download/rootca', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
+    try {
+      const result = await security.executeCommand('mkcert -CAROOT');
+      const caRoot = result.stdout.trim();
+      const rootCAPath = path.join(caRoot, 'rootCA.pem');
+      
+      const fs = require('fs');
+      if (!fs.existsSync(rootCAPath)) {
+        return apiResponse.error(res, 'Root CA certificate not found', 404);
+      }
+      
+      res.download(rootCAPath, 'mkcert-rootCA.pem');
+    } catch (error) {
+      console.error('Root CA download error:', error);
+      apiResponse.error(res, `Failed to download root CA: ${error.message}`, 500);
+    }
+  }));
+
   return router;
 };
 
