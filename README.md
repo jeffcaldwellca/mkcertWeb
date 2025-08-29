@@ -5,9 +5,11 @@ A secure, modern web interface for managing SSL certificates using the mkcert CL
 ## ✨ Key Features
 
 - **🔐 SSL Certificate Generation**: Create certificates for multiple domains and IP addresses
-- **�️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting
-- **�📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
+- **🛡️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting
+- **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
 - **🔒 Flexible Authentication**: Basic auth and enterprise SSO with OpenID Connect
+- **📧 Email Notifications**: Automated SMTP alerts for expiring certificates
+- **📊 Certificate Monitoring**: Automatic monitoring with configurable warning periods
 - **🏗️ Modular Architecture**: Clean, maintainable codebase with utility-based design
 - **🌐 HTTPS Support**: Auto-generated SSL certificates for secure access
 - **📊 Certificate Management**: View, download, archive, and restore certificates
@@ -78,6 +80,94 @@ OIDC_CLIENT_SECRET=          # OIDC client secret
 ### Advanced Configuration
 
 For complete configuration options including rate limiting windows, SSL domains, and OIDC scopes, see the `.env.example` file or [DOCKER.md](DOCKER.md).
+
+### 📧 Email Notifications & Certificate Monitoring
+
+The mkcert Web UI includes enterprise-grade certificate monitoring with automated email notifications for expiring certificates.
+
+#### Email Configuration
+
+```bash
+# Enable email notifications
+EMAIL_NOTIFICATIONS_ENABLED=true
+SMTP_HOST=smtp.gmail.com                # Your SMTP server
+SMTP_PORT=587                           # SMTP port (587 for TLS, 465 for SSL)
+SMTP_SECURE=false                       # Use SSL (true for port 465)
+SMTP_USER=your-email@domain.com         # SMTP username
+SMTP_PASSWORD=your-app-password         # SMTP password (use app passwords for Gmail)
+EMAIL_FROM=mkcert@yourcompany.com       # From address for notifications
+EMAIL_TO=admin@company.com,ops@company.com  # Comma-separated recipients
+```
+
+#### Certificate Monitoring Configuration
+
+```bash
+# Enable automatic certificate monitoring
+CERT_MONITORING_ENABLED=true
+CERT_CHECK_INTERVAL=0 8 * * *           # Cron schedule (daily at 8 AM)
+CERT_WARNING_DAYS=30                    # Days before expiry to send warnings
+CERT_CRITICAL_DAYS=7                    # Days before expiry for critical alerts
+CERT_MONITOR_UPLOADED=true              # Monitor uploaded certificates too
+```
+
+#### Supported Email Providers
+
+**Gmail:**
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+# Note: Use App Passwords instead of your regular password
+```
+
+**Outlook/Office 365:**
+```bash
+SMTP_HOST=smtp-mail.outlook.com
+SMTP_PORT=587
+SMTP_SECURE=false
+```
+
+**Corporate Exchange:**
+```bash
+SMTP_HOST=mail.yourcompany.com
+SMTP_PORT=587
+SMTP_SECURE=false
+```
+
+#### Monitoring Schedule Examples
+
+```bash
+# Daily at 8 AM
+CERT_CHECK_INTERVAL=0 8 * * *
+
+# Every 6 hours
+CERT_CHECK_INTERVAL=0 */6 * * *
+
+# Weekly on Mondays at 9 AM
+CERT_CHECK_INTERVAL=0 9 * * 1
+
+# First day of every month at 8 AM
+CERT_CHECK_INTERVAL=0 8 1 * *
+```
+
+#### API Endpoints
+
+```bash
+# Check email configuration status
+curl http://localhost:3000/api/email/status
+
+# Send test email
+curl -X POST http://localhost:3000/api/email/test
+
+# Get monitoring status
+curl http://localhost:3000/api/monitoring/status
+
+# Manually check for expiring certificates
+curl -X POST http://localhost:3000/api/monitoring/check
+
+# Get list of expiring certificates
+curl http://localhost:3000/api/monitoring/expiring
+```
 
 ## 📚 Usage
 

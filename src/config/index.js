@@ -55,5 +55,34 @@ module.exports = {
     mode: process.env.THEME_MODE || 'light',
     primaryColor: process.env.THEME_PRIMARY_COLOR || '#007bff',
     darkMode: process.env.THEME_DARK_MODE === 'true' || process.env.THEME_DARK_MODE === '1'
+  },
+
+  // Email notification configuration
+  email: {
+    enabled: process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true' || process.env.EMAIL_NOTIFICATIONS_ENABLED === '1',
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+      },
+      tls: {
+        rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false' // Default to true for security
+      }
+    },
+    from: process.env.EMAIL_FROM || 'mkcert-web-ui@localhost',
+    to: process.env.EMAIL_TO, // Comma-separated list of recipients
+    subject: process.env.EMAIL_SUBJECT || 'Certificate Expiry Alert - mkcert Web UI'
+  },
+
+  // Certificate monitoring configuration
+  monitoring: {
+    enabled: process.env.CERT_MONITORING_ENABLED === 'true' || process.env.CERT_MONITORING_ENABLED === '1',
+    checkInterval: process.env.CERT_CHECK_INTERVAL || '0 8 * * *', // Daily at 8 AM (cron format)
+    warningDays: parseInt(process.env.CERT_WARNING_DAYS) || 30, // Warn 30 days before expiry
+    criticalDays: parseInt(process.env.CERT_CRITICAL_DAYS) || 7, // Critical warning 7 days before expiry
+    includeUploaded: process.env.CERT_MONITOR_UPLOADED !== 'false' // Monitor uploaded certificates by default
   }
 };

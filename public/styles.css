@@ -1967,3 +1967,259 @@ section h2::before {
         padding: 0.4rem 0.8rem;
     }
 }
+
+/* ================================
+   Notifications & Monitoring Styles
+   ================================ */
+
+.notifications-section {
+    margin: 2rem 0;
+}
+
+.notification-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.8rem;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.notification-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--shadow-color);
+    border-color: var(--primary-color);
+}
+
+.notification-card h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.notification-status {
+    background: var(--card-bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.notification-status.status-enabled {
+    border-color: var(--success-color);
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.notification-status.status-disabled {
+    border-color: var(--warning-color);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.notification-status.status-error {
+    border-color: var(--error-color);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.notification-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.notification-actions .btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+}
+
+.expiring-cert-item {
+    background: var(--card-bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    transition: all 0.3s ease;
+}
+
+.expiring-cert-item.critical {
+    border-color: var(--error-color);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.expiring-cert-item.warning {
+    border-color: var(--warning-color);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.expiring-cert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.expiring-cert-path {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    word-break: break-all;
+}
+
+.expiring-cert-days {
+    font-weight: bold;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.3rem;
+    background: var(--card-bg);
+}
+
+.expiring-cert-days.critical {
+    color: var(--error-color);
+    background: rgba(248, 113, 113, 0.2);
+}
+
+.expiring-cert-days.warning {
+    color: var(--warning-color);
+    background: rgba(251, 191, 36, 0.2);
+}
+
+.expiring-cert-details {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.expiring-cert-domains {
+    margin-top: 0.3rem;
+    font-family: 'Courier New', monospace;
+    color: var(--secondary-color);
+}
+
+.notification-help {
+    margin-top: 2rem;
+}
+
+.notification-help details {
+    background: var(--card-bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.notification-help summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.notification-help summary:hover {
+    color: var(--secondary-color);
+}
+
+.help-content {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.help-content h4 {
+    color: var(--text-color);
+    margin: 1rem 0 0.5rem 0;
+}
+
+.help-content p {
+    color: var(--text-muted);
+    margin: 0.5rem 0;
+    line-height: 1.6;
+}
+
+.help-content ul {
+    margin: 0.5rem 0 1rem 1.5rem;
+}
+
+.help-content li {
+    color: var(--text-muted);
+    margin: 0.3rem 0;
+    line-height: 1.5;
+}
+
+.help-content code {
+    background: var(--input-bg);
+    color: var(--primary-color);
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.3rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-indicator.enabled {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+
+.status-indicator.disabled {
+    background: rgba(251, 191, 36, 0.2);
+    color: var(--warning-color);
+    border: 1px solid var(--warning-color);
+}
+
+.status-indicator.error {
+    background: rgba(248, 113, 113, 0.2);
+    color: var(--error-color);
+    border: 1px solid var(--error-color);
+}
+
+.status-indicator.running {
+    background: rgba(74, 222, 128, 0.2);
+    color: var(--success-color);
+    border: 1px solid var(--success-color);
+}
+
+.status-indicator.stopped {
+    background: rgba(107, 114, 128, 0.2);
+    color: var(--text-dim);
+    border: 1px solid var(--text-dim);
+}
+
+/* Responsive notifications section */
+@media (max-width: 768px) {
+    .notification-actions {
+        flex-direction: column;
+    }
+    
+    .notification-actions .btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .expiring-cert-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .help-content ul {
+        margin-left: 1rem;
+    }
+}
