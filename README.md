@@ -273,13 +273,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Express.js](https://expressjs.com/) - Web application framework
 - [Node.js](https://nodejs.org/) - JavaScript runtime
 
-## 📞 Support
-
-- 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
-- 📖 **Documentation**: [README.md](README.md) and [DOCKER.md](DOCKER.md)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)
-## 🛠️ Development
-
 ### Local Development
 ```bash
 # Clone and setup
@@ -332,29 +325,3 @@ See `TESTING.md` for comprehensive testing procedures including installation ver
 | Port Already in Use | `PORT=3001 npm start` |
 | CA Installation Issues | `mkcert -install && ls -la $(mkcert -CAROOT)` |
 | Browser Trust Issues | Clear cache, restart browser after CA installation |
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/new-feature`
-3. Install dependencies: `npm install`
-4. Make changes and test thoroughly (see `TESTING.md`)
-5. Commit changes: `git commit -am 'Add new feature'`
-6. Push to branch: `git push origin feature/new-feature`
-7. Submit a pull request
-
-## 📞 Support
-
-- 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
-- 📖 **Documentation**: [DOCKER.md](DOCKER.md) and [TESTING.md](TESTING.md)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [mkcert](https://github.com/FiloSottile/mkcert) - Simple tool for making locally-trusted development certificates
-- [Express.js](https://expressjs.com/) - Web application framework
-- [Node.js](https://nodejs.org/) - JavaScript runtime
