@@ -2,8 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+
+## [2.2.0] - 2025-08-29
+
+### 🚀 Major Features - Email Notification System
+
+#### 📧 Certificate Expiry Email Notifications
+- **✨ SMTP Email Service**: Complete email notification system with enterprise-grade features
+  - Implemented `EmailService` class with support for Gmail, Outlook, and corporate SMTP servers
+  - HTML and plain text email templates for certificate expiry alerts
+  - Connection verification and comprehensive error handling
+  - Configurable sender information and multiple recipient support
+  - **Impact**: Proactive certificate management with automated alerts
+
+- **⏰ Automated Certificate Monitoring**: Intelligent certificate lifecycle management
+  - Implemented `CertificateMonitoringService` with configurable cron scheduling
+  - Multi-threshold warning system (default: 30, 7, 1 days before expiry)
+  - Automatic certificate discovery and expiry analysis using OpenSSL
+  - Manual check capabilities and detailed expiry reporting
+  - **Impact**: Zero-downtime certificate management with early warning system
+
+#### 🔧 REST API Endpoints
+- **📡 Email Configuration API**: Complete SMTP management interface
+  - `GET /api/email/status` - View current email configuration and connection status
+  - `POST /api/email/configure` - Update SMTP settings with validation
+  - `POST /api/email/test` - Send test emails to verify configuration
+  - **Features**: Real-time connection testing and secure credential handling
+
+- **📊 Monitoring Management API**: Certificate monitoring control interface
+  - `GET /api/monitoring/status` - View monitoring service status and configuration
+  - `POST /api/monitoring/configure` - Update monitoring settings and schedules
+  - `POST /api/monitoring/check` - Trigger manual certificate expiry checks
+  - `GET /api/monitoring/expiring` - Retrieve list of expiring certificates
+  - **Features**: Real-time monitoring control and detailed expiry analytics
+
+#### ⚙️ Environment Configuration
+- **🔧 Comprehensive SMTP Support**: Production-ready email configuration
+  - `EMAIL_NOTIFICATIONS_ENABLED` - Master toggle for email notifications
+  - `EMAIL_FROM_ADDRESS` / `EMAIL_FROM_NAME` - Sender configuration
+  - `EMAIL_TO_ADDRESSES` - Multiple recipient support (comma-separated)
+  - `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` - Server configuration
+  - `SMTP_USER` / `SMTP_PASS` - Authentication credentials
+  - **Security**: Secure credential handling with environment variable precedence
+
+- **📅 Monitoring Configuration**: Flexible scheduling and alerting
+  - `CERTIFICATE_MONITORING_ENABLED` - Master toggle for monitoring service
+  - `CERTIFICATE_CHECK_SCHEDULE` - Cron expression for automated checks (default: daily at 9 AM)
+  - `CERTIFICATE_WARNING_DAYS` - Comma-separated warning thresholds (default: 30,7,1)
+  - **Flexibility**: Customizable schedules from hourly to monthly checks
+
+
 
 ## [2.1.0] - 2025-08-29
 

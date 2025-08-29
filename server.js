@@ -20,6 +20,9 @@ const { createAuthRoutes } = require('./src/routes/auth');
 const { createCertificateRoutes } = require('./src/routes/certificates');
 const { createFileRoutes } = require('./src/routes/files');
 const { createSystemRoutes } = require('./src/routes/system');
+const createNotificationRoutes = require('./src/routes/notifications');
+const { createEmailService } = require('./src/services/emailService');
+const { createCertificateMonitoringService } = require('./src/services/certificateMonitoringService');
 
 // Initialize Express app
 const app = express();
@@ -29,6 +32,12 @@ const rateLimiters = createRateLimiters(config);
 
 // Create authentication middleware
 const { requireAuth } = createAuthMiddleware(config, passport);
+
+// Initialize email service
+const emailService = createEmailService(config);
+
+// Initialize certificate monitoring service
+const monitoringService = createCertificateMonitoringService(config, emailService);
 
 // Trust proxy if behind reverse proxy
 app.set('trust proxy', 1);
@@ -127,6 +136,18 @@ app.get('/api/csrf-token', (req, res) => {
 app.use('/', createAuthRoutes(config, rateLimiters));
 app.use('/', createCertificateRoutes(config, rateLimiters, requireAuth));
 app.use('/', createFileRoutes(config, rateLimiters, requireAuth));
+
+// Mount notification routes BEFORE system routes to avoid catch-all
+try {
+  const notificationRoutes = createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService);
+  app.use('/', notificationRoutes);
+  console.log('✅ Notification routes mounted successfully');
+} catch (error) {
+  console.error('❌ Failed to mount notification routes:', error.message);
+  console.error('Error details:', error);
+}
+
+// Mount system routes LAST (it has a catch-all for /api/*)
 app.use('/', createSystemRoutes(config, rateLimiters, requireAuth));
 
 // Error handling middleware
@@ -261,6 +282,26 @@ async function startServer() {
     console.log(`   • Authentication: ${config.auth.enabled ? 'Required' : 'Disabled'}`);
     console.log(`   • Rate Limiting: Enabled`);
     console.log(`   • Theme: ${config.theme.mode}`);
+    console.log(`   • Email Notifications: ${config.email.enabled ? 'Enabled' : 'Disabled'}`);
+    console.log(`   • Certificate Monitoring: ${config.monitoring.enabled ? 'Enabled' : 'Disabled'}`);
+    
+    if (config.email.enabled) {
+      console.log('\n📧 Email Notification Details:');
+      console.log(`   • SMTP Host: ${config.email.smtp.host || 'Not configured'}`);
+      console.log(`   • SMTP Port: ${config.email.smtp.port}`);
+      console.log(`   • From Address: ${config.email.from}`);
+      console.log(`   • Recipients: ${config.email.to ? config.email.to.split(',').length + ' configured' : 'Not configured'}`);
+      console.log(`   • Service Status: ${emailService && emailService.isConfigurationValid() ? 'Ready' : 'Needs configuration'}`);
+    }
+    
+    if (config.monitoring.enabled) {
+      console.log('\n🔍 Certificate Monitoring Details:');
+      console.log(`   • Check Schedule: ${config.monitoring.checkInterval}`);
+      console.log(`   • Warning Period: ${config.monitoring.warningDays} days`);
+      console.log(`   • Critical Period: ${config.monitoring.criticalDays} days`);
+      console.log(`   • Monitor Uploaded: ${config.monitoring.includeUploaded ? 'Yes' : 'No'}`);
+      console.log(`   • Service Status: ${monitoringService.getStatus().running ? 'Running' : 'Stopped'}`);
+    }
     
     if (config.auth.enabled) {
       console.log('\n🔐 Authentication Details:');
@@ -292,11 +333,17 @@ async function startServer() {
 // Graceful shutdown handling
 process.on('SIGINT', () => {
   console.log('\n👋 Shutting down gracefully...');
+  if (monitoringService) {
+    monitoringService.stop();
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('\n👋 Received SIGTERM, shutting down gracefully...');
+  if (monitoringService) {
+    monitoringService.stop();
+  }
   process.exit(0);
 });
 
