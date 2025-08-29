@@ -7,6 +7,7 @@ const API_BASE = window.location.origin + '/api';
 // Authentication state
 let authEnabled = false;
 let currentUser = null;
+let csrfToken = null;
 
 // DOM Elements
 let certificatesList, generateForm, domainsInput, formatSelect;
@@ -22,12 +23,27 @@ let currentTheme = localStorage.getItem('theme'); // Don't set default here, let
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', async function() {
     await checkAuthentication();
+    await fetchCSRFToken();
     initializeElements();
     await initializeTheme();
     loadSystemStatus();
     loadCertificates();
     setupEventListeners();
 });
+
+// Fetch CSRF token
+async function fetchCSRFToken() {
+    try {
+        const response = await fetch('/api/csrf-token');
+        const data = await response.json();
+        if (data.success && data.csrfToken) {
+            csrfToken = data.csrfToken;
+            console.log('CSRF token fetched successfully');
+        }
+    } catch (error) {
+        console.error('Failed to fetch CSRF token:', error);
+    }
+}
 
 // Check authentication status
 async function checkAuthentication() {
@@ -115,16 +131,47 @@ function initializeElements() {
 // API request helper
 async function apiRequest(endpoint, options = {}) {
     try {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        
+        // Add CSRF token for state-changing operations
+        if (csrfToken && (options.method === 'POST' || options.method === 'PUT' || options.method === 'DELETE')) {
+            headers['X-CSRF-Token'] = csrfToken;
+        }
+        
         const response = await fetch(API_BASE + endpoint, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
+            headers,
+            credentials: 'include', // Important: include cookies for session
             ...options
         });
         
         if (!response.ok) {
             const error = await response.json();
+            
+            // Handle CSRF token errors by refreshing token
+            if (response.status === 403 && error.code === 'CSRF_INVALID') {
+                console.log('CSRF token invalid, refreshing...');
+                await fetchCSRFToken();
+                
+                // Retry the request with new token
+                if (csrfToken) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                    const retryResponse = await fetch(API_BASE + endpoint, {
+                        headers,
+                        credentials: 'include',
+                        ...options
+                    });
+                    
+                    if (!retryResponse.ok) {
+                        const retryError = await retryResponse.json();
+                        throw retryError;
+                    }
+                    
+                    return await retryResponse.json();
+                }
+            }
             
             // Handle authentication errors
             if (response.status === 401 && error.redirectTo) {

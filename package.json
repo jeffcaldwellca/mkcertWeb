@@ -33,6 +33,7 @@
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
+    "csrf": "^3.1.0",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
