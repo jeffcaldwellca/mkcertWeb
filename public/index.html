@@ -99,6 +99,85 @@
             </div>
         </section>
 
+        <!-- Email & Monitoring Configuration Section -->
+        <section class="notifications-section">
+            <h2><i class="fas fa-bell"></i> Notifications & Monitoring</h2>
+            
+            <!-- Email Status Card -->
+            <div class="notification-card">
+                <h3><i class="fas fa-envelope"></i> Email Notifications</h3>
+                <div id="email-status" class="notification-status">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Checking email configuration...
+                    </div>
+                </div>
+                <div class="notification-actions" id="email-actions" style="display: none;">
+                    <button id="test-email-btn" class="btn btn-secondary">
+                        <i class="fas fa-paper-plane"></i> Send Test Email
+                    </button>
+                    <button id="verify-smtp-btn" class="btn btn-outline">
+                        <i class="fas fa-check-circle"></i> Verify SMTP
+                    </button>
+                </div>
+            </div>
+
+            <!-- Monitoring Status Card -->
+            <div class="notification-card">
+                <h3><i class="fas fa-shield-alt"></i> Certificate Monitoring</h3>
+                <div id="monitoring-status" class="notification-status">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Checking monitoring status...
+                    </div>
+                </div>
+                <div class="notification-actions" id="monitoring-actions" style="display: none;">
+                    <button id="check-expiry-btn" class="btn btn-secondary">
+                        <i class="fas fa-search"></i> Check Now
+                    </button>
+                    <button id="start-monitoring-btn" class="btn btn-success" style="display: none;">
+                        <i class="fas fa-play"></i> Start Monitoring
+                    </button>
+                    <button id="stop-monitoring-btn" class="btn btn-warning" style="display: none;">
+                        <i class="fas fa-stop"></i> Stop Monitoring
+                    </button>
+                </div>
+            </div>
+
+            <!-- Expiring Certificates Card -->
+            <div class="notification-card" id="expiring-certs-card" style="display: none;">
+                <h3><i class="fas fa-exclamation-triangle"></i> Expiring Certificates</h3>
+                <div id="expiring-certs-list"></div>
+            </div>
+
+            <!-- Configuration Help -->
+            <div class="notification-help">
+                <details>
+                    <summary><i class="fas fa-question-circle"></i> Configuration Help</summary>
+                    <div class="help-content">
+                        <h4>Email Notifications</h4>
+                        <p>To enable email notifications, configure these environment variables:</p>
+                        <ul>
+                            <li><code>EMAIL_NOTIFICATIONS_ENABLED=true</code></li>
+                            <li><code>SMTP_HOST=your-smtp-server.com</code></li>
+                            <li><code>SMTP_USER=your-email@domain.com</code></li>
+                            <li><code>SMTP_PASSWORD=your-password</code></li>
+                            <li><code>EMAIL_TO=admin@domain.com,ops@domain.com</code></li>
+                        </ul>
+
+                        <h4>Certificate Monitoring</h4>
+                        <p>To enable automatic certificate monitoring:</p>
+                        <ul>
+                            <li><code>CERT_MONITORING_ENABLED=true</code></li>
+                            <li><code>CERT_CHECK_INTERVAL=0 8 * * *</code> (daily at 8 AM)</li>
+                            <li><code>CERT_WARNING_DAYS=30</code> (warn 30 days before expiry)</li>
+                            <li><code>CERT_CRITICAL_DAYS=7</code> (critical 7 days before expiry)</li>
+                        </ul>
+
+                        <p>See <code>.env.example</code> for complete configuration options.</p>
+                    </div>
+                </details>
+            </div>
+        </section>
+
         <!-- Certificates List Section -->
         <section class="certificates-section">
             <h2><i class="fas fa-list"></i> Existing Certificates</h2>
