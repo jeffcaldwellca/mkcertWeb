@@ -214,6 +214,9 @@ function setupEventListeners() {
     // Upload event listeners
     setupUploadEventListeners();
     
+    // Notification & monitoring event listeners
+    setupNotificationEventListeners();
+    
     // Add logout button event listener
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
@@ -1550,4 +1553,401 @@ async function generatePFX(folderParam, certname) {
             }
         });
     });
+}
+
+// ================================
+// Notification & Monitoring Functions
+// ================================
+
+// Setup notification event listeners
+function setupNotificationEventListeners() {
+    // Email test button
+    const testEmailBtn = document.getElementById('test-email-btn');
+    if (testEmailBtn) {
+        testEmailBtn.addEventListener('click', testEmailConfiguration);
+    }
+
+    // SMTP verify button
+    const verifySmtpBtn = document.getElementById('verify-smtp-btn');
+    if (verifySmtpBtn) {
+        verifySmtpBtn.addEventListener('click', verifySmtpConnection);
+    }
+
+    // Certificate expiry check button
+    const checkExpiryBtn = document.getElementById('check-expiry-btn');
+    if (checkExpiryBtn) {
+        checkExpiryBtn.addEventListener('click', checkCertificateExpiry);
+    }
+
+    // Start monitoring button
+    const startMonitoringBtn = document.getElementById('start-monitoring-btn');
+    if (startMonitoringBtn) {
+        startMonitoringBtn.addEventListener('click', startCertificateMonitoring);
+    }
+
+    // Stop monitoring button
+    const stopMonitoringBtn = document.getElementById('stop-monitoring-btn');
+    if (stopMonitoringBtn) {
+        stopMonitoringBtn.addEventListener('click', stopCertificateMonitoring);
+    }
+
+    // Load notification status on page load
+    loadNotificationStatus();
+}
+
+// Load notification and monitoring status
+async function loadNotificationStatus() {
+    await Promise.all([
+        loadEmailStatus(),
+        loadMonitoringStatus(),
+        loadExpiringCertificates()
+    ]);
+}
+
+// Load email configuration status
+async function loadEmailStatus() {
+    try {
+        console.log('Loading email status...');
+        const response = await apiRequest('/email/status');
+        
+        const statusElement = document.getElementById('email-status');
+        const actionsElement = document.getElementById('email-actions');
+        
+        if (!statusElement) return;
+
+        let statusHtml = '';
+        let statusClass = '';
+
+        if (!response.enabled) {
+            statusClass = 'status-disabled';
+            statusHtml = `
+                <div class="status-indicator disabled">
+                    <i class="fas fa-times-circle"></i>
+                    Email notifications are disabled
+                </div>
+                <p class="text-muted" style="margin-top: 0.5rem;">
+                    Set EMAIL_NOTIFICATIONS_ENABLED=true to enable email notifications
+                </p>
+            `;
+        } else if (!response.configured) {
+            statusClass = 'status-error';
+            statusHtml = `
+                <div class="status-indicator error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Email service not configured
+                </div>
+                <p class="text-muted" style="margin-top: 0.5rem;">
+                    Missing required SMTP configuration (host, user, password, recipients)
+                </p>
+            `;
+        } else {
+            statusClass = 'status-enabled';
+            statusHtml = `
+                <div class="status-indicator enabled">
+                    <i class="fas fa-check-circle"></i>
+                    Email service configured and ready
+                </div>
+                <div style="margin-top: 0.8rem; font-size: 0.9rem;">
+                    <div><strong>SMTP Host:</strong> ${response.smtp.host}</div>
+                    <div><strong>Port:</strong> ${response.smtp.port} ${response.smtp.secure ? '(SSL)' : '(TLS)'}</div>
+                    <div><strong>From:</strong> ${response.from}</div>
+                    <div><strong>Recipients:</strong> ${response.to ? response.to.join(', ') : 'Not configured'}</div>
+                </div>
+            `;
+            
+            // Show action buttons for configured email
+            if (actionsElement) {
+                actionsElement.style.display = 'flex';
+            }
+        }
+
+        statusElement.className = `notification-status ${statusClass}`;
+        statusElement.innerHTML = statusHtml;
+
+    } catch (error) {
+        console.error('Failed to load email status:', error);
+        const statusElement = document.getElementById('email-status');
+        if (statusElement) {
+            statusElement.className = 'notification-status status-error';
+            statusElement.innerHTML = `
+                <div class="status-indicator error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load email status: ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// Load certificate monitoring status
+async function loadMonitoringStatus() {
+    try {
+        console.log('Loading monitoring status...');
+        const response = await apiRequest('/monitoring/status');
+        
+        const statusElement = document.getElementById('monitoring-status');
+        const actionsElement = document.getElementById('monitoring-actions');
+        
+        if (!statusElement) return;
+
+        let statusHtml = '';
+        let statusClass = '';
+
+        if (!response.enabled) {
+            statusClass = 'status-disabled';
+            statusHtml = `
+                <div class="status-indicator disabled">
+                    <i class="fas fa-times-circle"></i>
+                    Certificate monitoring is disabled
+                </div>
+                <p class="text-muted" style="margin-top: 0.5rem;">
+                    Set CERT_MONITORING_ENABLED=true to enable automatic monitoring
+                </p>
+            `;
+        } else {
+            statusClass = response.running ? 'status-enabled' : 'status-error';
+            const statusIcon = response.running ? 'check-circle' : 'pause-circle';
+            const statusText = response.running ? 'running' : 'stopped';
+            
+            statusHtml = `
+                <div class="status-indicator ${response.running ? 'running' : 'stopped'}">
+                    <i class="fas fa-${statusIcon}"></i>
+                    Certificate monitoring is ${statusText}
+                </div>
+                <div style="margin-top: 0.8rem; font-size: 0.9rem;">
+                    <div><strong>Schedule:</strong> ${response.schedule}</div>
+                    <div><strong>Warning Period:</strong> ${response.warningDays} days</div>
+                    <div><strong>Critical Period:</strong> ${response.criticalDays} days</div>
+                    <div><strong>Monitor Uploaded:</strong> ${response.includeUploaded ? 'Yes' : 'No'}</div>
+                    <div><strong>Email Alerts:</strong> ${response.emailEnabled ? 'Enabled' : 'Disabled'}</div>
+                </div>
+            `;
+            
+            // Show action buttons
+            if (actionsElement) {
+                actionsElement.style.display = 'flex';
+                
+                // Show appropriate start/stop buttons
+                const startBtn = document.getElementById('start-monitoring-btn');
+                const stopBtn = document.getElementById('stop-monitoring-btn');
+                
+                if (startBtn) {
+                    startBtn.style.display = response.running ? 'none' : 'inline-block';
+                }
+                if (stopBtn) {
+                    stopBtn.style.display = response.running ? 'inline-block' : 'none';
+                }
+            }
+        }
+
+        statusElement.className = `notification-status ${statusClass}`;
+        statusElement.innerHTML = statusHtml;
+
+    } catch (error) {
+        console.error('Failed to load monitoring status:', error);
+        const statusElement = document.getElementById('monitoring-status');
+        if (statusElement) {
+            statusElement.className = 'notification-status status-error';
+            statusElement.innerHTML = `
+                <div class="status-indicator error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Failed to load monitoring status: ${error.message}
+                </div>
+            `;
+        }
+    }
+}
+
+// Load expiring certificates
+async function loadExpiringCertificates() {
+    try {
+        console.log('Loading expiring certificates...');
+        const response = await apiRequest('/monitoring/expiring');
+        
+        const cardElement = document.getElementById('expiring-certs-card');
+        const listElement = document.getElementById('expiring-certs-list');
+        
+        if (!cardElement || !listElement) return;
+
+        if (response.total === 0) {
+            cardElement.style.display = 'none';
+            return;
+        }
+
+        cardElement.style.display = 'block';
+        
+        let listHtml = `
+            <div style="margin-bottom: 1rem;">
+                <strong>Found ${response.total} expiring certificate(s):</strong>
+                ${response.critical > 0 ? `<span style="color: var(--error-color);">${response.critical} critical</span>` : ''}
+                ${response.warning > 0 ? `<span style="color: var(--warning-color);">${response.warning} warning</span>` : ''}
+            </div>
+        `;
+
+        response.certificates.forEach(cert => {
+            const priority = cert.priority;
+            const priorityText = priority === 'critical' ? '🚨 CRITICAL' : '⚠️ WARNING';
+            const priorityClass = priority;
+            
+            listHtml += `
+                <div class="expiring-cert-item ${priorityClass}">
+                    <div class="expiring-cert-header">
+                        <div class="expiring-cert-path">${cert.path}</div>
+                        <div class="expiring-cert-days ${priorityClass}">
+                            ${cert.daysUntilExpiry} day${cert.daysUntilExpiry !== 1 ? 's' : ''} remaining
+                        </div>
+                    </div>
+                    <div class="expiring-cert-details">
+                        <div><strong>Expires:</strong> ${new Date(cert.expiry).toLocaleDateString()}</div>
+                        ${cert.domains ? `<div class="expiring-cert-domains"><strong>Domains:</strong> ${cert.domains.join(', ')}</div>` : ''}
+                        <div style="margin-top: 0.3rem; font-size: 0.8rem; color: var(--text-dim);">${priorityText}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        listElement.innerHTML = listHtml;
+
+    } catch (error) {
+        console.error('Failed to load expiring certificates:', error);
+        const cardElement = document.getElementById('expiring-certs-card');
+        if (cardElement) {
+            cardElement.style.display = 'none';
+        }
+    }
+}
+
+// Test email configuration
+async function testEmailConfiguration() {
+    const button = document.getElementById('test-email-btn');
+    if (!button) return;
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        button.disabled = true;
+        
+        const response = await apiRequest('/email/test', 'POST');
+        
+        showAlert(`Test email sent successfully! Message ID: ${response.messageId}`, 'success');
+        
+    } catch (error) {
+        console.error('Email test failed:', error);
+        showAlert(`Email test failed: ${error.message}`, 'error');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Verify SMTP connection
+async function verifySmtpConnection() {
+    const button = document.getElementById('verify-smtp-btn');
+    if (!button) return;
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        button.disabled = true;
+        
+        const response = await apiRequest('/email/verify', 'POST');
+        
+        showAlert('SMTP connection verified successfully!', 'success');
+        
+    } catch (error) {
+        console.error('SMTP verification failed:', error);
+        showAlert(`SMTP verification failed: ${error.message}`, 'error');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Check certificate expiry manually
+async function checkCertificateExpiry() {
+    const button = document.getElementById('check-expiry-btn');
+    if (!button) return;
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+        button.disabled = true;
+        
+        await apiRequest('/monitoring/check', 'POST');
+        
+        showAlert('Certificate expiry check completed successfully!', 'success');
+        
+        // Reload expiring certificates list
+        setTimeout(() => {
+            loadExpiringCertificates();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Certificate check failed:', error);
+        showAlert(`Certificate check failed: ${error.message}`, 'error');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Start certificate monitoring
+async function startCertificateMonitoring() {
+    const button = document.getElementById('start-monitoring-btn');
+    if (!button) return;
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+        button.disabled = true;
+        
+        await apiRequest('/monitoring/start', 'POST');
+        
+        showAlert('Certificate monitoring started successfully!', 'success');
+        
+        // Reload monitoring status
+        setTimeout(() => {
+            loadMonitoringStatus();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Failed to start monitoring:', error);
+        showAlert(`Failed to start monitoring: ${error.message}`, 'error');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
+// Stop certificate monitoring
+async function stopCertificateMonitoring() {
+    const button = document.getElementById('stop-monitoring-btn');
+    if (!button) return;
+    
+    const originalText = button.innerHTML;
+    
+    try {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
+        button.disabled = true;
+        
+        await apiRequest('/monitoring/stop', 'POST');
+        
+        showAlert('Certificate monitoring stopped successfully!', 'success');
+        
+        // Reload monitoring status
+        setTimeout(() => {
+            loadMonitoringStatus();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Failed to stop monitoring:', error);
+        showAlert(`Failed to stop monitoring: ${error.message}`, 'error');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
 }
