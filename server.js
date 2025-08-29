@@ -10,6 +10,7 @@ const https = require('https');
 const http = require('http');
 const session = require('express-session');
 const passport = require('passport');
+const Tokens = require('csrf');
 
 // Import application modules
 const config = require('./src/config');
@@ -59,11 +60,68 @@ app.use(cors({
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// CSRF Protection
+const tokens = new Tokens();
+const csrfProtection = (req, res, next) => {
+  // Skip CSRF for GET requests and API status endpoints that don't modify state
+  if (req.method === 'GET' || req.path === '/api/health' || req.path === '/api/status' || req.path === '/api/csrf-token') {
+    return next();
+  }
+
+  // Skip CSRF for non-authenticated endpoints when auth is disabled
+  if (!config.auth.enabled && (req.path === '/api/auth/status' || req.path === '/api/auth/methods')) {
+    return next();
+  }
+
+  // Initialize CSRF token in session if it doesn't exist
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = tokens.secretSync();
+  }
+
+  // For POST requests, verify the CSRF token
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    const token = (req.body && req.body._csrf) || req.headers['x-csrf-token'] || req.headers['csrf-token'];
+    
+    if (!token || !tokens.verify(req.session.csrfSecret, token)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid CSRF token',
+        code: 'CSRF_INVALID'
+      });
+    }
+  }
+
+  // Add CSRF token to response locals for templates/frontend
+  res.locals.csrfToken = tokens.create(req.session.csrfSecret);
+  
+  // Add CSRF token to response headers for frontend use
+  res.setHeader('X-CSRF-Token', res.locals.csrfToken);
+  
+  next();
+};
+
+// Apply CSRF protection
+app.use(csrfProtection);
+
 // Apply general rate limiting to all routes
 app.use(rateLimiters.generalRateLimiter);
 
 // Static file serving
 app.use(express.static('public'));
+
+// CSRF token endpoint for frontend
+app.get('/api/csrf-token', (req, res) => {
+  // Ensure session has CSRF secret
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = tokens.secretSync();
+  }
+  
+  const token = tokens.create(req.session.csrfSecret);
+  res.json({
+    success: true,
+    csrfToken: token
+  });
+});
 
 // Mount route modules
 app.use('/', createAuthRoutes(config, rateLimiters));
@@ -206,7 +264,7 @@ async function startServer() {
     
     if (config.auth.enabled) {
       console.log('\n🔐 Authentication Details:');
-      console.log(`   • Username: ${config.auth.username}`);
+      console.log(`   • Username: [configured]`);
       console.log(`   • OIDC: ${config.oidc.enabled && config.oidc.issuer ? 'Enabled' : 'Disabled'}`);
       if (config.oidc.enabled && config.oidc.issuer) {
         console.log(`   • OIDC Provider: ${config.oidc.displayName || config.oidc.issuer}`);
@@ -222,7 +280,7 @@ async function startServer() {
       }
     } else {
       console.log(`\n🔒 Authentication required. Visit the login page first.`);
-      console.log(`   Login credentials: ${config.auth.username} / [password from environment]`);
+      console.log(`   Login credentials: [username from environment] / [password from environment]`);
     }
     
   } catch (error) {
