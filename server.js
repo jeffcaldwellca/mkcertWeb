@@ -18,6 +18,13 @@ const OpenIDConnectStrategy = require('passport-openidconnect');
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
 
+// Import notification routes and services
+const createNotificationRoutes = require('./src/routes/notifications');
+const config = require('./src/config');
+const { EmailService } = require('./src/services/emailService');
+const { CertificateMonitoringService } = require('./src/services/certificateMonitoringService');
+const { createRateLimiters } = require('./src/middleware/rateLimiting');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
@@ -251,6 +258,16 @@ if (ENABLE_AUTH) {
     res.redirect('/');
   });
 }
+
+// Initialize services for email notifications and certificate monitoring
+const emailService = new EmailService(config);
+const monitoringService = new CertificateMonitoringService(config, emailService);
+
+// Create rate limiters
+const rateLimiters = createRateLimiters(config);
+
+// Mount notification routes
+app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService));
 
 // Auth status endpoint (always available)
 app.get('/api/auth/status', (req, res) => {

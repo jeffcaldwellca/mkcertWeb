@@ -244,10 +244,31 @@
         <code id="get-ca-cert-url">Loading...</code>
       </div>
       
-      <div class="scep-url">
+            <div class="scep-url">
         <strong>Get CA Capabilities:</strong>
         <code id="get-ca-caps-url">Loading...</code>
       </div>
+    </section>
+
+    <!-- Enterprise CA Status Section -->
+    <section>
+      <h3><i class="fas fa-building"></i> Enterprise CA Status</h3>
+      <div id="enterprise-ca-status" class="card">
+        <div class="loading">
+          <i class="fas fa-spinner fa-spin"></i> Checking Enterprise CA status...
+        </div>
+      </div>
+    </section>
+
+    <!-- Certificate Templates Section -->
+    <section>
+      <h3><i class="fas fa-clipboard-list"></i> Certificate Templates</h3>
+      <div id="certificate-templates" class="card">
+        <div class="loading">
+          <i class="fas fa-spinner fa-spin"></i> Loading certificate templates...
+        </div>
+      </div>
+    </section>
 
       <button type="button" class="btn btn-secondary" onclick="loadSCEPConfig()">
         <i class="fas fa-sync-alt"></i> Refresh Configuration
@@ -296,21 +317,47 @@
 
     <section>
       <h3><i class="fas fa-flask"></i> Manual Certificate Generation</h3>
-      <p>Generate certificates using SCEP workflow (for testing):</p>
+      <p>Generate certificates using SCEP workflow with Enterprise CA support:</p>
       
       <div class="challenge-form">
         <div class="form-group">
           <label for="cert-common-name">Common Name (Domain):</label>
-          <input type="text" id="cert-common-name" placeholder="Enter domain (e.g., test.example.com)">
+          <input type="text" id="cert-common-name" placeholder="Enter domain (e.g., user.example.com)">
+          <small class="help-text">Primary domain name or identity for the certificate</small>
+        </div>
+
+        <div class="form-group">
+          <label for="cert-template">Certificate Template:</label>
+          <select id="cert-template" class="form-select">
+            <option value="User">User - Client Authentication</option>
+            <option value="M365User">M365 User - Microsoft 365 Integration</option>
+            <option value="Computer">Computer - Machine Authentication</option>
+            <option value="WiFi">WiFi - Wireless Authentication</option>
+          </select>
+          <small class="help-text">Choose template based on certificate usage</small>
+        </div>
+
+        <div class="form-group" id="cert-upn-group" style="display: none;">
+          <label for="cert-upn">User Principal Name (UPN):</label>
+          <input type="email" id="cert-upn" placeholder="user@domain.com">
+          <small class="help-text">Required for M365 User certificates</small>
+          <div id="cert-upn-validation" class="validation-feedback"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="cert-san">Subject Alternative Names (optional):</label>
+          <textarea id="cert-san" placeholder="subdomain.example.com&#10;192.168.1.100" rows="2"></textarea>
+          <small class="help-text">Additional domains or IPs. One per line.</small>
         </div>
         
         <div class="form-group">
           <label for="cert-challenge">Challenge Password (optional):</label>
-          <input type="text" id="cert-challenge" placeholder="Enter challenge password or leave empty">
+          <input type="password" id="cert-challenge" placeholder="Enter challenge password or leave empty">
+          <small class="help-text">SCEP challenge password (optional if configured globally)</small>
         </div>
         
         <button type="button" class="btn btn-success" onclick="generateSCEPCertificate()">
-          <i class="fas fa-hammer"></i> Generate Certificate
+          <i class="fas fa-satellite-dish"></i> Generate SCEP Certificate
         </button>
       </div>
 
@@ -327,6 +374,54 @@
       <button type="button" class="btn btn-secondary" onclick="loadSCEPCertificates()">
         <i class="fas fa-sync-alt"></i> Refresh Certificates
       </button>
+    </section>
+
+    <!-- Integration Guide Section -->
+    <section>
+      <h3><i class="fas fa-book"></i> Enterprise Integration Guide</h3>
+      
+      <div class="alert alert-info">
+        <h4><i class="fas fa-mobile-alt"></i> MDM Integration</h4>
+        <p>Configure your Mobile Device Management system to use this SCEP service:</p>
+        <div class="scep-config">
+          <strong>SCEP URL:</strong> <span id="mdm-scep-url">Loading...</span><br>
+          <strong>Challenge:</strong> Configure via environment variables<br>
+          <strong>Supported Templates:</strong> User, Computer, WiFi, M365User<br>
+          <strong>Key Size:</strong> 2048 bits (RSA)
+        </div>
+        <p><strong>Compatible with:</strong> Microsoft Intune, VMware Workspace ONE, Cisco Meraki, Apple Profile Manager</p>
+      </div>
+
+      <div class="alert alert-info">
+        <h4><i class="fas fa-cloud"></i> Microsoft 365 Integration</h4>
+        <p>For hybrid Azure AD environments, use the M365User template:</p>
+        <div class="scep-config">
+          <strong>Template:</strong> M365User<br>
+          <strong>UPN Format:</strong> user@domain.com<br>
+          <strong>Subject Alternative Name:</strong> Automatically includes UPN<br>
+          <strong>Key Usage:</strong> Digital Signature, Key Encipherment, Client Authentication
+        </div>
+        <h5>Required Environment Variables:</h5>
+        <div class="scep-config">
+          ENTERPRISE_CA_ENABLED=true<br>
+          ENTERPRISE_CA_CERT_PATH=/path/to/ca.crt<br>
+          ENTERPRISE_CA_KEY_PATH=/path/to/ca.key<br>
+          ENTERPRISE_CA_ORGANIZATION="Your Organization"<br>
+          ENTERPRISE_CA_ORGANIZATIONAL_UNIT="IT Department"
+        </div>
+      </div>
+
+      <div class="alert alert-info">
+        <h4><i class="fas fa-cogs"></i> API Endpoints</h4>
+        <div class="scep-config">
+          <strong>GET</strong> /scep?operation=GetCACert - Retrieve CA certificate<br>
+          <strong>POST</strong> /scep?operation=PKIOperation - Process certificate requests<br>
+          <strong>POST</strong> /api/scep/certificate - Manual certificate generation<br>
+          <strong>GET</strong> /api/scep/enterprise-ca/status - Enterprise CA status<br>
+          <strong>GET</strong> /api/scep/templates - Available certificate templates<br>
+          <strong>POST</strong> /api/scep/validate-upn - UPN validation for M365
+        </div>
+      </div>
     </section>
   </div>
 
@@ -406,7 +501,150 @@
       loadSCEPConfig();
       loadChallenges();
       loadSCEPCertificates();
+      loadEnterpriseCAStatus();
+      loadCertificateTemplates();
+      setupTemplateHandling();
     });
+
+    // Setup template change handling
+    function setupTemplateHandling() {
+      const templateSelect = document.getElementById('cert-template');
+      const upnGroup = document.getElementById('cert-upn-group');
+      const upnInput = document.getElementById('cert-upn');
+
+      templateSelect.addEventListener('change', function() {
+        if (this.value === 'M365User') {
+          upnGroup.style.display = 'block';
+          upnInput.required = true;
+        } else {
+          upnGroup.style.display = 'none';
+          upnInput.required = false;
+          upnInput.value = '';
+        }
+      });
+
+      // UPN validation
+      upnInput.addEventListener('blur', validateUPNInput);
+    }
+
+    // Validate UPN input
+    async function validateUPNInput() {
+      const upnInput = document.getElementById('cert-upn');
+      const upnValidation = document.getElementById('cert-upn-validation');
+      const upn = upnInput.value.trim();
+
+      if (!upn) {
+        upnValidation.innerHTML = '';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/scep/validate-upn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ upn })
+        });
+
+        const data = await response.json();
+        
+        if (data.valid) {
+          upnValidation.innerHTML = '<span style="color: var(--success-color);"><i class="fas fa-check-circle"></i> Valid UPN format</span>';
+        } else {
+          upnValidation.innerHTML = '<span style="color: var(--error-color);"><i class="fas fa-exclamation-circle"></i> Invalid UPN format</span>';
+        }
+      } catch (error) {
+        upnValidation.innerHTML = '<span style="color: var(--warning-color);"><i class="fas fa-question-circle"></i> Could not validate UPN</span>';
+      }
+    }
+
+    // Load Enterprise CA status
+    async function loadEnterpriseCAStatus() {
+      try {
+        const response = await fetch('/api/scep/enterprise-ca/status');
+        if (!response.ok) throw new Error('Failed to load Enterprise CA status');
+        
+        const status = await response.json();
+        const statusDiv = document.getElementById('enterprise-ca-status');
+        
+        let statusHtml = `
+          <div class="scep-config">
+            <strong>Status:</strong> <span class="status-indicator ${getStatusClass(status.status)}"></span>${status.status}<br>
+            <strong>Enabled:</strong> ${status.enabled ? 'Yes' : 'No'}<br>
+            <strong>Fallback to mkcert:</strong> ${status.fallbackToMkcert ? 'Yes' : 'No'}<br>
+        `;
+
+        if (status.configuration) {
+          statusHtml += `
+            <strong>Configuration:</strong><br>
+            &nbsp;&nbsp;CA Cert Path: ${status.configuration.caCertPath || 'Not configured'}<br>
+            &nbsp;&nbsp;Organization: ${status.configuration.organization}<br>
+            &nbsp;&nbsp;Country: ${status.configuration.country}<br>
+          `;
+        }
+
+        if (status.caDetails && !status.caDetails.error) {
+          statusHtml += `
+            <strong>CA Details:</strong><br>
+            &nbsp;&nbsp;Subject: ${status.caDetails.subject}<br>
+            &nbsp;&nbsp;Valid To: ${status.caDetails.validTo}<br>
+          `;
+        }
+
+        statusHtml += '</div>';
+        statusDiv.innerHTML = statusHtml;
+        
+      } catch (error) {
+        console.error('Error loading Enterprise CA status:', error);
+        document.getElementById('enterprise-ca-status').innerHTML = `
+          <div class="alert alert-error">
+            <i class="fas fa-exclamation-triangle"></i> Failed to load Enterprise CA status
+          </div>
+        `;
+      }
+    }
+
+    // Load Certificate Templates
+    async function loadCertificateTemplates() {
+      try {
+        const response = await fetch('/api/scep/templates');
+        if (!response.ok) throw new Error('Failed to load certificate templates');
+        
+        const data = await response.json();
+        const templatesDiv = document.getElementById('certificate-templates');
+        
+        let templatesHtml = '<div class="scep-config">';
+        
+        data.available.forEach(template => {
+          templatesHtml += `
+            <div style="margin-bottom: 15px; border-left: 3px solid var(--primary-color); padding-left: 10px;">
+              <strong>${template.name}:</strong> ${template.description}<br>
+              <small>Key Usage: ${template.keyUsage.join(', ')}</small><br>
+              <small>Extended Key Usage: ${template.extendedKeyUsage.join(', ')}</small>
+            </div>
+          `;
+        });
+        
+        templatesHtml += '</div>';
+        templatesDiv.innerHTML = templatesHtml;
+        
+      } catch (error) {
+        console.error('Error loading certificate templates:', error);
+        document.getElementById('certificate-templates').innerHTML = `
+          <div class="alert alert-error">
+            <i class="fas fa-exclamation-triangle"></i> Failed to load certificate templates
+          </div>
+        `;
+      }
+    }
+
+    // Get status CSS class
+    function getStatusClass(status) {
+      switch (status) {
+        case 'active': return 'status-active';
+        case 'disabled': return 'status-expired';
+        default: return 'status-expired';
+      }
+    }
 
     // Load SCEP configuration
     async function loadSCEPConfig() {
@@ -420,6 +658,12 @@
         document.getElementById('scep-service-url').textContent = config.scepUrl;
         document.getElementById('get-ca-cert-url').textContent = config.getCACertUrl;
         document.getElementById('get-ca-caps-url').textContent = config.getCACapsUrl;
+        
+        // Also populate MDM integration guide
+        const mdmUrlElement = document.getElementById('mdm-scep-url');
+        if (mdmUrlElement) {
+          mdmUrlElement.textContent = config.scepUrl;
+        }
         
       } catch (error) {
         console.error('Error loading SCEP config:', error);
@@ -532,20 +776,44 @@
       }
     }
 
-    // Generate SCEP certificate
+    // Generate SCEP certificate with enterprise CA support
     async function generateSCEPCertificate() {
       const commonName = document.getElementById('cert-common-name').value;
       const challengePassword = document.getElementById('cert-challenge').value;
+      const template = document.getElementById('cert-template').value;
+      const upn = document.getElementById('cert-upn').value;
+      const sanText = document.getElementById('cert-san').value;
       
       if (!commonName) {
         showAlert('Please enter a common name (domain)', 'warning');
         return;
       }
 
+      // Validate UPN for M365User template
+      if (template === 'M365User' && !upn) {
+        showAlert('UPN is required for M365 User certificates', 'warning');
+        return;
+      }
+
       try {
-        const payload = { commonName };
+        const payload = { 
+          commonName,
+          template
+        };
+        
         if (challengePassword) {
           payload.challengePassword = challengePassword;
+        }
+        
+        if (upn) {
+          payload.upn = upn;
+        }
+        
+        // Parse subject alternative names
+        if (sanText.trim()) {
+          payload.subjectAltNames = sanText.split('\n')
+            .map(san => san.trim())
+            .filter(san => san.length > 0);
         }
 
         const response = await fetch('/api/scep/certificate', {
@@ -567,7 +835,10 @@
             <strong><i class="fas fa-check-circle"></i> Certificate Generated Successfully!</strong><br>
             <div class="scep-config" style="margin-top: 10px;">
               <strong>Common Name:</strong> ${data.commonName}<br>
-              <strong>Domains:</strong> ${data.domains.join(', ')}<br>
+              <strong>Template:</strong> ${data.template}<br>
+              ${data.upn ? `<strong>UPN:</strong> ${data.upn}<br>` : ''}
+              <strong>Method:</strong> ${data.method}<br>
+              <strong>Enterprise Mode:</strong> ${data.enterpriseMode ? 'Yes' : 'No'}<br>
               <strong>Message:</strong> ${data.message}
             </div>
           </div>
@@ -576,6 +847,8 @@
         // Clear form and refresh certificates
         document.getElementById('cert-common-name').value = '';
         document.getElementById('cert-challenge').value = '';
+        document.getElementById('cert-upn').value = '';
+        document.getElementById('cert-san').value = '';
         setTimeout(loadSCEPCertificates, 1000);
         
       } catch (error) {
