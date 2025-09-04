@@ -3,6 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const security = require('../security');
+const enterpriseCA = require('./enterpriseCA');
 
 /**
  * SCEP Challenge Password Management
@@ -42,51 +43,73 @@ const getSCEPCACertificate = async () => {
 };
 
 /**
- * Process SCEP certificate request
- * @param {Buffer} pkcs10Request - The PKCS#10 certificate request
- * @param {string} challengePassword - The challenge password
- * @param {string} commonName - Common name for the certificate
- * @returns {Promise<Buffer>} - The signed certificate
+ * Process SCEP certificate request with enterprise CA integration
+ * @param {Object} requestData - SCEP request data
+ * @param {string} requestData.commonName - Certificate common name
+ * @param {string} requestData.challengePassword - Challenge password (optional)
+ * @param {string} requestData.template - Certificate template to use
+ * @param {string} requestData.upn - User Principal Name for M365 integration
+ * @param {Array} requestData.subjectAltNames - Additional subject alternative names
+ * @returns {Object} Certificate generation result
  */
-const processSCEPCertificateRequest = async (pkcs10Request, challengePassword, commonName) => {
+const processSCEPCertificateRequest = async (requestData) => {
   try {
-    // Validate challenge password (in a real implementation, you'd check against stored challenges)
-    if (!challengePassword || challengePassword.length < 8) {
-      throw new Error('Invalid challenge password');
-    }
-
-    // Validate common name
-    if (!commonName || !isValidDomainName(commonName)) {
-      throw new Error('Invalid common name');
-    }
-
-    // Save the PKCS#10 request to a temporary file
-    const tempDir = path.join(process.cwd(), 'certificates', 'temp');
-    await fs.mkdir(tempDir, { recursive: true });
+    const { commonName, challengePassword, template = 'User', upn, subjectAltNames = [] } = requestData;
     
-    const requestFile = path.join(tempDir, `${Date.now()}-request.csr`);
-    await fs.writeFile(requestFile, pkcs10Request);
-
-    // Generate certificate using mkcert for the requested domain
-    const certDir = path.join(process.cwd(), 'certificates', 'scep', commonName);
-    await fs.mkdir(certDir, { recursive: true });
-
-    const certFile = path.join(certDir, `${commonName}.pem`);
-    const keyFile = path.join(certDir, `${commonName}-key.pem`);
-
-    // Use mkcert to generate the certificate
-    const generateCommand = `cd "${certDir}" && mkcert -cert-file "${commonName}.pem" -key-file "${commonName}-key.pem" "${commonName}"`;
-    await security.executeCommand(generateCommand);
-
-    // Read the generated certificate
-    const certificate = await fs.readFile(certFile);
-
-    // Clean up temporary request file
-    await fs.unlink(requestFile).catch(() => {}); // Ignore errors
-
-    return certificate;
+    console.log('🔄 Processing SCEP certificate request');
+    console.log(`📋 Common Name: ${commonName}`);
+    console.log(`📋 Template: ${template}`);
+    if (upn) console.log(`📋 UPN: ${upn}`);
+    
+    // Validate UPN if provided (important for M365 integration)
+    if (upn && !enterpriseCA.validateUPN(upn)) {
+      throw new Error(`Invalid UPN format: ${upn}`);
+    }
+    
+    // Validate certificate template
+    const availableTemplates = Object.keys(enterpriseCA.certificateTemplates);
+    if (!availableTemplates.includes(template)) {
+      console.log(`⚠️ Unknown template '${template}', using 'User' template`);
+    }
+    
+    // Create certificate directory
+    const scepCertDir = path.join(process.cwd(), 'certificates', 'scep');
+    const certDir = path.join(scepCertDir, commonName);
+    
+    // Ensure directory exists
+    try {
+      await fs.mkdir(certDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, continue
+    }
+    
+    // Generate certificate using enterprise CA or mkcert fallback
+    const result = await enterpriseCA.generateEnterpriseOrMkcertCertificate(
+      commonName,
+      template,
+      upn,
+      subjectAltNames,
+      certDir
+    );
+    
+    console.log(`✅ SCEP certificate generated using ${result.method}`);
+    
+    // Read the generated certificate for SCEP response
+    const certificate = await fs.readFile(result.certificatePath);
+    
+    // Return enhanced result with SCEP-specific information
+    return {
+      ...result,
+      certificate,
+      scepPath: certDir,
+      generated: new Date().toISOString(),
+      protocol: 'SCEP',
+      enterpriseMode: result.method === 'enterprise-ca'
+    };
+    
   } catch (error) {
-    throw new Error(`Failed to process SCEP certificate request: ${error.error || error.message || error}`);
+    console.error('❌ SCEP certificate request processing failed:', error);
+    throw new Error(`Failed to process SCEP certificate request: ${error.message}`);
   }
 };
 

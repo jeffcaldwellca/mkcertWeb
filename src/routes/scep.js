@@ -4,6 +4,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const scepUtils = require('../utils/scep');
 const pkcs7Utils = require('../utils/pkcs7');
+const enterpriseCA = require('../utils/enterpriseCA');
 const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
 
 // Configure multer for handling SCEP binary requests
@@ -213,9 +214,15 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
     return apiResponse.success(res, { challenges }, 'Challenge passwords retrieved');
   }));
 
-  // Manual certificate generation via SCEP workflow
+  // Manual certificate generation via SCEP workflow with enterprise CA support
   router.post('/api/scep/certificate', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { commonName, challengePassword, subjectAltNames = [] } = req.body;
+    const { 
+      commonName, 
+      challengePassword, 
+      subjectAltNames = [], 
+      template = 'User',
+      upn
+    } = req.body;
 
     if (!commonName) {
       return apiResponse.badRequest(res, 'Common name is required');
@@ -225,23 +232,32 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       return apiResponse.badRequest(res, 'Invalid common name format');
     }
 
-    // For manual generation, we'll use a simplified approach
-    try {
-      // Initialize SCEP store if needed
-      await scepUtils.initializeSCEPStore();
+    // Validate UPN if provided
+    if (upn && !enterpriseCA.validateUPN(upn)) {
+      return apiResponse.badRequest(res, 'Invalid UPN format');
+    }
 
-      // Generate certificate using mkcert (simulating SCEP workflow)
-      const domains = [commonName, ...subjectAltNames].filter(Boolean);
-      const certificate = await scepUtils.processSCEPCertificateRequest(
-        Buffer.from(''), // Empty buffer for manual generation
-        challengePassword || 'manual-generation',
-        commonName
-      );
+    try {
+      console.log('🔄 Manual SCEP certificate generation requested');
+      console.log(`📋 Template: ${template}, UPN: ${upn || 'none'}`);
+
+      // Generate certificate using enhanced SCEP processing
+      const result = await scepUtils.processSCEPCertificateRequest({
+        commonName,
+        challengePassword: challengePassword || 'manual-generation',
+        template,
+        upn,
+        subjectAltNames
+      });
 
       return apiResponse.success(res, {
-        commonName,
-        domains,
-        message: 'Certificate generated successfully via SCEP workflow'
+        commonName: result.commonName,
+        template: result.template,
+        upn: result.upn,
+        certificatePath: result.certificatePath,
+        method: result.method,
+        enterpriseMode: result.enterpriseMode,
+        message: `Certificate generated successfully using ${result.method}`
       }, 'SCEP certificate generated');
 
     } catch (error) {
@@ -309,6 +325,49 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
     };
 
     return apiResponse.success(res, scepConfig, 'SCEP configuration retrieved');
+  }));
+
+  // Enterprise CA status and configuration
+  router.get('/api/scep/enterprise-ca/status', requireAuth, apiRateLimiter, asyncHandler(async (req, res) => {
+    try {
+      const status = await enterpriseCA.getEnterpriseCAStatus();
+      return apiResponse.success(res, status, 'Enterprise CA status retrieved');
+    } catch (error) {
+      console.error('Enterprise CA status error:', error);
+      return apiResponse.serverError(res, error.message);
+    }
+  }));
+
+  // Certificate template management
+  router.get('/api/scep/templates', requireAuth, apiRateLimiter, asyncHandler(async (req, res) => {
+    try {
+      const templates = enterpriseCA.getCertificateTemplates();
+      return apiResponse.success(res, templates, 'Certificate templates retrieved');
+    } catch (error) {
+      console.error('Certificate templates error:', error);
+      return apiResponse.serverError(res, error.message);
+    }
+  }));
+
+  // UPN validation endpoint
+  router.post('/api/scep/validate-upn', requireAuth, apiRateLimiter, asyncHandler(async (req, res) => {
+    const { upn } = req.body;
+    
+    if (!upn) {
+      return apiResponse.badRequest(res, 'UPN is required');
+    }
+
+    try {
+      const isValid = enterpriseCA.validateUPN(upn);
+      return apiResponse.success(res, { 
+        upn, 
+        valid: isValid,
+        message: isValid ? 'Valid UPN format' : 'Invalid UPN format'
+      }, 'UPN validation completed');
+    } catch (error) {
+      console.error('UPN validation error:', error);
+      return apiResponse.serverError(res, error.message);
+    }
   }));
 
   return router;
