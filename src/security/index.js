@@ -59,7 +59,7 @@ const isCommandSafe = (command) => {
     /^mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+[\w\.\-\s\*]+$/,
     
     // mkcert certificate generation - with cd command (for organized folders)
-    /^cd\s+"[^"]+"\s+&&\s+mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+[\w\.\-\s\*]+$/,
+    /^cd\s+"[^"]+"\s+&&\s+mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+"[\w\.\-\s\*]+"$/,
     
     // Shell commands for file listing
     /^ls\s+(-la\s+)?\*\.pem(\s+2>\/dev\/null(\s+\|\|\s+echo\s+"[^"]+"))?$/,
@@ -69,7 +69,13 @@ const isCommandSafe = (command) => {
     /^openssl\s+x509\s+-in\s+"[^"]+"\s+-noout\s+[^\|;&`$(){}[\]<>]+$/,
     
     // OpenSSL PKCS12 commands for PFX generation (allow empty password)
-    /^openssl\s+pkcs12\s+-export\s+-out\s+"[^"]+"\s+-inkey\s+"[^"]+"\s+-in\s+"[^"]+"\s+(-certfile\s+"[^"]+"\s+)?-passout\s+(pass:[^;|&`$]*|file:"[^"]+")(\s+-legacy)?$/
+    /^openssl\s+pkcs12\s+-export\s+-out\s+"[^"]+"\s+-inkey\s+"[^"]+"\s+-in\s+"[^"]+"\s+(-certfile\s+"[^"]+"\s+)?-passout\s+(pass:[^;|&`$]*|file:"[^"]+")(\s+-legacy)?$/,
+    
+    // SCEP-specific OpenSSL commands for certificate request handling
+    /^openssl\s+req\s+-in\s+"[^"]+"\s+-noout\s+-text$/,
+    /^openssl\s+req\s+-in\s+"[^"]+"\s+-noout\s+-subject$/,
+    /^openssl\s+pkcs7\s+-in\s+"[^"]+"\s+-print_certs\s+-noout$/,
+    /^openssl\s+smime\s+-verify\s+-in\s+"[^"]+"\s+-CAfile\s+"[^"]+"\s+-out\s+"[^"]+"\s+-noverify$/
   ];
 
   // Check if command matches any allowed pattern

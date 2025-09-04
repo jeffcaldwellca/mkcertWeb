@@ -4,6 +4,82 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.0.0] - 2025-09-04
+
+### 🚀 MAJOR RELEASE - Complete SCEP PKI Implementation
+
+#### 📡 Full SCEP (Simple Certificate Enrollment Protocol) Server
+- **✨ PKCS#7 Message Processing**: Enterprise-grade PKI operations
+  - Complete PKCS#7 parsing and generation using `node-forge` library
+  - Full implementation of SCEP PKIOperation endpoint with message validation
+  - Proper SCEP response generation with correct content types and error handling
+  - Support for enveloped data parsing and certificate signing request extraction
+  - **Impact**: Production-ready SCEP server for automated device certificate enrollment
+
+- **🔒 Advanced Authentication & Security**: Challenge-based enrollment protection
+  - Time-based challenge password system with configurable expiration
+  - One-time-use challenge validation with automatic cleanup
+  - Rate limiting on certificate generation operations
+  - Command injection protection for all mkcert CLI operations
+  - **Impact**: Secure device enrollment with enterprise-grade authentication
+
+#### 🌐 Complete SCEP Protocol Compliance
+- **📋 Standard SCEP Operations**: Full protocol support
+  - `GET /scep?operation=GetCACert` - CA certificate distribution
+  - `GET /scep?operation=GetCACaps` - Server capabilities announcement
+  - `POST /scep?operation=PKIOperation` - PKCS#7 certificate request processing
+  - Proper SCEP message types (PKCSReq, CertRep) with transaction ID tracking
+  - **Compliance**: Supports iOS, macOS, Windows, and other SCEP-compatible clients
+
+- **🔧 Management API Suite**: Complete SCEP administration interface
+  - `POST /api/scep/challenge` - Generate challenge passwords with expiration
+  - `GET /api/scep/challenges` - List active challenges with status tracking
+  - `POST /api/scep/certificate` - Manual certificate generation for testing
+  - `GET /api/scep/certificates` - SCEP certificate inventory management
+  - `GET /api/scep/config` - Complete SCEP server configuration display
+  - **Features**: Real-time challenge management and certificate lifecycle tracking
+
+#### 🎨 Modern Web Interface
+- **🖥️ Unified SCEP Management**: Professional web-based administration
+  - `/scep.html` - Complete SCEP management interface with modern styling
+  - Dark/light theme integration matching main application design
+  - Real-time challenge password generation and tracking
+  - Certificate inventory with creation dates and status indicators
+  - SCEP configuration display with copy-paste ready URLs
+  - **UX**: Consistent styling with main certificate manager interface
+
+#### 🔧 Technical Infrastructure
+- **📦 New Dependencies**: Enhanced cryptographic capabilities
+  - `node-forge@^1.3.1` - PKCS#7 parsing and cryptographic operations
+  - `asn1js@^3.0.6` - Additional ASN.1 structure support
+  - New utility modules: `src/utils/pkcs7.js` for SCEP message processing
+  - **Architecture**: Modular design with proper separation of concerns
+
+- **📚 Comprehensive Documentation**: Complete implementation guide
+  - Enhanced `SCEP.md` with full protocol documentation and examples
+  - Updated `README.md` with SCEP feature highlights and setup instructions
+  - API documentation with request/response examples
+  - Command-line testing guide for SCEP operations
+  - **Coverage**: Production deployment guide and troubleshooting information
+
+#### 🧪 Testing & Validation
+- **✅ Verified SCEP Operations**: Comprehensive endpoint testing
+  - CA certificate retrieval functioning with proper PEM format
+  - SCEP capabilities correctly listing supported features
+  - PKI operation processing PKCS#7 requests with proper error handling
+  - Challenge password lifecycle management with expiration tracking
+  - **Quality**: All endpoints tested and verified working correctly
+
+### 🔄 Breaking Changes
+- **📈 Version Bump**: 2.x.x → 3.0.0 due to major feature addition
+- **🆕 New Routes**: SCEP endpoints added without affecting existing functionality
+- **⚙️ Configuration**: New optional SCEP-related environment variables
+
+### 🎯 Migration Guide
+- **✅ Backward Compatible**: All existing certificate management features preserved
+- **🔧 Optional Features**: SCEP functionality available without configuration changes
+- **📝 New Capabilities**: Access SCEP management at `/scep.html`
+
 ## [2.2.0] - 2025-08-29
 
 ### 🚀 Major Features - Email Notification System
