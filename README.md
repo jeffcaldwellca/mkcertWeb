@@ -1,11 +1,12 @@
-# mkcert Web UI
+# mkcer-- **🛡️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting**📡 SCEP Service**: Complete Simple Certificate Enrollment Protocol with PKCS#7 parsing Web UI
 
 A secure, modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with enterprise-grade security and an intuitive web interface.
 
 ## ✨ Key Features
 
 - **🔐 SSL Certificate Generation**: Create certificates for multiple domains and IP addresses
-- **🛡️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting
+- **� SCEP Service**: Simple Certificate Enrollment Protocol for automatic device enrollment
+- **�🛡️ Enterprise Security**: Command injection protection, path traversal prevention, and comprehensive rate limiting
 - **📋 Multiple Formats**: Generate PEM, CRT, and PFX (PKCS#12) certificates
 - **🔒 Flexible Authentication**: Basic auth and enterprise SSO with OpenID Connect
 - **📧 Email Notifications**: Automated SMTP alerts for expiring certificates
@@ -141,7 +142,39 @@ curl http://localhost:3000/api/monitoring/status
 curl http://localhost:3000/api/monitoring/expiring
 ```
 
-## 🔒 Security Features
+## � SCEP Service
+
+The mkcert Web UI includes a built-in SCEP (Simple Certificate Enrollment Protocol) server for automatic certificate enrollment. This allows devices like iOS/iPadOS devices, Windows computers, and other SCEP-compatible clients to automatically request and receive certificates.
+
+### SCEP Features
+- **🔄 Automatic Enrollment**: Devices can automatically request certificates
+- **🎫 Challenge Passwords**: Secure enrollment with challenge-based authentication
+- **📱 Device Support**: Compatible with iOS, macOS, Windows, and other SCEP clients
+- **🔧 Management API**: Web interface for managing SCEP operations
+- **📋 Standard Compliance**: Implements core SCEP operations (GetCACert, GetCACaps)
+
+### SCEP Endpoints
+- **CA Certificate**: `GET /scep?operation=GetCACert` - Download CA certificate
+- **CA Capabilities**: `GET /scep?operation=GetCACaps` - Get server capabilities
+- **Management Interface**: `/scep.html` - Web-based SCEP management
+
+### Quick SCEP Setup
+```bash
+# Start the server
+npm start
+
+# Access SCEP interface
+open http://localhost:3000/scep.html
+
+# Generate challenge password for device enrollment
+curl -X POST http://localhost:3000/api/scep/challenge \
+  -H "Content-Type: application/json" \
+  -d '{"identifier": "my-device", "expiresIn": 3600}'
+```
+
+**For detailed SCEP configuration, see [SCEP.md](SCEP.md)**
+
+## �🔒 Security Features
 
 ### Enterprise-Grade Security
 - **🛡️ Command Injection Protection**: Strict allowlist-based command validation prevents malicious shell injection
