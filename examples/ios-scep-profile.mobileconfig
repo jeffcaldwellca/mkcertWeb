@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadType</key>
+            <string>com.apple.security.scep</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>PayloadIdentifier</key>
+            <string>com.example.mkcert.scep</string>
+            <key>PayloadDisplayName</key>
+            <string>mkcert SCEP Certificate</string>
+            <key>PayloadDescription</key>
+            <string>SCEP certificate enrollment for mkcert Web UI</string>
+            <key>PayloadUUID</key>
+            <string>12345678-1234-5678-9012-123456789012</string>
+            <key>URL</key>
+            <string>http://YOUR_SERVER_IP:3000/scep</string>
+            <key>Subject</key>
+            <array>
+                <array>
+                    <string>CN</string>
+                    <string>YOUR_DEVICE_NAME.local</string>
+                </array>
+                <array>
+                    <string>O</string>
+                    <string>mkcert Development</string>
+                </array>
+            </array>
+            <key>Challenge</key>
+            <string>YOUR_CHALLENGE_PASSWORD_HERE</string>
+            <key>Keysize</key>
+            <integer>2048</integer>
+            <key>KeyType</key>
+            <string>RSA</string>
+            <key>KeyUsage</key>
+            <integer>5</integer>
+            <key>CAFingerprint</key>
+            <data></data>
+            <key>Retries</key>
+            <integer>3</integer>
+            <key>RetryDelay</key>
+            <integer>10</integer>
+        </dict>
+    </array>
+    <key>PayloadDisplayName</key>
+    <string>mkcert SCEP Configuration</string>
+    <key>PayloadIdentifier</key>
+    <string>com.example.mkcert.scep.profile</string>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>87654321-4321-8765-2109-876543210987</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadDescription</key>
+    <string>SCEP certificate enrollment profile for mkcert Web UI. Replace YOUR_SERVER_IP and YOUR_CHALLENGE_PASSWORD_HERE with actual values.</string>
+</dict>
+</plist>
