@@ -20,6 +20,11 @@ const { createSCEPRoutes } = require('./src/routes/scep');
 
 // Import notification routes and services
 const createNotificationRoutes = require('./src/routes/notifications');
+
+// Import certificate and system routes
+const { createCertificateRoutes } = require('./src/routes/certificates');
+const { createSystemRoutes } = require('./src/routes/system');
+
 const config = require('./src/config');
 const { EmailService } = require('./src/services/emailService');
 const { CertificateMonitoringService } = require('./src/services/certificateMonitoringService');
@@ -62,6 +67,10 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// CSRF Protection
+const Tokens = require('csrf');
+const tokens = new Tokens();
 
 // Passport configuration
 app.use(passport.initialize());
@@ -269,6 +278,15 @@ const rateLimiters = createRateLimiters(config);
 // Mount notification routes
 app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService));
 
+// Mount certificate routes
+app.use(createCertificateRoutes(config, rateLimiters, requireAuth));
+
+// Mount SCEP routes (must be before system routes to avoid catch-all)
+app.use(createSCEPRoutes(config, rateLimiters, requireAuth));
+
+// Mount system routes
+app.use(createSystemRoutes(config, rateLimiters, requireAuth));
+
 // Auth status endpoint (always available)
 app.get('/api/auth/status', (req, res) => {
   if (ENABLE_AUTH) {
@@ -292,6 +310,22 @@ app.get('/api/config/theme', (req, res) => {
   res.json({
     defaultTheme: ['dark', 'light'].includes(defaultTheme) ? defaultTheme : 'dark'
   });
+});
+
+// CSRF token endpoint (always available)
+app.get('/api/csrf-token', (req, res) => {
+  // Initialize CSRF secret in session if not exists
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = tokens.secretSync();
+  }
+  
+  const token = tokens.create(req.session.csrfSecret);
+  res.json({ csrfToken: token });
+});
+
+// Favicon handler (return 204 No Content if not found)
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
 });
 
 // Certificate storage directory
@@ -1464,26 +1498,8 @@ app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
   }
 });
 
-// SCEP (Simple Certificate Enrollment Protocol) Routes
-// Add SCEP functionality for automatic certificate enrollment
-const rateLimit = require('express-rate-limit');
-
-// Create basic rate limiters for SCEP
-const scepRateLimiters = {
-  cliRateLimiter: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 requests per window
-    message: { error: 'Too many SCEP requests, please try again later.' }
-  }),
-  apiRateLimiter: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per window
-    message: { error: 'Too many API requests, please try again later.' }
-  })
-};
-
-// Mount SCEP routes
-app.use(createSCEPRoutes({}, scepRateLimiters, requireAuth));
+// Note: SCEP routes are now mounted earlier in the file with the other route modules
+// This ensures they are registered before the system routes catch-all handler
 
 // Error handling middleware
 app.use((err, req, res, next) => {

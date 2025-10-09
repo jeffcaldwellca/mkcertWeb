@@ -31,11 +31,14 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       fileSize: 10 * 1024 * 1024 // 10MB limit
     },
     fileFilter: (req, file, cb) => {
-      // Only allow .pem files
-      if (file.originalname.endsWith('.pem')) {
+      // Allow certificate files: .pem, .crt, .key, .p12, .pfx
+      const allowedExtensions = ['.pem', '.crt', '.key', '.p12', '.pfx'];
+      const hasAllowedExtension = allowedExtensions.some(ext => file.originalname.endsWith(ext));
+      
+      if (hasAllowedExtension) {
         cb(null, true);
       } else {
-        cb(new Error('Only .pem files are allowed'));
+        cb(new Error('Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed'));
       }
     }
   });
@@ -48,9 +51,19 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
     const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
     if (!isValid) return; // Error response already sent by validateFileRequest
     
+    // Determine content type based on file extension
+    let contentType = 'application/x-pem-file';
+    if (filename.endsWith('.p12') || filename.endsWith('.pfx')) {
+      contentType = 'application/x-pkcs12';
+    } else if (filename.endsWith('.crt')) {
+      contentType = 'application/x-x509-ca-cert';
+    } else if (filename.endsWith('.key')) {
+      contentType = 'application/x-pem-file';
+    }
+    
     // Send file with appropriate headers
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', 'application/x-pem-file');
+    res.setHeader('Content-Type', contentType);
     res.sendFile(safePath);
   }));
 

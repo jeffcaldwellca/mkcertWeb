@@ -74,8 +74,10 @@
                         <select id="format" class="form-select">
                             <option value="pem">PEM (.pem / -key.pem)</option>
                             <option value="crt">CRT/KEY (.crt / .key)</option>
+                            <option value="p12">P12/PFX (.p12) - PKCS#12 Bundle</option>
+                            <option value="p12-client">P12 Client (.p12) - S/MIME / Client Auth</option>
                         </select>
-                        <small class="help-text">Choose certificate file format. PEM is standard, CRT/KEY is common for web servers.</small>
+                        <small class="help-text">PEM/CRT for servers, P12 for browsers/email. P12 Client includes client authentication flag for S/MIME.</small>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-magic"></i> Generate Certificate

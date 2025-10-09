@@ -90,12 +90,14 @@ class CertificateMonitoringService {
     
     try {
       // Find generated certificates
-      const generatedCerts = await findAllCertificateFiles();
+      const certificatesDir = this.config.paths?.certificates || 'certificates';
+      const generatedCerts = await findAllCertificateFiles(certificatesDir);
       certificateFiles = [...generatedCerts];
       
       // Include uploaded certificates if configured
       if (this.config.monitoring.includeUploaded) {
-        const uploadedCerts = await findAllCertificateFiles('certificates/uploaded');
+        const uploadedDir = this.config.paths?.uploaded || 'certificates/uploaded';
+        const uploadedCerts = await findAllCertificateFiles(uploadedDir);
         certificateFiles = [...certificateFiles, ...uploadedCerts];
       }
       
@@ -114,13 +116,15 @@ class CertificateMonitoringService {
     for (const certFile of certificateFiles) {
       try {
         // Skip if not a .pem certificate file
-        if (!certFile.endsWith('.pem') || certFile.includes('-key.pem')) {
+        if (!certFile.name.endsWith('.pem') || certFile.name.includes('-key.pem')) {
           continue;
         }
         
-        const expiryDate = await getCertificateExpiry(certFile);
+        const certPath = certFile.fullPath;
+        
+        const expiryDate = await getCertificateExpiry(certPath);
         if (!expiryDate) {
-          console.warn(`Could not determine expiry date for: ${certFile}`);
+          console.warn(`Could not determine expiry date for: ${certPath}`);
           continue;
         }
         
@@ -129,23 +133,23 @@ class CertificateMonitoringService {
         // Check if certificate is expiring within the warning period
         if (daysUntilExpiry <= this.config.monitoring.warningDays && daysUntilExpiry >= 0) {
           try {
-            const domains = await getCertificateDomains(certFile);
+            const domains = await getCertificateDomains(certPath);
             
             expiringCertificates.push({
-              path: certFile,
+              path: certPath,
               expiry: expiryDate,
               daysUntilExpiry,
               domains,
               priority: daysUntilExpiry <= this.config.monitoring.criticalDays ? 'critical' : 'warning'
             });
             
-            console.log(`Expiring certificate found: ${certFile} (${daysUntilExpiry} days remaining)`);
+            console.log(`Expiring certificate found: ${certPath} (${daysUntilExpiry} days remaining)`);
           } catch (domainError) {
-            console.warn(`Could not extract domains from ${certFile}:`, domainError.message);
+            console.warn(`Could not extract domains from ${certPath}:`, domainError.message);
             
             // Still include certificate even if domain extraction fails
             expiringCertificates.push({
-              path: certFile,
+              path: certPath,
               expiry: expiryDate,
               daysUntilExpiry,
               domains: null,
@@ -154,7 +158,7 @@ class CertificateMonitoringService {
           }
         }
       } catch (error) {
-        console.error(`Error analyzing certificate ${certFile}:`, error.message);
+        console.error(`Error analyzing certificate ${certFile.fullPath || certFile}:`, error.message);
       }
     }
     
