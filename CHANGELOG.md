@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.0.1] - 2025-10-09
+
+### 🐛 Bug Fixes - Critical SCEP and Monitoring Issues
+
+#### SCEP Routes Not Accessible
+- **🔧 Route Registration Order**: Fixed SCEP API endpoints returning "API endpoint not found" errors
+  - **Issue**: SCEP routes were being mounted after system routes in `server.js`
+  - **Root Cause**: System routes include a catch-all handler for `/api/*` that was intercepting SCEP requests
+  - **Solution**: Moved SCEP routes mounting to occur before system routes (line ~286)
+  - Removed duplicate SCEP routes mounting code that was at line ~1517
+  - **Impact**: All SCEP API endpoints now accessible and functioning correctly
+  - **Affected Endpoints**: 
+    - `/api/scep/enterprise-ca/status`
+    - `/api/scep/config`
+    - `/api/scep/challenges`
+    - `/api/scep/certificate`
+    - `/api/scep/certificates`
+    - `/api/scep/templates`
+    - `/api/scep/validate-upn`
+
+#### Certificate Monitoring Service Startup Error
+- **🔧 Missing Configuration**: Fixed "path argument must be of type string" error on service initialization
+  - **Issue**: Certificate monitoring service failing to start with undefined path error
+  - **Root Cause**: `config` object missing `paths` property with certificate directory configuration
+  - **Solution**: 
+    - Added new `paths` configuration section in `src/config/index.js`
+    - Added `certificates` path (default: 'certificates')
+    - Added `uploaded` path (default: 'certificates/uploaded')
+    - Updated `certificateMonitoringService.js` to use config paths with fallbacks
+  - **Impact**: Certificate monitoring service now starts successfully and finds certificates
+  - **Result**: Service successfully monitoring 9 certificate files on startup
+
+### 🎯 Technical Details
+- **Files Modified**:
+  - `server.js` - Fixed route registration order
+  - `src/config/index.js` - Added paths configuration section
+  - `src/services/certificateMonitoringService.js` - Updated to use config paths
+
+### ✅ Verification
+- **SCEP Endpoints**: All API endpoints responding correctly with valid JSON
+- **Monitoring Service**: Successfully finding and monitoring certificate files
+- **Backward Compatibility**: No breaking changes to existing functionality
+- **Certificate Discovery**: Monitoring service correctly scans both generated and uploaded certificates
+
 ## [3.0.0] - 2025-09-04
 
 ### 🚀 MAJOR RELEASE - Complete SCEP PKI Implementation
