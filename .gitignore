@@ -38,6 +38,9 @@ ssl/
 .env.test.local
 .env.production.local
 
+# Settings file (may contain sensitive data)
+config/settings.json
+
 # Logs
 logs
 *.log

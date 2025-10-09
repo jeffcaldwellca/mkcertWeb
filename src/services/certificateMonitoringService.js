@@ -101,7 +101,7 @@ class CertificateMonitoringService {
         certificateFiles = [...certificateFiles, ...uploadedCerts];
       }
       
-      console.log(`Found ${certificateFiles.length} certificate files to monitor`);
+      //console.log(`Found ${certificateFiles.length} certificate files to monitor`);
       return certificateFiles;
     } catch (error) {
       console.error('Error finding certificates to monitor:', error.message);

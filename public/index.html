@@ -28,13 +28,16 @@
         </header>
 
         <!-- Navigation -->
-        <nav style="background: var(--background-color); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
-            <div style="display: flex; gap: 20px; justify-content: center;">
-                <a href="/" style="color: var(--primary-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: white;">
+        <nav style="background: var(--secondary-bg); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="/" style="text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: white;">
                     <i class="fas fa-home"></i> Certificate Manager
                 </a>
-                <a href="/scep.html" style="color: var(--primary-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--primary-color); transition: all 0.3s;">
+                <a href="/scep.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
                     <i class="fas fa-satellite-dish"></i> SCEP Service
+                </a>
+                <a href="/settings.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
+                    <i class="fas fa-cog"></i> Settings
                 </a>
             </div>
         </nav>
@@ -164,31 +167,12 @@
 
             <!-- Configuration Help -->
             <div class="notification-help">
-                <details>
-                    <summary><i class="fas fa-question-circle"></i> Configuration Help</summary>
-                    <div class="help-content">
-                        <h4>Email Notifications</h4>
-                        <p>To enable email notifications, configure these environment variables:</p>
-                        <ul>
-                            <li><code>EMAIL_NOTIFICATIONS_ENABLED=true</code></li>
-                            <li><code>SMTP_HOST=your-smtp-server.com</code></li>
-                            <li><code>SMTP_USER=your-email@domain.com</code></li>
-                            <li><code>SMTP_PASSWORD=your-password</code></li>
-                            <li><code>EMAIL_TO=admin@domain.com,ops@domain.com</code></li>
-                        </ul>
-
-                        <h4>Certificate Monitoring</h4>
-                        <p>To enable automatic certificate monitoring:</p>
-                        <ul>
-                            <li><code>CERT_MONITORING_ENABLED=true</code></li>
-                            <li><code>CERT_CHECK_INTERVAL=0 8 * * *</code> (daily at 8 AM)</li>
-                            <li><code>CERT_WARNING_DAYS=30</code> (warn 30 days before expiry)</li>
-                            <li><code>CERT_CRITICAL_DAYS=7</code> (critical 7 days before expiry)</li>
-                        </ul>
-
-                        <p>See <code>.env.example</code> for complete configuration options.</p>
-                    </div>
-                </details>
+                <p style="text-align: center; padding: 15px;">
+                    <i class="fas fa-cog"></i> 
+                    <a href="/settings.html" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                        Configure email and monitoring settings in the Settings page
+                    </a>
+                </p>
             </div>
         </section>
 

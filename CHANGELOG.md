@@ -4,6 +4,177 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.1.0] - 2025-10-09
+
+### ✨ New Features - Web-Based Settings Management
+
+#### Settings Configuration Interface
+- **🎨 Complete Settings UI**: New web-based settings management interface at `/settings.html`
+  - **Organization**: Tabbed interface with six categories (Server, Authentication, Rate Limiting, Email, Monitoring, Theme)
+  - **User Experience**: Real-time validation, success notifications, responsive design
+  - **Features**: Save/reset/reload functionality, import/export settings as JSON
+  - **Security**: Sensitive fields masked (`********`), authentication required, rate limiting applied
+  - **Impact**: Administrators can configure all application options without editing `.env` files
+
+#### Settings API Endpoints
+- **📡 REST API**: Complete settings management API
+  - `GET /api/settings` - Retrieve current settings (sanitized for security)
+  - `POST /api/settings` - Save settings to `config/settings.json`
+  - `DELETE /api/settings` - Reset to defaults (delete settings file)
+  - `GET /api/settings/running` - View actual running configuration
+  - `GET /api/settings/export` - Export settings as JSON backup file
+  - `POST /api/settings/import` - Import settings from JSON file
+  - **Impact**: Programmatic configuration management and backup/restore capabilities
+
+#### Configuration Override System
+- **⚙️ Settings Priority**: New three-tier configuration system
+  - **Priority 1**: `config/settings.json` (Web UI settings - NEW)
+  - **Priority 2**: `.env` file (Environment variables)
+  - **Priority 3**: Default values in code
+  - **Implementation**: Deep merge function in `src/config/index.js`
+  - **Impact**: Settings configured via web UI override `.env` values and persist across restarts
+
+#### Settings Categories
+- **🖥️ Server Configuration**:
+  - HTTP/HTTPS ports, SSL domain, HTTPS enable/force options
+  - Certificate storage directory paths
+  
+- **🔐 Authentication Settings**:
+  - Basic auth: username, password, session secret
+  - OIDC SSO: issuer URL, client ID/secret, callback URL, scopes
+  
+- **🛡️ Rate Limiting Configuration**:
+  - CLI operations rate limits
+  - API request rate limits
+  - Authentication attempt rate limits
+  
+- **📧 Email Notifications**:
+  - SMTP server configuration (host, port, secure)
+  - Authentication credentials
+  - TLS settings
+  - From/To addresses
+  - Email subject customization
+  
+- **📊 Certificate Monitoring**:
+  - Enable/disable automatic monitoring
+  - Cron schedule configuration
+  - Warning/critical day thresholds
+  - Include uploaded certificates option
+  
+- **🎨 Theme Customization**:
+  - Default theme mode (light/dark)
+  - Primary color selection
+  - Dark mode preference
+
+### 🔒 Security Enhancements
+
+#### Sensitive Data Protection
+- **🔐 Masked Fields**: Passwords and secrets masked when displayed in UI
+  - `auth.password` - Basic authentication password
+  - `auth.sessionSecret` - Session encryption key
+  - `oidc.clientSecret` - OIDC application secret
+  - `email.smtp.auth.pass` - SMTP password
+  - **Behavior**: Masked values (`********`) not saved unless explicitly changed
+  
+- **🛡️ Settings File Security**:
+  - `config/settings.json` automatically added to `.gitignore`
+  - Prevents accidental commit of sensitive configuration
+  - Settings API protected by authentication (if enabled)
+  - Rate limiting applied to all settings endpoints
+
+### 🌐 User Interface Improvements
+
+#### Navigation Enhancement
+- **🧭 Unified Navigation**: Settings link added to all pages
+  - Certificate Manager (`/`)
+  - SCEP Service (`/scep.html`)
+  - Settings (`/settings.html`)
+  - **Styling**: Consistent navigation bar with active page highlighting
+  - **Impact**: Easy access to settings from anywhere in the application
+
+#### Settings Page Features
+- **📋 Tabbed Interface**: Six organized tabs for different setting categories
+- **✅ Form Validation**: Real-time validation with helpful messages
+- **💾 Save Feedback**: Success banner and notifications
+- **🔄 Reset Function**: One-click reset to defaults with confirmation
+- **📥 Import/Export**: Backup and restore via JSON
+- **👁️ Config Viewer**: Modal to view actual running configuration
+- **📱 Responsive Design**: Mobile-friendly interface
+- **🎨 Theme Integration**: Matches application theme (dark/light mode)
+
+### 🐛 Bug Fixes
+
+#### Logging Improvements
+- **🔧 Certificate Monitoring**: Reduced excessive logging
+  - **Issue**: "Found X certificate files to monitor" logged on every check
+  - **Solution**: Commented out verbose logging in `certificateMonitoringService.js`
+  - **Impact**: Cleaner logs without losing important monitoring information
+
+- **🔧 Debug Cleanup**: Removed debug logging statements
+  - **Issue**: Debug `console.log` statements left in production code
+  - **Solution**: Removed debug logging from `src/routes/certificates.js`
+  - **Files**: `src/routes/certificates.js` (fingerprint debug logs removed)
+  - **Impact**: Cleaner production logs
+
+### 📁 New Files
+
+**Frontend**:
+- `public/settings.html` - Settings management page (1,200+ lines)
+- `public/settings.js` - Frontend JavaScript logic (500+ lines)
+
+**Backend**:
+- `src/routes/settings.js` - Settings API routes (300+ lines)
+
+**Documentation**:
+- `SETTINGS.md` - Comprehensive user guide for settings feature
+- `SETTINGS_IMPLEMENTATION.md` - Technical implementation details
+
+**Configuration**:
+- `config/` - Directory for `settings.json` storage
+
+### 🔧 Modified Files
+
+**Configuration System**:
+- `src/config/index.js` - Added settings.json loader, deep merge function
+
+**Server Integration**:
+- `server.js` - Imported and mounted settings routes
+
+**User Interface**:
+- `public/index.html` - Added Settings link, simplified configuration section
+- `public/scep.html` - Added Settings link to navigation
+- `public/styles.css` - Added `.alert-info` style
+
+**Version Control**:
+- `.gitignore` - Added `config/settings.json` exclusion
+
+### 📚 Documentation
+
+**New Guides**:
+- `SETTINGS.md` - Complete user documentation for settings feature
+- `SETTINGS_IMPLEMENTATION.md` - Technical implementation summary
+
+**Updated Guides**:
+- `.github/copilot-instructions.md` - Updated with settings development patterns
+
+### ✅ Migration & Compatibility
+
+**Backward Compatibility**:
+- ✅ Existing `.env` configurations continue to work unchanged
+- ✅ No breaking changes to existing functionality
+- ✅ Settings UI shows current `.env` values as defaults
+- ✅ Optional migration to web UI settings
+
+**Migration Options**:
+1. **Continue with .env**: No changes required
+2. **Migrate to Web UI**: Save settings via UI to persist in `config/settings.json`
+3. **Hybrid Approach**: Mix `.env` defaults with web UI overrides
+
+**Restart Requirements**:
+- Server ports and HTTPS settings require restart
+- Authentication and rate limiting changes require restart
+- Most operational settings (email, monitoring) load dynamically
+
 ## [3.0.1] - 2025-10-09
 
 ### 🐛 Bug Fixes - Critical SCEP and Monitoring Issues
