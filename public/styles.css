@@ -1455,6 +1455,13 @@ section h2::before {
     box-shadow: 0 0 10px rgba(255, 170, 0, 0.2);
 }
 
+.alert-info {
+    background: rgba(0, 170, 255, 0.1);
+    border: 1px solid rgba(0, 170, 255, 0.3);
+    color: var(--secondary-color);
+    box-shadow: 0 0 10px rgba(0, 170, 255, 0.2);
+}
+
 .alert-close {
     position: absolute;
     top: 50%;

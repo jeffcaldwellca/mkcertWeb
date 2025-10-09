@@ -21,9 +21,10 @@ const { createSCEPRoutes } = require('./src/routes/scep');
 // Import notification routes and services
 const createNotificationRoutes = require('./src/routes/notifications');
 
-// Import certificate and system routes
+// Import certificate, system, and settings routes
 const { createCertificateRoutes } = require('./src/routes/certificates');
 const { createSystemRoutes } = require('./src/routes/system');
+const createSettingsRoutes = require('./src/routes/settings');
 
 const config = require('./src/config');
 const { EmailService } = require('./src/services/emailService');
@@ -283,6 +284,9 @@ app.use(createCertificateRoutes(config, rateLimiters, requireAuth));
 
 // Mount SCEP routes (must be before system routes to avoid catch-all)
 app.use(createSCEPRoutes(config, rateLimiters, requireAuth));
+
+// Mount settings routes
+app.use('/api/settings', createSettingsRoutes(config, rateLimiters, requireAuth));
 
 // Mount system routes
 app.use(createSystemRoutes(config, rateLimiters, requireAuth));
