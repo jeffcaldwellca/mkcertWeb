@@ -103,8 +103,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           
           // Get format from request body, default to 'pem'
           const format = req.body.format || 'pem';
-          if (!['pem', 'crt'].includes(format)) {
-            return apiResponse.badRequest(res, 'Invalid certificate format. Must be "pem" or "crt"');
+          if (!['pem', 'crt', 'p12', 'p12-client'].includes(format)) {
+            return apiResponse.badRequest(res, 'Invalid certificate format. Must be "pem", "crt", "p12", or "p12-client"');
           }
           
           // Create date-based folder structure: certificates/YYYY-MM-DD/
@@ -126,6 +126,12 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           
           if (format === 'crt') {
             fullCommand = `mkcert -cert-file "${domainName}.crt" -key-file "${domainName}.key" ${sanitizedInput}`;
+          } else if (format === 'p12') {
+            // P12/PFX format - PKCS#12 bundle
+            fullCommand = `mkcert -pkcs12 -p12-file "${domainName}.p12" ${sanitizedInput}`;
+          } else if (format === 'p12-client') {
+            // P12 with client authentication flag for S/MIME and client certificates
+            fullCommand = `mkcert -pkcs12 -client -p12-file "${domainName}.p12" ${sanitizedInput}`;
           } else {
             fullCommand = `mkcert -cert-file "${domainName}.pem" -key-file "${domainName}-key.pem" ${sanitizedInput}`;
           }
@@ -177,11 +183,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       try {
         const stats = await fs.stat(fileInfo.fullPath);
         const isKeyFile = fileInfo.name.endsWith('-key.pem') || fileInfo.name.endsWith('.key');
+        const isP12File = fileInfo.name.endsWith('.p12') || fileInfo.name.endsWith('.pfx');
         
-        // Only get certificate info for actual certificate files, not key files
-        const expiry = isKeyFile ? null : await certificateUtils.getCertificateExpiry(fileInfo.fullPath);
-        const domains = isKeyFile ? [] : await certificateUtils.getCertificateDomains(fileInfo.fullPath);
-        const fingerprint = isKeyFile ? null : await certificateUtils.getCertificateFingerprint(fileInfo.fullPath);
+        // Only get certificate info for actual certificate files, not key files or P12 files
+        // P12 files are binary PKCS#12 format and can't be inspected with openssl x509
+        const expiry = (isKeyFile || isP12File) ? null : await certificateUtils.getCertificateExpiry(fileInfo.fullPath);
+        const domains = (isKeyFile || isP12File) ? [] : await certificateUtils.getCertificateDomains(fileInfo.fullPath);
+        const fingerprint = (isKeyFile || isP12File) ? null : await certificateUtils.getCertificateFingerprint(fileInfo.fullPath);
         
         // Extract folder information from path
         const relativePath = path.relative(certificatesDir, fileInfo.fullPath);
@@ -196,6 +204,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
         let format = 'pem';
         if (fileInfo.name.endsWith('.crt') || fileInfo.name.endsWith('.key')) {
           format = 'crt';
+        } else if (fileInfo.name.endsWith('.p12') || fileInfo.name.endsWith('.pfx')) {
+          format = 'p12';
         }
         
         return {
@@ -206,7 +216,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           expiry: expiry,
           domains: domains,
           fingerprint: fingerprint,
-          type: isKeyFile ? 'key' : 'cert',
+          type: isKeyFile ? 'key' : (isP12File ? 'p12' : 'cert'),
           format: format,
           folder: dateFolder,
           folderDate: dateFolder && /^\d{4}-\d{2}-\d{2}$/.test(dateFolder) ? dateFolder : null,
@@ -230,7 +240,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     certificates.forEach(cert => {
       if (cert.error) return;
       
-      // Handle both .pem and .crt/.key patterns
+      // Handle both .pem and .crt/.key patterns and .p12/.pfx
       let baseName;
       if (cert.filename.endsWith('-key.pem')) {
         baseName = cert.filename.replace(/-key\.pem$/, '');
@@ -240,6 +250,10 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
         baseName = cert.filename.replace(/\.pem$/, '');
       } else if (cert.filename.endsWith('.crt')) {
         baseName = cert.filename.replace(/\.crt$/, '');
+      } else if (cert.filename.endsWith('.p12')) {
+        baseName = cert.filename.replace(/\.p12$/, '');
+      } else if (cert.filename.endsWith('.pfx')) {
+        baseName = cert.filename.replace(/\.pfx$/, '');
       } else {
         baseName = cert.filename;
       }
@@ -261,7 +275,15 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
         };
       }
       
-      if (cert.type === 'cert') {
+      if (cert.type === 'p12') {
+        // P12 files are standalone bundles containing both cert and key
+        grouped[baseName].cert = cert;
+        grouped[baseName].key = { filename: cert.filename, type: 'p12-bundle' };
+        grouped[baseName].domains = cert.domains || [];
+        grouped[baseName].expiry = cert.expiry;
+        grouped[baseName].fingerprint = cert.fingerprint;
+        grouped[baseName].format = cert.format;
+      } else if (cert.type === 'cert') {
         grouped[baseName].cert = cert;
         grouped[baseName].domains = cert.domains || [];
         grouped[baseName].expiry = cert.expiry;

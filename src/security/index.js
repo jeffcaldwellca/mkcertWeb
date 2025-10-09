@@ -55,8 +55,14 @@ const isCommandSafe = (command) => {
     // mkcert certificate generation - simple domain format
     /^mkcert\s+[\w\.\-\s\*]+$/,
     
-    // mkcert certificate generation - standalone with explicit file names
+    // mkcert certificate generation - standalone with explicit file names (PEM/CRT)
     /^mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+[\w\.\-\s\*]+$/,
+    
+    // mkcert P12/PKCS12 certificate generation (standard)
+    /^mkcert\s+-pkcs12\s+-p12-file\s+"[^"]+"\s+[\w\.\-\s\*@]+$/,
+    
+    // mkcert P12/PKCS12 certificate generation with client flag (for S/MIME)
+    /^mkcert\s+-pkcs12\s+-client\s+-p12-file\s+"[^"]+"\s+[\w\.\-\s\*@]+$/,
     
     // mkcert certificate generation - with cd command (for organized folders)
     /^cd\s+"[^"]+"\s+&&\s+mkcert\s+-cert-file\s+"[^"]+"\s+-key-file\s+"[^"]+"\s+"[\w\.\-\s\*]+"$/,

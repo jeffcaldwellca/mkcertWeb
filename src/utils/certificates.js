@@ -79,8 +79,9 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
       const subFiles = await findAllCertificateFiles(fullPath, relativeFilePath);
       files.push(...subFiles);
     } else if (entry.isFile()) {
-      // Check if it's a certificate file (including key files)
-      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt') || entry.name.endsWith('.key')) {
+      // Check if it's a certificate file (including key files and P12/PFX)
+      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt') || entry.name.endsWith('.key') || 
+          entry.name.endsWith('.p12') || entry.name.endsWith('.pfx')) {
         files.push({
           name: entry.name,
           fullPath,
