@@ -1,51 +1,24 @@
 # Docker Usage Guide
 
-This document provides comprehensive instructions for running mkcert Web UI v2.0 using Docker. Version 2.0 includes enhanced security features, modular architecture, and standardized API responses.
+Comprehensive instructions for running mkcert Web UI using Docker.
 
 ## Quick Start
 
-### Recommended Method: Docker Compose
-
-The repository includes a pre-configured `docker-compose.yml` file for easy deployment:
-
 ```bash
-# Clone the repository
 git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
-
-# Start the application using the included docker-compose.yml
 docker-compose up -d
 ```
 
-That's it! The application will be available at:
+Access the application:
 - **HTTP**: http://localhost:3000
-- **HTTPS**: http://localhost:3443 (if enabled)
+- **HTTPS**: https://localhost:3443 (if enabled)
 
-### Version 2.0 API Changes
-
-⚠️ **Breaking Changes in v2.0**
-
-If upgrading from v1.x, note that API responses have been standardized:
-- All API responses now include a `success` boolean field
-- Error responses include standardized `error` messages
-- Some endpoint response formats have changed for consistency
-- Enhanced error handling with detailed validation messages
-
-See the [CHANGELOG.md](CHANGELOG.md) for complete migration details.
-
-### Alternative: Manual Docker Run
-
-If you prefer to run Docker commands manually:
+## Manual Docker Run
 
 ```bash
-# Clone the repository
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-
-# Build the image
+# Build and run
 docker build -t mkcert-web-ui .
-
-# Run the application
 docker run -d \
   --name mkcert-web-ui \
   -p 3000:3000 \
@@ -54,28 +27,11 @@ docker run -d \
   mkcert-web-ui
 ```
 
-## Configuration Options
+## Configuration
 
-The included `docker-compose.yml` file provides sensible defaults and can be customized for your needs.
-
-### Using the Included Docker Compose File
-
-#### Default Configuration
-The included configuration provides:
-- HTTP server on port 3000
-- HTTPS server on port 3443 (disabled by default)
-- Dark theme as default
-- Authentication disabled (for easy development)
-- Persistent volumes for certificates and data
-- Automatic restart on failure
-- Health monitoring
-
-#### Customizing Environment Variables
-
-You can override any environment variable by creating a `.env` file in the repository root:
+### Using .env File
 
 ```bash
-# Create a .env file to customize settings
 cat > .env << EOF
 ENABLE_AUTH=true
 AUTH_USERNAME=myuser
@@ -85,125 +41,60 @@ ENABLE_HTTPS=true
 SSL_DOMAIN=myapp.local
 EOF
 
-# Start with custom configuration
 docker-compose up -d
 ```
 
-#### Direct Environment Variable Override
-
-You can also override environment variables directly:
+### Direct Override
 
 ```bash
-# Override specific settings
 ENABLE_AUTH=true AUTH_USERNAME=admin docker-compose up -d
 ```
 
-### Manual Docker Run Examples
-
-If you prefer not to use the included docker-compose.yml file:
-
-#### Basic Configuration
-```bash
-docker run -d \
-  --name mkcert-web-ui \
-  -p 3000:3000 \
-  -e "DEFAULT_THEME=light" \
-  -e "NODE_ENV=production" \
-  -v mkcert_certificates:/app/certificates \
-  mkcert-web-ui
-```
-
-#### With Authentication
-```bash
-docker run -d \
-  --name mkcert-web-ui \
-  -p 3000:3000 \
-  -e "ENABLE_AUTH=true" \
-  -e "AUTH_USERNAME=myuser" \
-  -e "AUTH_PASSWORD=mysecurepassword" \
-  -e "SESSION_SECRET=your-very-long-random-secret-key" \
-  -v mkcert_certificates:/app/certificates \
-  mkcert-web-ui
-```
-
-#### With HTTPS
-```bash
-docker run -d \
-  --name mkcert-web-ui \
-  -p 3000:3000 \
-  -p 3443:3443 \
-  -e "ENABLE_HTTPS=true" \
-  -e "SSL_DOMAIN=your-domain.com" \
-  -v mkcert_certificates:/app/certificates \
-  mkcert-web-ui
-```
-
-### Available Environment Variables
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3000` | HTTP server port |
 | `HTTPS_PORT` | `3443` | HTTPS server port |
 | `ENABLE_HTTPS` | `false` | Enable HTTPS server |
-| `SSL_DOMAIN` | `localhost` | Domain name for SSL certificate |
+| `SSL_DOMAIN` | `localhost` | Domain for SSL certificate |
 | `FORCE_HTTPS` | `false` | Redirect HTTP to HTTPS |
-| `NODE_ENV` | `production` | Environment mode (enables security features in production) |
-| `DEFAULT_THEME` | `dark` | Default theme (dark/light) |
-| `ENABLE_AUTH` | `false` | Enable user authentication (recommended for production) |
-| `AUTH_USERNAME` | `admin` | Username for authentication |
-| `AUTH_PASSWORD` | `admin` | Password for authentication |
-| `SESSION_SECRET` | `auto-generated` | Session secret (auto-generated if not provided) |
+| `NODE_ENV` | `production` | Environment mode |
+| `DEFAULT_THEME` | `dark` | UI theme (dark/light) |
+| `ENABLE_AUTH` | `false` | Enable authentication |
+| `AUTH_USERNAME` | `admin` | Username |
+| `AUTH_PASSWORD` | `admin` | Password |
+| `SESSION_SECRET` | auto-generated | Session secret |
 
-## Docker Compose Management
+## Management
 
 ### Basic Commands
 
 ```bash
-# Start the application
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the application
-docker-compose down
-
-# Restart the application
-docker-compose restart
-
-# Update and rebuild
-docker-compose down
-docker-compose up -d --build
-
-# View status
-docker-compose ps
+docker-compose up -d          # Start
+docker-compose logs -f        # View logs
+docker-compose down           # Stop
+docker-compose restart        # Restart
+docker-compose up -d --build  # Rebuild
+docker-compose ps             # Status
 ```
 
-### Data Persistence
-
-The included docker-compose.yml automatically creates and manages:
-- **mkcert_certificates**: Stores all generated SSL certificates
-- **mkcert_data**: Stores application data and configuration
+### Data Backup & Restore
 
 ```bash
-# View volume information
-docker volume ls | grep mkcert
+# Backup
+docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
+  tar czf /backup/certificates-backup.tar.gz -C /data .
 
-# Backup certificates
-docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine tar czf /backup/certificates-backup.tar.gz -C /data .
-
-# Restore certificates
-docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine tar xzf /backup/certificates-backup.tar.gz -C /data
+# Restore
+docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
+  tar xzf /backup/certificates-backup.tar.gz -C /data
 ```
 
 ## Production Deployment
 
-### Using Docker Compose for Production
-
-The included docker-compose.yml can be easily configured for production:
-
 ```bash
-# Create a production .env file
+# Create production .env file
 cat > .env << EOF
 NODE_ENV=production
 ENABLE_HTTPS=true
@@ -213,225 +104,81 @@ ENABLE_AUTH=true
 AUTH_USERNAME=yourusername
 AUTH_PASSWORD=yoursecurepassword
 SESSION_SECRET=$(openssl rand -base64 32)
-DEFAULT_THEME=light
 EOF
 
-# Deploy to production
 docker-compose up -d
 ```
 
 ### Production Checklist
 
-- ✅ Set strong `AUTH_USERNAME` and `AUTH_PASSWORD`
+- ✅ Set strong credentials
 - ✅ Generate secure `SESSION_SECRET`
-- ✅ Enable HTTPS with your domain
-- ✅ Configure proper SSL_DOMAIN
-- ✅ Set NODE_ENV=production (enables security features)
-- ✅ Enable authentication (`ENABLE_AUTH=true`)
+- ✅ Enable HTTPS with valid domain
+- ✅ Set `NODE_ENV=production`
+- ✅ Enable authentication
 - ✅ Configure reverse proxy if needed
-- ✅ Review rate limiting settings for your use case
-- ✅ Ensure container receives regular security updates
-
-## Building and Running
-
-### Using the Included Docker Compose (Recommended)
-
-The repository includes everything needed:
-
-```bash
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-docker-compose up -d
-```
-
-### Manual Build Process
-
-If you need to build manually:
-
-```bash
-# Clone the repository
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-
-# Build the image
-docker build -t mkcert-web-ui .
-
-# Run your build
-docker run -d \
-  --name mkcert-web-ui \
-  -p 3000:3000 \
-  -v mkcert_certificates:/app/certificates \
-  mkcert-web-ui
-```
+- ✅ Regular container updates
 
 ## Troubleshooting
 
-### Docker Compose Commands
-
 ```bash
-# Check container status
-docker-compose ps
-
-# View application logs
-docker-compose logs -f mkcert-web-ui
+# View logs
+docker-compose logs -f
 
 # Access container shell
 docker-compose exec mkcert-web-ui /bin/sh
 
-# Restart the service
-docker-compose restart mkcert-web-ui
-
-# Stop and remove everything
-docker-compose down
-```
-
-### Manual Docker Commands
-
-```bash
-# Check container logs
-docker logs mkcert-web-ui
-
-# Access container shell
-docker exec -it mkcert-web-ui /bin/sh
-```
-
-### Health Check
-The included docker-compose.yml has health monitoring built-in:
-```bash
-# Check health status
+# Check health
 docker-compose ps
 
-# View detailed health information
-docker inspect mkcertWeb_mkcert-web-ui_1 | grep -A 5 Health
+# Verify dependencies
+docker-compose exec mkcert-web-ui mkcert -help
+docker-compose exec mkcert-web-ui openssl version
 ```
 
 ### Port Conflicts
-If port 3000 is already in use, modify the docker-compose.yml or use environment override:
+
 ```bash
-# Edit docker-compose.yml ports section, or:
-# Override ports with environment variable
+# Edit docker-compose.yml ports or use:
 PORT=8080 docker-compose up -d
-
-# Or edit the docker-compose.yml file to change:
-# ports:
-#   - "8080:3000"    # HTTP port
 ```
 
-For manual docker run:
-```bash
-docker run -d \
-  --name mkcert-web-ui \
-  -p 8080:3000 \
-  mkcert-web-ui
-```
+### Volume Issues
 
-### Persistence Issues
-The docker-compose.yml automatically handles volume persistence. To verify:
 ```bash
-# Check volume mounts
-docker-compose config
-
-# List volumes
+# Check volumes
 docker volume ls | grep mkcert
-
-# Inspect volume details
 docker volume inspect mkcertWeb_mkcert_certificates
-docker volume inspect mkcertWeb_mkcert_data
 ```
 
-### Missing Dependencies
-The Docker image includes all required dependencies:
-- **mkcert**: Pre-installed for certificate generation
-- **OpenSSL**: Included for certificate analysis and operations
-- **Node.js**: Runtime environment with security enhancements
-- **Alpine Linux**: Minimal base image with security updates
-- **Security Modules**: Built-in rate limiting, input validation, and path protection
+## Security
 
-If you encounter issues, verify the container has the required tools:
-```bash
-# Check mkcert (using docker-compose)
-docker-compose exec mkcert-web-ui mkcert -help
+### Built-in Features
+- Command injection protection
+- Path traversal prevention  
+- Multi-tier rate limiting
+- Input validation
+- Secure headers
 
-# Check OpenSSL (using docker-compose)
-docker-compose exec mkcert-web-ui openssl version
-
-# For manual docker run:
-docker exec mkcert-web-ui mkcert -help
-docker exec mkcert-web-ui openssl version
-```
-
-## Security Considerations
-
-⚠️ **Version 2.0 Security Enhancements**
-
-mkcert Web UI v2.0 includes comprehensive security improvements:
-
-### Built-in Security Features
-
-1. **Command Injection Protection**: All user inputs are sanitized and validated
-2. **Path Traversal Prevention**: File operations are restricted to authorized directories
-3. **Rate Limiting**: Multi-tier protection against abuse:
-   - General API: 100 requests per 15 minutes per IP
-   - Certificate operations: 10 requests per 15 minutes per IP
-   - File operations: 20 requests per 15 minutes per IP
-4. **Input Validation**: Comprehensive validation of all user inputs
-5. **Secure Headers**: Security headers automatically applied to all responses
-
-### Production Security Checklist
-
-1. **Change Default Credentials**: Always change `AUTH_USERNAME` and `AUTH_PASSWORD` in production
-2. **Session Secret**: Use a strong, randomly generated `SESSION_SECRET`
-3. **HTTPS**: Enable HTTPS for production deployments
-4. **Network**: Consider using Docker networks for isolation
-5. **Updates**: Regularly update the container image for security patches
-6. **Authentication**: Enable authentication in production environments
-7. **Reverse Proxy**: Use nginx or similar for additional security layers
-
-### Security Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_AUTH` | `false` | Enable user authentication (recommended for production) |
-| `SESSION_SECRET` | `auto-generated` | Session secret (change in production) |
-| `FORCE_HTTPS` | `false` | Force HTTPS redirects |
-| `NODE_ENV` | `production` | Production mode enables additional security features |
+### Production Security
+1. Change default credentials
+2. Use strong `SESSION_SECRET`
+3. Enable HTTPS
+4. Enable authentication
+5. Regular container updates
+6. Consider reverse proxy (nginx)
 
 ## Examples
 
-### Quick Development Setup
+### Quick Dev Setup
 ```bash
 git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
 docker-compose up -d
 ```
 
-### Production Setup with Authentication
-```bash
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-
-# Create production configuration
-cat > .env << EOF
-ENABLE_AUTH=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD=$(openssl rand -base64 12)
-SESSION_SECRET=$(openssl rand -base64 32)
-DEFAULT_THEME=light
-NODE_ENV=production
-EOF
-
-docker-compose up -d
-```
-
-### Development with Custom Theme
-```bash
-# Override just the theme
-DEFAULT_THEME=light docker-compose up -d
-```
-
-### Reverse Proxy Setup (nginx)
-```bash
-# For use with nginx-proxy, modify docker-compose.yml or create override:
+### Nginx Reverse Proxy
+```yaml
 version: '3.8'
 services:
   mkcert-web-ui:
@@ -449,4 +196,4 @@ networks:
     external: true
 ```
 
-For more information, see the main [README.md](README.md) file.
+For more information, see [README.md](README.md).
