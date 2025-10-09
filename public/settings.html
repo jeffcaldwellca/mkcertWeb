@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - mkcert Web UI</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .settings-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .settings-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+            flex-wrap: wrap;
+        }
+        
+        .settings-tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 500;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            transition: all 0.3s;
+        }
+        
+        .settings-tab:hover {
+            color: var(--primary-color);
+        }
+        
+        .settings-tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        
+        .settings-tab i {
+            margin-right: 8px;
+        }
+        
+        .settings-panel {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        
+        .settings-panel.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .settings-section {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .settings-section h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            font-size: 18px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .settings-form-group {
+            margin-bottom: 20px;
+        }
+        
+        .settings-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-color);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+        }
+        
+        .settings-form-group input,
+        .settings-form-group select,
+        .settings-form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-color);
+            font-size: 14px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+        
+        .settings-form-group input:focus,
+        .settings-form-group select:focus,
+        .settings-form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .settings-form-group small {
+            display: block;
+            margin-top: 5px;
+            color: var(--text-dim);
+            font-size: 12px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+        }
+        
+        .settings-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .settings-checkbox input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+        }
+        
+        .settings-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .success-banner {
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--success-color);
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid var(--success-color);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            display: none;
+        }
+        
+        .success-banner.show {
+            display: block;
+            animation: slideDown 0.3s;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .info-box {
+            background: var(--card-bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .info-box p {
+            margin: 0;
+            color: var(--text-color);
+            font-size: 14px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+        }
+        
+        .info-box i {
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+        
+        /* Modal styles */
+        .config-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s;
+        }
+        
+        .config-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .config-modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 800px;
+            max-height: 80vh;
+            width: 90%;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .config-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .config-modal-header h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+        }
+        
+        .config-modal-close {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        
+        .config-modal-close:hover {
+            background: var(--border-color);
+            color: var(--primary-color);
+        }
+        
+        .config-display {
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-x: auto;
+            color: var(--text-color);
+        }
+        
+        .config-display pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .config-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container settings-container">
+        <header>
+            <button class="theme-toggle" id="theme-toggle">
+                <i class="fas fa-sun"></i> Light Mode
+            </button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1><i class="fas fa-cog"></i> Settings</h1>
+                    <p>Configure mkcert Web UI</p>
+                </div>
+                <div id="auth-controls" style="display: none;">
+                    <span id="username-display" style="margin-right: 15px; color: var(--secondary-color);"></span>
+                    <button id="logout-btn" class="btn btn-logout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav style="background: var(--secondary-bg); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                <a href="/" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
+                    <i class="fas fa-home"></i> Certificate Manager
+                </a>
+                <a href="/scep.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
+                    <i class="fas fa-satellite-dish"></i> SCEP Service
+                </a>
+                <a href="/settings.html" style="text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: white;">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+            </div>
+        </nav>
+
+        <div id="success-banner" class="success-banner">
+            <i class="fas fa-check-circle"></i> Settings saved successfully!
+        </div>
+
+        <div class="info-box">
+            <p><i class="fas fa-info-circle"></i> Settings configured here will override values from your .env file and persist across server restarts.</p>
+        </div>
+
+        <!-- Settings Tabs -->
+        <div class="settings-tabs">
+            <button class="settings-tab active" data-panel="server">
+                <i class="fas fa-server"></i> Server
+            </button>
+            <button class="settings-tab" data-panel="auth">
+                <i class="fas fa-lock"></i> Authentication
+            </button>
+            <button class="settings-tab" data-panel="ratelimit">
+                <i class="fas fa-shield-alt"></i> Rate Limiting
+            </button>
+            <button class="settings-tab" data-panel="email">
+                <i class="fas fa-envelope"></i> Email
+            </button>
+            <button class="settings-tab" data-panel="monitoring">
+                <i class="fas fa-bell"></i> Monitoring
+            </button>
+            <button class="settings-tab" data-panel="theme">
+                <i class="fas fa-palette"></i> Theme
+            </button>
+        </div>
+
+        <!-- Settings Form -->
+        <form id="settings-form">
+            <!-- Server Settings Panel -->
+            <div class="settings-panel active" id="panel-server">
+                <div class="settings-section">
+                    <h3><i class="fas fa-server"></i> Server Configuration</h3>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="server-port">HTTP Port</label>
+                            <input type="number" id="server-port" name="server.port" min="1" max="65535" value="3000">
+                            <small>Port for HTTP server (default: 3000)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="server-https-port">HTTPS Port</label>
+                            <input type="number" id="server-https-port" name="server.httpsPort" min="1" max="65535" value="3443">
+                            <small>Port for HTTPS server (default: 3443)</small>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="server-host">Host</label>
+                            <input type="text" id="server-host" name="server.host" value="localhost">
+                            <small>Server hostname (default: localhost)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="server-ssl-domain">SSL Domain</label>
+                            <input type="text" id="server-ssl-domain" name="server.sslDomain" value="localhost">
+                            <small>Domain name for SSL certificate</small>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group settings-checkbox">
+                            <input type="checkbox" id="server-enable-https" name="server.enableHttps">
+                            <label for="server-enable-https">Enable HTTPS Server</label>
+                        </div>
+                        <div class="settings-form-group settings-checkbox">
+                            <input type="checkbox" id="server-force-https" name="server.forceHttps">
+                            <label for="server-force-https">Force HTTPS (Redirect HTTP to HTTPS)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-folder"></i> Paths Configuration</h3>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="paths-certificates">Certificates Directory</label>
+                            <input type="text" id="paths-certificates" name="paths.certificates" value="certificates">
+                            <small>Directory for certificate storage (default: certificates)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="paths-uploaded">Uploaded Certificates Directory</label>
+                            <input type="text" id="paths-uploaded" name="paths.uploaded" value="certificates/uploaded">
+                            <small>Directory for uploaded certificates</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Authentication Settings Panel -->
+            <div class="settings-panel" id="panel-auth">
+                <div class="settings-section">
+                    <h3><i class="fas fa-user-shield"></i> Basic Authentication</h3>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="auth-enabled" name="auth.enabled">
+                        <label for="auth-enabled">Enable Basic Authentication</label>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="auth-username">Username</label>
+                            <input type="text" id="auth-username" name="auth.username" value="admin">
+                            <small>Username for authentication</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="auth-password">Password</label>
+                            <input type="password" id="auth-password" name="auth.password" value="admin">
+                            <small>Password for authentication</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="auth-session-secret">Session Secret</label>
+                        <input type="text" id="auth-session-secret" name="auth.sessionSecret" value="">
+                        <small>Secret key for session encryption (change in production!)</small>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-id-card"></i> OpenID Connect (OIDC) SSO</h3>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="oidc-enabled" name="oidc.enabled">
+                        <label for="oidc-enabled">Enable OIDC SSO Authentication</label>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="oidc-issuer">OIDC Issuer URL</label>
+                        <input type="url" id="oidc-issuer" name="oidc.issuer" placeholder="https://login.microsoftonline.com/tenant-id/v2.0">
+                        <small>Your OIDC provider's issuer URL</small>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="oidc-client-id">Client ID</label>
+                            <input type="text" id="oidc-client-id" name="oidc.clientId" placeholder="">
+                            <small>OIDC application client ID</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="oidc-client-secret">Client Secret</label>
+                            <input type="password" id="oidc-client-secret" name="oidc.clientSecret" placeholder="">
+                            <small>OIDC application client secret</small>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="oidc-callback-url">Callback URL</label>
+                            <input type="url" id="oidc-callback-url" name="oidc.callbackUrl" value="http://localhost:3000/auth/oidc/callback">
+                            <small>Callback URL registered in your OIDC provider</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="oidc-scope">Scopes</label>
+                            <input type="text" id="oidc-scope" name="oidc.scope" value="openid profile email">
+                            <small>Space-separated list of scopes</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rate Limiting Settings Panel -->
+            <div class="settings-panel" id="panel-ratelimit">
+                <div class="settings-section">
+                    <h3><i class="fas fa-terminal"></i> CLI Rate Limiting</h3>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="ratelimit-cli-window">Time Window (milliseconds)</label>
+                            <input type="number" id="ratelimit-cli-window" name="rateLimit.cli.window" value="900000" min="1000">
+                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="ratelimit-cli-max">Max Requests</label>
+                            <input type="number" id="ratelimit-cli-max" name="rateLimit.cli.max" value="10" min="1">
+                            <small>Maximum CLI operations per window (default: 10)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-plug"></i> API Rate Limiting</h3>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="ratelimit-api-window">Time Window (milliseconds)</label>
+                            <input type="number" id="ratelimit-api-window" name="rateLimit.api.window" value="900000" min="1000">
+                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="ratelimit-api-max">Max Requests</label>
+                            <input type="number" id="ratelimit-api-max" name="rateLimit.api.max" value="100" min="1">
+                            <small>Maximum API requests per window (default: 100)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-sign-in-alt"></i> Auth Rate Limiting</h3>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="ratelimit-auth-window">Time Window (milliseconds)</label>
+                            <input type="number" id="ratelimit-auth-window" name="rateLimit.auth.window" value="900000" min="1000">
+                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="ratelimit-auth-max">Max Requests</label>
+                            <input type="number" id="ratelimit-auth-max" name="rateLimit.auth.max" value="5" min="1">
+                            <small>Maximum login attempts per window (default: 5)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Settings Panel -->
+            <div class="settings-panel" id="panel-email">
+                <div class="settings-section">
+                    <h3><i class="fas fa-envelope"></i> Email Notifications</h3>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="email-enabled" name="email.enabled">
+                        <label for="email-enabled">Enable Email Notifications</label>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="email-smtp-host">SMTP Host</label>
+                            <input type="text" id="email-smtp-host" name="email.smtp.host" placeholder="smtp.gmail.com">
+                            <small>SMTP server hostname</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="email-smtp-port">SMTP Port</label>
+                            <input type="number" id="email-smtp-port" name="email.smtp.port" value="587" min="1" max="65535">
+                            <small>SMTP port (587 for TLS, 465 for SSL)</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="email-smtp-secure" name="email.smtp.secure">
+                        <label for="email-smtp-secure">Use SSL Connection (port 465)</label>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="email-smtp-user">SMTP Username</label>
+                            <input type="text" id="email-smtp-user" name="email.smtp.auth.user" placeholder="your-email@gmail.com">
+                            <small>SMTP authentication username</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="email-smtp-pass">SMTP Password</label>
+                            <input type="password" id="email-smtp-pass" name="email.smtp.auth.pass" placeholder="">
+                            <small>SMTP authentication password</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="email-smtp-tls-reject" name="email.smtp.tls.rejectUnauthorized" checked>
+                        <label for="email-smtp-tls-reject">Reject Unauthorized TLS (recommended)</label>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="email-from">From Email Address</label>
+                            <input type="email" id="email-from" name="email.from" value="mkcert-web-ui@localhost">
+                            <small>Sender email address</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="email-to">To Email Addresses</label>
+                            <input type="text" id="email-to" name="email.to" placeholder="admin@company.com,ops@company.com">
+                            <small>Comma-separated list of recipients</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="email-subject">Email Subject</label>
+                        <input type="text" id="email-subject" name="email.subject" value="Certificate Expiry Alert - mkcert Web UI">
+                        <small>Subject line for notification emails</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitoring Settings Panel -->
+            <div class="settings-panel" id="panel-monitoring">
+                <div class="settings-section">
+                    <h3><i class="fas fa-bell"></i> Certificate Monitoring</h3>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="monitoring-enabled" name="monitoring.enabled">
+                        <label for="monitoring-enabled">Enable Automatic Certificate Monitoring</label>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="monitoring-check-interval">Check Interval (Cron Expression)</label>
+                        <input type="text" id="monitoring-check-interval" name="monitoring.checkInterval" value="0 8 * * *">
+                        <small>Cron expression for check frequency (default: 0 8 * * * = daily at 8 AM)</small>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="monitoring-warning-days">Warning Threshold (days)</label>
+                            <input type="number" id="monitoring-warning-days" name="monitoring.warningDays" value="30" min="1">
+                            <small>Days before expiry to send warning notifications</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="monitoring-critical-days">Critical Threshold (days)</label>
+                            <input type="number" id="monitoring-critical-days" name="monitoring.criticalDays" value="7" min="1">
+                            <small>Days before expiry to send critical notifications</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="monitoring-include-uploaded" name="monitoring.includeUploaded" checked>
+                        <label for="monitoring-include-uploaded">Monitor Uploaded Certificates</label>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <p><strong>Cron Expression Examples:</strong></p>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                        <li><code>0 8 * * *</code> - Daily at 8:00 AM</li>
+                        <li><code>0 */6 * * *</code> - Every 6 hours</li>
+                        <li><code>0 8 * * 1</code> - Every Monday at 8:00 AM</li>
+                        <li><code>0 0 * * *</code> - Daily at midnight</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Theme Settings Panel -->
+            <div class="settings-panel" id="panel-theme">
+                <div class="settings-section">
+                    <h3><i class="fas fa-palette"></i> Theme Configuration</h3>
+                    <div class="settings-form-group">
+                        <label for="theme-mode">Default Theme Mode</label>
+                        <select id="theme-mode" name="theme.mode">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                        <small>Default theme when users first visit the site</small>
+                    </div>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="theme-dark-mode" name="theme.darkMode">
+                        <label for="theme-dark-mode">Enable Dark Mode by Default</label>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="theme-primary-color">Primary Color</label>
+                        <input type="color" id="theme-primary-color" name="theme.primaryColor" value="#007bff">
+                        <small>Primary accent color for the interface</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="settings-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Settings
+                </button>
+                <button type="button" id="reset-btn" class="btn btn-secondary">
+                    <i class="fas fa-undo"></i> Reset to Defaults
+                </button>
+                <button type="button" id="reload-btn" class="btn btn-outline">
+                    <i class="fas fa-sync-alt"></i> Reload from Server
+                </button>
+                <button type="button" id="view-config-btn" class="btn btn-outline">
+                    <i class="fas fa-eye"></i> View Running Config
+                </button>
+            </div>
+        </form>
+
+        <!-- Alerts -->
+        <div id="alerts-container"></div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="config-modal" class="config-modal">
+        <div class="config-modal-content">
+            <div class="config-modal-header">
+                <h2><i class="fas fa-cog"></i> Current Running Configuration</h2>
+                <button class="config-modal-close" id="config-modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="config-modal-body">
+                <p style="margin-bottom: 15px; color: var(--text-dim); font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;">
+                    This displays the actual configuration currently running on the server. 
+                    Changes require a server restart to take effect.
+                </p>
+                <div class="config-display">
+                    <pre id="config-content">Loading...</pre>
+                </div>
+                <div class="config-actions">
+                    <button type="button" id="copy-config-btn" class="btn btn-secondary">
+                        <i class="fas fa-copy"></i> Copy to Clipboard
+                    </button>
+                    <button type="button" id="download-config-btn" class="btn btn-outline">
+                        <i class="fas fa-download"></i> Download JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>
