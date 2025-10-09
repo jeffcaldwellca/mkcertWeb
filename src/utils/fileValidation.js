@@ -22,15 +22,18 @@ const validateFilename = (filename, res) => {
 };
 
 /**
- * Validate that filename is a .pem certificate file
+ * Validate that filename is a certificate file
  */
 const validateCertificateFile = (filename, res) => {
   if (!validateFilename(filename, res)) {
     return false;
   }
   
-  if (!filename.endsWith('.pem')) {
-    apiResponse.badRequest(res, 'Only certificate files (.pem) are allowed');
+  const allowedExtensions = ['.pem', '.crt', '.key', '.p12', '.pfx'];
+  const hasAllowedExtension = allowedExtensions.some(ext => filename.endsWith(ext));
+  
+  if (!hasAllowedExtension) {
+    apiResponse.badRequest(res, 'Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed');
     return false;
   }
   

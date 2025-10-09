@@ -84,5 +84,11 @@ module.exports = {
     warningDays: parseInt(process.env.CERT_WARNING_DAYS) || 30, // Warn 30 days before expiry
     criticalDays: parseInt(process.env.CERT_CRITICAL_DAYS) || 7, // Critical warning 7 days before expiry
     includeUploaded: process.env.CERT_MONITOR_UPLOADED !== 'false' // Monitor uploaded certificates by default
+  },
+
+  // Paths configuration
+  paths: {
+    certificates: process.env.CERTIFICATES_DIR || 'certificates',
+    uploaded: process.env.UPLOADED_CERTS_DIR || 'certificates/uploaded'
   }
 };
