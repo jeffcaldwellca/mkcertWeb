@@ -391,7 +391,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       const certInfo = certInfoResult.stdout;
       const fingerprintOutput = fingerprintResult.stdout || '';
       
-      console.log('Debug - fingerprint output:', JSON.stringify(fingerprintOutput));
       
       // Parse certificate information
       const subjectMatch = certInfo.match(/subject=(.+)/);
@@ -400,7 +399,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       
       // Parse fingerprint from dedicated output  
       const fingerprintMatch = fingerprintOutput.match(/sha256 Fingerprint=(.+)/s);
-      console.log('Debug - fingerprint match:', fingerprintMatch);
 
       const subject = subjectMatch ? subjectMatch[1].trim() : 'Unknown';
       const issuer = issuerMatch ? issuerMatch[1].trim() : 'Unknown';
