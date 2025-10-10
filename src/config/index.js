@@ -1,7 +1,44 @@
 // Configuration module
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
-module.exports = {
+// Load settings from settings.json if it exists
+const SETTINGS_FILE = path.join(__dirname, '../../config/settings.json');
+let savedSettings = {};
+
+try {
+  if (fs.existsSync(SETTINGS_FILE)) {
+    const settingsData = fs.readFileSync(SETTINGS_FILE, 'utf8');
+    savedSettings = JSON.parse(settingsData);
+    console.log('✓ Loaded settings from settings.json');
+    console.log('  Settings override:', Object.keys(savedSettings).join(', '));
+  } else {
+    console.log('ℹ No settings.json found, using .env and defaults');
+  }
+} catch (error) {
+  console.warn('⚠ Warning: Could not load settings.json:', error.message);
+}
+
+/**
+ * Deep merge two objects, with source overriding target
+ */
+function deepMerge(target, source) {
+  const result = { ...target };
+  
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else if (source[key] !== undefined) {
+      result[key] = source[key];
+    }
+  }
+  
+  return result;
+}
+
+// Base configuration from environment variables
+const baseConfig = {
   // Server configuration
   server: {
     port: parseInt(process.env.PORT) || 3000,
@@ -92,3 +129,14 @@ module.exports = {
     uploaded: process.env.UPLOADED_CERTS_DIR || 'certificates/uploaded'
   }
 };
+
+// Merge saved settings from settings.json with base config
+// Settings from settings.json take precedence over .env values
+const finalConfig = deepMerge(baseConfig, savedSettings);
+
+// Log sample of final configuration for verification
+if (Object.keys(savedSettings).length > 0) {
+  console.log('  Applied settings - Example: theme.primaryColor =', finalConfig.theme?.primaryColor);
+}
+
+module.exports = finalConfig;
