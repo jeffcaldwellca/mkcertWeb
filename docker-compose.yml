@@ -1,6 +1,6 @@
 services:
   mkcert-web-ui:
-    build: .
+    image: ghcr.io/chriskacerguis/mkcertweb:3.1.0
     ports:
       - "3000:3000"    # HTTP port
       - "3443:3443"    # HTTPS port
