@@ -6,7 +6,9 @@ RUN apk add --no-cache \
     ca-certificates \
     openssl \
     wget \
-    && wget -O /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-amd64 \
+    && ARCH=$(uname -m) \
+    && if [ "$ARCH" = "x86_64" ]; then MKCERT_ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then MKCERT_ARCH="arm64"; else echo "Unsupported architecture: $ARCH" && exit 1; fi \
+    && wget -O /usr/local/bin/mkcert https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-v1.4.4-linux-${MKCERT_ARCH} \
     && chmod +x /usr/local/bin/mkcert
 
 # Create app directory
