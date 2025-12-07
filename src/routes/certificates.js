@@ -605,7 +605,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const certificatesDir = path.join(process.cwd(), 'certificates');
     
     // Validate the filename through security module
-    if (!security.validateFilename(filename)) {
+    try {
+      security.validateFilename(filename);
+    } catch (error) {
       return apiResponse.badRequest(res, 'Invalid filename');
     }
     
@@ -622,7 +624,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     // Use security-validated path
     let filePath;
     try {
-      filePath = security.validateAndSanitizePath(filename, sourceDir);
+      const pathInfo = security.validateAndSanitizePath(filename, sourceDir);
+      filePath = pathInfo.resolved;
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
@@ -646,7 +649,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const certificatesDir = path.join(process.cwd(), 'certificates');
     
     // Validate the filename through security module
-    if (!security.validateFilename(filename)) {
+    try {
+      security.validateFilename(filename);
+    } catch (error) {
       return apiResponse.badRequest(res, 'Invalid filename');
     }
     
@@ -663,7 +668,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     // Use security-validated path
     let filePath;
     try {
-      filePath = security.validateAndSanitizePath(filename, sourceDir);
+      const pathInfo = security.validateAndSanitizePath(filename, sourceDir);
+      filePath = pathInfo.resolved;
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
@@ -687,7 +693,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const certificatesDir = path.join(process.cwd(), 'certificates');
     
     // Validate the certificate name through security module
-    if (!security.validateFilename(`${certname}.pem`)) {
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (error) {
       return apiResponse.badRequest(res, 'Invalid certificate name');
     }
     
@@ -701,20 +709,46 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
     
-    // Use security-validated paths
-    let certFile, keyFile;
+    // Use security-validated paths - try both .pem and .crt formats
+    let certFile, keyFile, certExt, keyExt;
+    const fs = require('fs');
+    
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir);
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir);
+      // Try .pem format for certificate
+      let certPathInfo = security.validateAndSanitizePath(`${certname}.pem`, sourceDir);
+      if (fs.existsSync(certPathInfo.resolved)) {
+        certFile = certPathInfo.resolved;
+        certExt = '.pem';
+      } else {
+        // Try .crt format
+        certPathInfo = security.validateAndSanitizePath(`${certname}.crt`, sourceDir);
+        if (fs.existsSync(certPathInfo.resolved)) {
+          certFile = certPathInfo.resolved;
+          certExt = '.crt';
+        }
+      }
+      
+      // Try -key.pem format for key
+      let keyPathInfo = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir);
+      if (fs.existsSync(keyPathInfo.resolved)) {
+        keyFile = keyPathInfo.resolved;
+        keyExt = '-key.pem';
+      } else {
+        // Try .key format
+        keyPathInfo = security.validateAndSanitizePath(`${certname}.key`, sourceDir);
+        if (fs.existsSync(keyPathInfo.resolved)) {
+          keyFile = keyPathInfo.resolved;
+          keyExt = '.key';
+        }
+      }
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
     
     try {
-      const fs = require('fs');
       const archiver = require('archiver');
       
-      if (!fs.existsSync(certFile) && !fs.existsSync(keyFile)) {
+      if (!certFile && !keyFile) {
         return apiResponse.notFound(res, 'Certificate files not found');
       }
       
@@ -724,11 +758,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       const archive = archiver('zip', { zlib: { level: 9 }});
       archive.pipe(res);
       
-      if (fs.existsSync(certFile)) {
-        archive.file(certFile, { name: `${certname}.pem` });
+      if (certFile) {
+        archive.file(certFile, { name: `${certname}${certExt}` });
       }
-      if (fs.existsSync(keyFile)) {
-        archive.file(keyFile, { name: `${certname}-key.pem` });
+      if (keyFile) {
+        archive.file(keyFile, { name: `${certname}${keyExt}` });
       }
       
       await archive.finalize();

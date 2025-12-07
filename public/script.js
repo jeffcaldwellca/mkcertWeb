@@ -1415,22 +1415,22 @@ async function downloadFile(url, filename) {
 }
 
 function downloadCert(folderParam, filename) {
-    const url = API_BASE + '/api/download/cert/' + folderParam + '/' + filename;
+    const url = API_BASE + '/download/cert/' + folderParam + '/' + filename;
     downloadFile(url, filename);
 }
 
 function downloadKey(folderParam, filename) {
-    const url = API_BASE + '/api/download/key/' + folderParam + '/' + filename;
+    const url = API_BASE + '/download/key/' + folderParam + '/' + filename;
     downloadFile(url, filename);
 }
 
 function downloadBundle(folderParam, certname) {
-    const url = API_BASE + '/api/download/bundle/' + folderParam + '/' + certname;
+    const url = API_BASE + '/download/bundle/' + folderParam + '/' + certname;
     downloadFile(url, certname + '.zip');
 }
 
 function downloadRootCA() {
-    const url = API_BASE + '/api/download/rootca';
+    const url = API_BASE + '/download/rootca';
     downloadFile(url, 'mkcert-rootCA.pem');
 }
 

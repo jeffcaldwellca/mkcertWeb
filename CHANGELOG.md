@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.1.2] - 2025-12-07
+
+### 🐛 Bug Fixes
+- **Fixed certificate download endpoints**: Corrected path resolution for certificate, key, and bundle downloads
+  - Fixed `validateAndSanitizePath` usage to properly extract resolved path from returned object
+  - Fixed `validateFilename` error handling to catch thrown exceptions instead of checking return value
+  - Added support for both `.pem`/`-key.pem` and `.crt`/`.key` certificate formats in bundle downloads
+  - Resolved 404 errors when attempting to download certificates
+
+## [3.1.1] - 2025-12-05
+
+### 🐛 Bug Fixes
+- **Fixed file upload endpoint**: Mounted missing file routes module to enable certificate uploads
+  - Added `createFileRoutes` import and mounting in server.js
+  - Corrected upload API endpoint from `/api/certificates/upload` to `/api/upload`
+- **Fixed download URL paths**: Removed duplicate `/api` prefix in frontend download URLs
+  - Fixed downloadCert, downloadKey, downloadBundle, and downloadRootCA functions
+  - API_BASE constant already includes `/api`, preventing `/api/api/...` double prefix
+
 ## [3.1.0] - 2025-10-09
 
 ### ✨ New Features - Web-Based Settings Management
