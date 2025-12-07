@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 IMAGE_NAME="jeffcaldwellca/mkcertweb"
-VERSION="3.1.1"
+VERSION="3.1.2"
 
 # Colors for output
 GREEN='\033[0;32m'

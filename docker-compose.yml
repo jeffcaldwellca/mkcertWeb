@@ -1,6 +1,6 @@
 services:
   mkcert-web-ui:
-    image: jeffcaldwellca/mkcertweb:3.1.1
+    image: jeffcaldwellca/mkcertweb:3.1.2
     ports:
       - "3000:3000"    # HTTP port
       - "3443:3443"    # HTTPS port
