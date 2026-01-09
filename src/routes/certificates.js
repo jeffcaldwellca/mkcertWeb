@@ -519,9 +519,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     // Use security-validated paths
     let certFile, keyFile, archiveDir;
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir);
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir);
-      archiveDir = security.validateAndSanitizePath('archive', sourceDir);
+      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
+      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+      archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
@@ -535,11 +535,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       // Move certificate files to archive
       const fs = require('fs');
       if (fs.existsSync(certFile)) {
-        const archiveCertPath = security.validateAndSanitizePath(`${certname}.pem`, archiveDir);
+        const archiveCertPath = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
         fs.renameSync(certFile, archiveCertPath);
       }
       if (fs.existsSync(keyFile)) {
-        const archiveKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir);
+        const archiveKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
         fs.renameSync(keyFile, archiveKeyPath);
       }
       
