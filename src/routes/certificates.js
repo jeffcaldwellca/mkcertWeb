@@ -550,13 +550,76 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     }
   }));
 
+  // Delete certificate endpoint
+  router.delete('/api/certificates/:folder/:certname', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, certname } = req.params;
+    const certificatesDir = path.join(process.cwd(), 'certificates');
+    
+    // Validate the certificate name through security module
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (error) {
+      return apiResponse.badRequest(res, 'Invalid certificate name');
+    }
+    
+    // Determine the source directory based on folder parameter
+    let sourceDir;
+    if (folder === 'interface-ssl' || folder === 'legacy') {
+      sourceDir = certificatesDir;
+    } else if (folder && /^\d{4}-\d{2}-\d{2}$/.test(folder)) {
+      sourceDir = path.join(certificatesDir, folder);
+    } else {
+      return apiResponse.badRequest(res, 'Invalid folder parameter');
+    }
+    
+    // Use security-validated paths
+    let certFile, keyFile;
+    try {
+      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
+      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+    } catch (error) {
+      return apiResponse.badRequest(res, 'Invalid file path');
+    }
+    
+    try {
+      const fs = require('fs');
+      let deletedFiles = [];
+      
+      // Delete certificate file if it exists
+      if (fs.existsSync(certFile)) {
+        fs.unlinkSync(certFile);
+        deletedFiles.push(`${certname}.pem`);
+      }
+      
+      // Delete key file if it exists
+      if (fs.existsSync(keyFile)) {
+        fs.unlinkSync(keyFile);
+        deletedFiles.push(`${certname}-key.pem`);
+      }
+      
+      if (deletedFiles.length === 0) {
+        return apiResponse.notFound(res, 'Certificate files not found');
+      }
+      
+      apiResponse.success(res, { 
+        message: `Certificate ${certname} deleted successfully`,
+        deletedFiles 
+      });
+    } catch (error) {
+      console.error('Delete error:', error);
+      apiResponse.serverError(res, `Failed to delete certificate: ${error.message}`);
+    }
+  }));
+
   // Restore certificate from archive endpoint
   router.post('/api/certificates/:folder/:certname/restore', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
     const { folder, certname } = req.params;
     const certificatesDir = path.join(process.cwd(), 'certificates');
     
     // Validate the certificate name through security module
-    if (!security.validateFilename(`${certname}.pem`)) {
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (error) {
       return apiResponse.badRequest(res, 'Invalid certificate name');
     }
     
@@ -573,9 +636,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     // Use security-validated paths
     let certFile, keyFile, archiveDir;
     try {
-      archiveDir = security.validateAndSanitizePath('archive', targetDir);
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, archiveDir);
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir);
+      archiveDir = security.validateAndSanitizePath('archive', targetDir).resolved;
+      certFile = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
+      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
@@ -584,11 +647,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       // Move certificate files from archive back to main directory
       const fs = require('fs');
       if (fs.existsSync(certFile)) {
-        const targetCertPath = security.validateAndSanitizePath(`${certname}.pem`, targetDir);
+        const targetCertPath = security.validateAndSanitizePath(`${certname}.pem`, targetDir).resolved;
         fs.renameSync(certFile, targetCertPath);
       }
       if (fs.existsSync(keyFile)) {
-        const targetKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, targetDir);
+        const targetKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, targetDir).resolved;
         fs.renameSync(keyFile, targetKeyPath);
       }
       
