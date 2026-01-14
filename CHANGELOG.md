@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.1.3] - 2026-01-13
+
+### 🐛 Bug Fixes
+- **Added missing DELETE endpoint**: Implemented `DELETE /api/certificates/:folder/:certname` for certificate deletion by folder/name pattern
+  - Frontend was calling this endpoint but it returned 404 "API endpoint not found"
+  - Now properly deletes both certificate and key files with security validation
+  - Validates folder parameter (date format like `2025-08-29`, or `interface-ssl`/`legacy`)
+  - Returns list of deleted files on success, 404 if files don't exist
+- **Fixed certificate restore endpoint**: Corrected security path validation in `POST /api/certificates/:folder/:certname/restore`
+  - Was returning 400 "Invalid file path" error
+  - Fixed `validateAndSanitizePath` usage to properly extract `.resolved` property from returned object
+  - Changed from incorrect `if (!security.validateFilename())` pattern to proper try-catch error handling
+  - Now matches the pattern used in archive endpoint for consistency
+
+### 📚 Documentation
+- **Added API endpoint audit**: Created comprehensive validation report of all 48 API endpoints
+  - Verified all frontend API calls match backend implementations
+  - Documented security patterns and rate limiting applied to each endpoint
+  - Added test cases and recommendations for the new/fixed endpoints
+
 ## [3.1.2] - 2025-12-07
 
 ### 🐛 Bug Fixes

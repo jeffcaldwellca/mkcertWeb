@@ -1,6 +1,6 @@
 {
   "name": "mkcert-web-ui",
-  "version": "3.1.0",
+  "version": "3.1.3",
   "description": "Secure, modular Web UI for managing mkcert CLI and certificate files with complete SCEP PKI support and web-based settings management",
   "main": "server.js",
   "scripts": {
