@@ -111,7 +111,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       apiResponse.success(res, sanitized, 'Settings retrieved successfully');
     } catch (error) {
       console.error('Error loading settings:', error);
-      apiResponse.internalError(res, 'Failed to load settings');
+      apiResponse.serverError(res, 'Failed to load settings');
     }
   }));
 
@@ -128,7 +128,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       apiResponse.success(res, sanitized, 'Running configuration retrieved successfully');
     } catch (error) {
       console.error('Error getting running config:', error);
-      apiResponse.internalError(res, 'Failed to get running configuration');
+      apiResponse.serverError(res, 'Failed to get running configuration');
     }
   }));
 
@@ -174,7 +174,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       apiResponse.success(res, sanitized, 'Settings saved successfully. Restart the server for changes to take effect.');
     } catch (error) {
       console.error('Error saving settings:', error);
-      apiResponse.internalError(res, 'Failed to save settings');
+      apiResponse.serverError(res, 'Failed to save settings');
     }
   }));
 
@@ -200,7 +200,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       apiResponse.success(res, sanitized, 'Settings reset to defaults successfully');
     } catch (error) {
       console.error('Error resetting settings:', error);
-      apiResponse.internalError(res, 'Failed to reset settings');
+      apiResponse.serverError(res, 'Failed to reset settings');
     }
   }));
 
@@ -219,7 +219,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       res.send(JSON.stringify(savedSettings, null, 2));
     } catch (error) {
       console.error('Error exporting settings:', error);
-      apiResponse.internalError(res, 'Failed to export settings');
+      apiResponse.serverError(res, 'Failed to export settings');
     }
   }));
 
@@ -245,7 +245,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       apiResponse.success(res, sanitized, 'Settings imported successfully. Restart the server for changes to take effect.');
     } catch (error) {
       console.error('Error importing settings:', error);
-      apiResponse.internalError(res, 'Failed to import settings');
+      apiResponse.serverError(res, 'Failed to import settings');
     }
   }));
 

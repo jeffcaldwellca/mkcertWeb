@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [3.2.0] - 2026-05-07
+
+### ✨ New Features
+- **NTFY push notifications**: Added `NtfyService` supporting ntfy.sh and self-hosted instances. Configurable via `NTFY_ENABLED`, `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN`, `NTFY_USERNAME`, `NTFY_PASSWORD`, `NTFY_PRIORITY` environment variables. Supports Bearer token and Basic auth.
+- **Generic webhook notifications**: Added `WebhookService` that POSTs a structured JSON payload to any HTTP/HTTPS endpoint. Configurable via `WEBHOOK_ENABLED` and `WEBHOOK_URL`. Custom headers supported via settings.
+- **Notification settings UI**: Added NTFY and Webhook tabs to the Settings page, including "Send Test Notification/Payload" buttons with inline pass/fail feedback.
+- **Certificate monitoring multi-channel dispatch**: `CertificateMonitoringService` now dispatches expiry alerts to all enabled channels (email, NTFY, webhook) independently.
+
+### 🐛 Bug Fixes
+- **Env vars now always win over settings.json**: Fixed priority inversion where `settings.json` silently overrode explicitly-set environment variables. Added `buildExplicitEnvOverrides()` layer applied after the settings merge.
+- **`DEFAULT_THEME` had no effect**: Renamed to `THEME_MODE` consistently across `src/config/index.js`, `server.js`, `Dockerfile`, and `docker-compose.yml`.
+- **`server.js` ignored config for auth/HTTPS**: Replaced duplicate `process.env.*` local constants with `config.*` equivalents so all runtime values flow from the single config source.
+- **EACCES on settings save (non-root containers)**: Fixed Dockerfile to create and `chown` `/app/config` directory to the `nodejs` user, so `settings.json` can be written when running as a different UID.
+- **`apiResponse.internalError` TypeError**: Replaced all 6 occurrences in `src/routes/settings.js` with the correct `apiResponse.serverError`.
+- **"Error: undefined" on Root CA generation**: `apiRequest()` now throws a proper `Error` with `.message` populated from the server's `error` field instead of throwing a raw JSON object. The generate-CA server catch block now surfaces `stderr` output alongside the exit message for actionable diagnostics.
+- **Broken GitHub Discussions link in README**: Removed the 404 Discussions link from the Support section.
+
+### 🐳 Docker
+- `docker-compose.yml` updated to use `jeffcaldwellca/mkcertweb:latest` for automatic updates.
+- `docker-build-push.sh` builds and pushes both versioned tag and `:latest` simultaneously.
+
 ## [3.1.3] - 2026-01-13
 
 ### 🐛 Bug Fixes

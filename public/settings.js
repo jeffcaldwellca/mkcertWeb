@@ -386,6 +386,47 @@
         initTabs();
         initForm();
         initModal();
+        initNotificationTests();
         loadSettings();
     });
+
+    // Notification test handlers (NTFY and Webhook)
+    function initNotificationTests() {
+        const ntfyBtn = document.getElementById('test-ntfy-btn');
+        const webhookBtn = document.getElementById('test-webhook-btn');
+
+        if (ntfyBtn) {
+            ntfyBtn.addEventListener('click', () => runNotificationTest('ntfy'));
+        }
+        if (webhookBtn) {
+            webhookBtn.addEventListener('click', () => runNotificationTest('webhook'));
+        }
+    }
+
+    async function runNotificationTest(channel) {
+        const resultEl = document.getElementById(`${channel}-test-result`);
+        const btn = document.getElementById(`test-${channel}-btn`);
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        resultEl.style.display = 'none';
+
+        try {
+            const response = await fetch(`/api/${channel}/test`, { method: 'POST' });
+            const data = await response.json();
+
+            resultEl.style.display = 'block';
+            if (data.success) {
+                resultEl.innerHTML = `<span style="color: var(--success-color, #28a745);"><i class="fas fa-check-circle"></i> ${data.message || 'Test sent successfully'}</span>`;
+            } else {
+                resultEl.innerHTML = `<span style="color: var(--danger-color, #dc3545);"><i class="fas fa-times-circle"></i> ${data.error || data.message || 'Test failed'}</span>`;
+            }
+        } catch (error) {
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<span style="color: var(--danger-color, #dc3545);"><i class="fas fa-times-circle"></i> Request failed: ${error.message}</span>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Test ' + (channel === 'ntfy' ? 'Notification' : 'Payload');
+        }
+    }
 })();

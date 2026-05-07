@@ -1,6 +1,6 @@
 services:
   mkcert-web-ui:
-    image: jeffcaldwellca/mkcertweb:3.1.2
+    image: jeffcaldwellca/mkcertweb:latest
     ports:
       - "3000:3000"    # HTTP port
       - "3443:3443"    # HTTPS port
@@ -17,7 +17,7 @@ services:
       
       # Application Configuration
       - NODE_ENV=production
-      - DEFAULT_THEME=dark
+      - THEME_MODE=dark
       
       # Authentication Configuration (disabled by default)
       - ENABLE_AUTH=false

@@ -232,4 +232,3 @@ This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) fi
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
 - 📖 **Documentation**: [README.md](README.md), [DOCKER.md](DOCKER.md), [SCEP.md](SCEP.md)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/jeffcaldwellca/mkcertWeb/discussions)

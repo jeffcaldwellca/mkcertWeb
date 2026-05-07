@@ -341,6 +341,12 @@
             <button class="settings-tab" data-panel="email">
                 <i class="fas fa-envelope"></i> Email
             </button>
+            <button class="settings-tab" data-panel="ntfy">
+                <i class="fas fa-bell"></i> NTFY
+            </button>
+            <button class="settings-tab" data-panel="webhook">
+                <i class="fas fa-globe"></i> Webhook
+            </button>
             <button class="settings-tab" data-panel="monitoring">
                 <i class="fas fa-bell"></i> Monitoring
             </button>
@@ -581,6 +587,129 @@
                         <input type="text" id="email-subject" name="email.subject" value="Certificate Expiry Alert - mkcert Web UI">
                         <small>Subject line for notification emails</small>
                     </div>
+                </div>
+            </div>
+
+            <!-- NTFY Settings Panel -->
+            <div class="settings-panel" id="panel-ntfy">
+                <div class="settings-section">
+                    <h3><i class="fas fa-bell"></i> NTFY Push Notifications</h3>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="ntfy-enabled" name="ntfy.enabled">
+                        <label for="ntfy-enabled">Enable NTFY Notifications</label>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="ntfy-url">NTFY Server URL</label>
+                            <input type="url" id="ntfy-url" name="ntfy.url" placeholder="https://ntfy.sh" value="https://ntfy.sh">
+                            <small>Base URL of the NTFY server (default: https://ntfy.sh)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="ntfy-topic">Topic</label>
+                            <input type="text" id="ntfy-topic" name="ntfy.topic" placeholder="my-cert-alerts">
+                            <small>NTFY topic name to publish notifications to</small>
+                        </div>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="ntfy-priority">Default Priority</label>
+                        <select id="ntfy-priority" name="ntfy.priority">
+                            <option value="min">Min</option>
+                            <option value="low">Low</option>
+                            <option value="default" selected>Default</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                        <small>Notification priority for warning-level alerts (critical alerts always use urgent)</small>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-key"></i> NTFY Authentication</h3>
+                    <p style="margin-bottom: 15px; color: var(--text-dim); font-size: 0.9em;">
+                        Leave blank for public topics. Use a token <strong>or</strong> username/password — not both.
+                    </p>
+                    <div class="settings-form-group">
+                        <label for="ntfy-token">Access Token</label>
+                        <input type="password" id="ntfy-token" name="ntfy.token" placeholder="">
+                        <small>Bearer token for token-authenticated topics (takes priority over username/password)</small>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-form-group">
+                            <label for="ntfy-username">Username</label>
+                            <input type="text" id="ntfy-username" name="ntfy.username" placeholder="">
+                            <small>Username for basic auth (self-hosted)</small>
+                        </div>
+                        <div class="settings-form-group">
+                            <label for="ntfy-password">Password</label>
+                            <input type="password" id="ntfy-password" name="ntfy.password" placeholder="">
+                            <small>Password for basic auth (self-hosted)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-vial"></i> Test NTFY</h3>
+                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
+                        Save settings first, then send a test notification to verify the configuration.
+                    </p>
+                    <button type="button" id="test-ntfy-btn" class="btn btn-outline">
+                        <i class="fas fa-paper-plane"></i> Send Test Notification
+                    </button>
+                    <div id="ntfy-test-result" style="margin-top: 12px; display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Webhook Settings Panel -->
+            <div class="settings-panel" id="panel-webhook">
+                <div class="settings-section">
+                    <h3><i class="fas fa-globe"></i> HTTP Webhook Notifications</h3>
+                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
+                        POST a JSON payload to any HTTP/HTTPS endpoint on certificate expiry events.
+                        Works with Discord, Slack incoming webhooks, n8n, Zapier, Home Assistant, and custom services.
+                    </p>
+                    <div class="settings-form-group settings-checkbox">
+                        <input type="checkbox" id="webhook-enabled" name="webhook.enabled">
+                        <label for="webhook-enabled">Enable Webhook Notifications</label>
+                    </div>
+                    <div class="settings-form-group">
+                        <label for="webhook-url">Webhook URL</label>
+                        <input type="url" id="webhook-url" name="webhook.url" placeholder="https://example.tld/hooks/abc?token=xyz">
+                        <small>Full URL to POST the JSON notification payload to</small>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-info-circle"></i> Payload Format</h3>
+                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 10px;">
+                        The following JSON is sent on each alert:
+                    </p>
+                    <pre style="background: var(--code-bg, #1e1e1e); color: var(--code-color, #d4d4d4); padding: 15px; border-radius: 6px; font-size: 0.85em; overflow-x: auto;">{
+  "title": "Warning: 2 certificate(s) expiring soon",
+  "message": "2 certificate(s) are approaching expiry. 1 warning.",
+  "severity": "warning",
+  "timestamp": "2026-05-07T08:00:00.000Z",
+  "certificates": [
+    {
+      "path": "certificates/localhost/localhost.pem",
+      "domains": ["localhost"],
+      "daysUntilExpiry": 14,
+      "expiry": "2026-05-21T00:00:00.000Z",
+      "priority": "warning"
+    }
+  ],
+  "summary": { "total": 2, "critical": 0, "warning": 2 }
+}</pre>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-vial"></i> Test Webhook</h3>
+                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
+                        Save settings first, then send a test payload to verify the endpoint is reachable.
+                    </p>
+                    <button type="button" id="test-webhook-btn" class="btn btn-outline">
+                        <i class="fas fa-paper-plane"></i> Send Test Payload
+                    </button>
+                    <div id="webhook-test-result" style="margin-top: 12px; display: none;"></div>
                 </div>
             </div>
 
