@@ -1,8 +1,8 @@
-// Email and monitoring routes module
+// Email, NTFY, webhook, and monitoring routes module
 const express = require('express');
 const { apiResponse, asyncHandler } = require('../utils/responses');
 
-const createNotificationRoutes = (config, rateLimiters, requireAuth, emailService, monitoringService) => {
+const createNotificationRoutes = (config, rateLimiters, requireAuth, emailService, monitoringService, ntfyService, webhookService) => {
   const router = express.Router();
   const { apiRateLimiter, cliRateLimiter } = rateLimiters;
 
@@ -188,6 +188,74 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
     } catch (error) {
       console.error('Failed to update monitoring configuration:', error.message);
       apiResponse.serverError(res, `Failed to update configuration: ${error.message}`);
+    }
+  }));
+
+  // ── NTFY routes ──────────────────────────────────────────────────────────────
+
+  // Get NTFY configuration status
+  router.get('/api/ntfy/status', requireAuth, apiRateLimiter, asyncHandler(async (req, res) => {
+    const ntfy = config.ntfy || {};
+    const status = {
+      enabled: !!ntfy.enabled,
+      configured: ntfyService ? ntfyService.isConfigurationValid() : false,
+      url: ntfy.url || null,
+      topic: ntfy.topic || null,
+      priority: ntfy.priority || 'default',
+      authMethod: ntfy.token ? 'token' : (ntfy.username ? 'basic' : 'none')
+    };
+    apiResponse.success(res, status, 'NTFY configuration status retrieved');
+  }));
+
+  // Test NTFY configuration
+  router.post('/api/ntfy/test', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
+    if (!config.ntfy || !config.ntfy.enabled) {
+      return apiResponse.badRequest(res, 'NTFY notifications are disabled');
+    }
+
+    if (!ntfyService || !ntfyService.isConfigurationValid()) {
+      return apiResponse.badRequest(res, 'NTFY service not properly configured. Set ntfy.url and ntfy.topic.');
+    }
+
+    try {
+      const result = await ntfyService.sendTestNotification();
+      apiResponse.success(res, result, 'Test NTFY notification sent successfully');
+    } catch (error) {
+      console.error('NTFY test failed:', error.message);
+      apiResponse.serverError(res, `NTFY test failed: ${error.message}`);
+    }
+  }));
+
+  // ── Webhook routes ────────────────────────────────────────────────────────────
+
+  // Get webhook configuration status
+  router.get('/api/webhook/status', requireAuth, apiRateLimiter, asyncHandler(async (req, res) => {
+    const wh = config.webhook || {};
+    const status = {
+      enabled: !!wh.enabled,
+      configured: webhookService ? webhookService.isConfigurationValid() : false,
+      url: wh.url || null,
+      hasCustomHeaders: !!(wh.headers && Object.keys(wh.headers).length > 0)
+    };
+    apiResponse.success(res, status, 'Webhook configuration status retrieved');
+  }));
+
+  // Test webhook configuration
+  router.post('/api/webhook/test', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
+    if (!config.webhook || !config.webhook.enabled) {
+      return apiResponse.badRequest(res, 'Webhook notifications are disabled');
+    }
+
+    if (!webhookService || !webhookService.isConfigurationValid()) {
+      return apiResponse.badRequest(res, 'Webhook service not properly configured. Set webhook.url.');
+    }
+
+    try {
+      const result = await webhookService.sendTestNotification();
+      apiResponse.success(res, result, 'Test webhook notification sent successfully');
+    } catch (error) {
+      console.error('Webhook test failed:', error.message);
+      apiResponse.serverError(res, `Webhook test failed: ${error.message}`);
     }
   }));
 

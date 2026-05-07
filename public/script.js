@@ -166,7 +166,9 @@ async function apiRequest(endpoint, options = {}) {
                     
                     if (!retryResponse.ok) {
                         const retryError = await retryResponse.json();
-                        throw retryError;
+                        const retryApiError = new Error(retryError.error || retryError.message || `HTTP ${retryResponse.status}`);
+                        retryApiError.serverResponse = retryError;
+                        throw retryApiError;
                     }
                     
                     return await retryResponse.json();
@@ -179,8 +181,10 @@ async function apiRequest(endpoint, options = {}) {
                 return;
             }
             
-            // Throw the full error object so UI can access all fields
-            throw error;
+            // Throw as a proper Error so catch blocks can access .message
+            const apiError = new Error(error.error || error.message || `HTTP ${response.status}`);
+            apiError.serverResponse = error;
+            throw apiError;
         }
         return await response.json();
     } catch (error) {

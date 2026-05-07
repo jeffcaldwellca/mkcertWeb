@@ -31,7 +31,7 @@ RUN npm install --only=production && npm cache clean --force
 COPY . .
 
 # Create necessary directories and copy CA to nodejs user directory
-RUN mkdir -p /app/certificates /app/data \
+RUN mkdir -p /app/certificates /app/data /app/config \
     && mkdir -p /home/nodejs/.local/share/mkcert \
     && cp -r /root/.local/share/mkcert/* /home/nodejs/.local/share/mkcert/ 2>/dev/null || echo "CA files copied" \
     && chown -R nodejs:nodejs /app /home/nodejs/.local
@@ -49,7 +49,7 @@ ENV HTTPS_PORT=3443
 ENV ENABLE_HTTPS=false
 ENV SSL_DOMAIN=localhost
 ENV FORCE_HTTPS=false
-ENV DEFAULT_THEME=dark
+ENV THEME_MODE=dark
 ENV ENABLE_AUTH=false
 ENV AUTH_USERNAME=admin
 ENV AUTH_PASSWORD=admin

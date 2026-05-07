@@ -3,9 +3,11 @@ const cron = require('node-cron');
 const { findAllCertificateFiles, getCertificateExpiry, getCertificateDomains } = require('../utils/certificates');
 
 class CertificateMonitoringService {
-  constructor(config, emailService) {
+  constructor(config, emailService, ntfyService, webhookService) {
     this.config = config;
     this.emailService = emailService;
+    this.ntfyService = ntfyService || null;
+    this.webhookService = webhookService || null;
     this.cronJob = null;
     this.isRunning = false;
     
@@ -70,11 +72,26 @@ class CertificateMonitoringService {
       
       if (expiringCertificates.length > 0) {
         console.log(`Found ${expiringCertificates.length} expiring certificates`);
-        
+
+        let notified = false;
+
         if (this.config.email.enabled && this.emailService) {
           await this.emailService.sendCertificateExpiryAlert(expiringCertificates);
-        } else {
-          console.warn('Email notifications disabled - expiring certificates found but not notified');
+          notified = true;
+        }
+
+        if (this.config.ntfy && this.config.ntfy.enabled && this.ntfyService) {
+          await this.ntfyService.sendCertificateExpiryAlert(expiringCertificates);
+          notified = true;
+        }
+
+        if (this.config.webhook && this.config.webhook.enabled && this.webhookService) {
+          await this.webhookService.sendCertificateExpiryAlert(expiringCertificates);
+          notified = true;
+        }
+
+        if (!notified) {
+          console.warn('No notification channels enabled - expiring certificates found but not notified');
           this.logExpiringCertificates(expiringCertificates);
         }
       } else {
@@ -196,7 +213,9 @@ class CertificateMonitoringService {
       warningDays: this.config.monitoring.warningDays,
       criticalDays: this.config.monitoring.criticalDays,
       includeUploaded: this.config.monitoring.includeUploaded,
-      emailEnabled: this.config.email.enabled
+      emailEnabled: this.config.email.enabled,
+      ntfyEnabled: !!(this.config.ntfy && this.config.ntfy.enabled),
+      webhookEnabled: !!(this.config.webhook && this.config.webhook.enabled)
     };
   }
 

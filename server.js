@@ -29,29 +29,32 @@ const { createFileRoutes } = require('./src/routes/files');
 
 const config = require('./src/config');
 const { EmailService } = require('./src/services/emailService');
+const { NtfyService } = require('./src/services/ntfyService');
+const { WebhookService } = require('./src/services/webhookService');
 const { CertificateMonitoringService } = require('./src/services/certificateMonitoringService');
 const { createRateLimiters } = require('./src/middleware/rateLimiting');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const ENABLE_HTTPS = process.env.ENABLE_HTTPS === 'true' || process.env.ENABLE_HTTPS === '1';
-const SSL_DOMAIN = process.env.SSL_DOMAIN || 'localhost';
-const FORCE_HTTPS = process.env.FORCE_HTTPS === 'true' || process.env.FORCE_HTTPS === '1';
+// Use config.* for all runtime values — this respects settings.json AND env var overrides
+const PORT       = config.server.port;
+const HTTPS_PORT = config.server.httpsPort;
+const ENABLE_HTTPS = config.server.enableHttps;
+const SSL_DOMAIN   = config.server.sslDomain;
+const FORCE_HTTPS  = config.server.forceHttps;
 
 // Authentication configuration
-const ENABLE_AUTH = process.env.ENABLE_AUTH === 'true' || process.env.ENABLE_AUTH === '1';
-const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'admin';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'mkcert-web-ui-secret-key-change-in-production';
+const ENABLE_AUTH    = config.auth.enabled;
+const AUTH_USERNAME  = config.auth.username;
+const AUTH_PASSWORD  = config.auth.password;
+const SESSION_SECRET = config.auth.sessionSecret;
 
 // OIDC configuration
-const ENABLE_OIDC = process.env.ENABLE_OIDC === 'true' || process.env.ENABLE_OIDC === '1';
-const OIDC_ISSUER = process.env.OIDC_ISSUER;
-const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
-const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
-const OIDC_CALLBACK_URL = process.env.OIDC_CALLBACK_URL || `http://localhost:${PORT}/auth/oidc/callback`;
-const OIDC_SCOPE = process.env.OIDC_SCOPE || 'openid profile email';
+const ENABLE_OIDC      = config.oidc.enabled;
+const OIDC_ISSUER      = config.oidc.issuer;
+const OIDC_CLIENT_ID   = config.oidc.clientId;
+const OIDC_CLIENT_SECRET = config.oidc.clientSecret;
+const OIDC_CALLBACK_URL  = config.oidc.callbackUrl || `http://localhost:${PORT}/auth/oidc/callback`;
+const OIDC_SCOPE         = config.oidc.scope || 'openid profile email';
 
 // Middleware
 app.use(cors());
@@ -272,13 +275,15 @@ if (ENABLE_AUTH) {
 
 // Initialize services for email notifications and certificate monitoring
 const emailService = new EmailService(config);
-const monitoringService = new CertificateMonitoringService(config, emailService);
+const ntfyService = new NtfyService(config);
+const webhookService = new WebhookService(config);
+const monitoringService = new CertificateMonitoringService(config, emailService, ntfyService, webhookService);
 
 // Create rate limiters
 const rateLimiters = createRateLimiters(config);
 
 // Mount notification routes
-app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService));
+app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService, ntfyService, webhookService));
 
 // Mount certificate routes
 app.use(createCertificateRoutes(config, rateLimiters, requireAuth));
@@ -314,7 +319,7 @@ app.get('/api/auth/status', (req, res) => {
 
 // Theme configuration endpoint (always available)
 app.get('/api/config/theme', (req, res) => {
-  const defaultTheme = process.env.DEFAULT_THEME || 'dark';
+  const defaultTheme = config.theme.mode || 'dark';
   res.json({
     defaultTheme: ['dark', 'light'].includes(defaultTheme) ? defaultTheme : 'dark'
   });
@@ -558,9 +563,12 @@ app.post('/api/generate-ca', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
+    const message = error.error || error.message || 'Unknown error';
+    const detail  = error.stderr ? error.stderr.trim() : null;
+    console.error('Error generating Root CA:', message, detail || '');
     res.status(500).json({
       success: false,
-      error: error.error || error.message,
+      error: detail ? `${message} — ${detail}` : message,
       details: error.stderr
     });
   }
