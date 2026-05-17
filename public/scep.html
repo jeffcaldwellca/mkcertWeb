@@ -495,22 +495,54 @@
       }
     }
 
-    // Authentication check (copied from main script.js)
+    // CSRF token cache + helper for SCEP management POSTs
+    let csrfToken = null;
+    async function fetchCSRFToken() {
+      try {
+        const r = await fetch('/api/csrf-token');
+        const j = await r.json();
+        if (j && j.csrfToken) csrfToken = j.csrfToken;
+      } catch (e) { console.error('Failed to fetch CSRF token:', e); }
+    }
+    async function authedFetch(url, options = {}) {
+      const method = (options.method || 'GET').toUpperCase();
+      const mutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+      const headers = { ...(options.headers || {}) };
+      if (mutating) {
+        if (!csrfToken) await fetchCSRFToken();
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+      }
+      let res = await fetch(url, { ...options, headers });
+      if (mutating && res.status === 403) {
+        try {
+          const body = await res.clone().json();
+          if (body && body.code === 'CSRF_INVALID') {
+            await fetchCSRFToken();
+            if (csrfToken) {
+              headers['X-CSRF-Token'] = csrfToken;
+              res = await fetch(url, { ...options, headers });
+            }
+          }
+        } catch (_) { /* not JSON */ }
+      }
+      return res;
+    }
+
+    // Authentication check. /api/auth/status returns
+    // { authenticated, username, authEnabled } — no nested user object.
     async function checkAuth() {
       try {
-        const response = await fetch('/auth/check');
+        const response = await fetch('/api/auth/status');
         const result = await response.json();
-        
+
         if (result.authenticated) {
           const authControls = document.getElementById('auth-controls');
           const usernameDisplay = document.getElementById('username-display');
-          
+
           if (authControls && usernameDisplay) {
-            if (result.user?.username) {
-              usernameDisplay.textContent = `Logged in as: ${result.user.username}`;
-            } else {
-              usernameDisplay.textContent = 'Authenticated';
-            }
+            usernameDisplay.textContent = result.username
+              ? `Logged in as: ${result.username}`
+              : 'Authenticated';
             authControls.style.display = 'block';
           }
         }
@@ -522,15 +554,14 @@
     // Logout functionality
     document.getElementById('logout-btn')?.addEventListener('click', async function(e) {
       e.preventDefault();
-      
       try {
-        const response = await fetch('/auth/logout', { method: 'POST' });
+        const response = await authedFetch('/api/auth/logout', { method: 'POST' });
         if (response.ok) {
-          window.location.href = '/login.html';
+          window.location.href = '/login';
         }
       } catch (error) {
         console.error('Logout error:', error);
-        window.location.href = '/login.html';
+        window.location.href = '/login';
       }
     });
 
@@ -578,7 +609,7 @@
       }
 
       try {
-        const response = await fetch('/api/scep/validate-upn', {
+        const response = await authedFetch('/api/scep/validate-upn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ upn })
@@ -721,7 +752,7 @@
       }
 
       try {
-        const response = await fetch('/api/scep/challenge', {
+        const response = await authedFetch('/api/scep/challenge', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier, expiresIn: parseInt(expiresIn) })
@@ -855,7 +886,7 @@
             .filter(san => san.length > 0);
         }
 
-        const response = await fetch('/api/scep/certificate', {
+        const response = await authedFetch('/api/scep/certificate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

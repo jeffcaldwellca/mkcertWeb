@@ -1,216 +1,270 @@
-// PKCS#7 parsing and generation utilities for SCEP
+// PKCS#7 / SCEP message handling
+//
+// Implements the subset of RFC 8894 (SCEP) that this server needs:
+//   - parseSCEPRequest: parse and decrypt an incoming PKIOperation message
+//     (a SignedData wrapping an EnvelopedData wrapping a PKCS#10 CSR)
+//   - buildSCEPSuccessResponse: produce a SignedData(EnvelopedData(cert))
+//     for the requester
+//   - buildSCEPFailureResponse: produce a CertRep with pkiStatus=FAILURE
+//
+// node-forge does the heavy lifting (PKCS#7 + PKCS#10 + RSA).
 const forge = require('node-forge');
 const crypto = require('crypto');
 
+// SCEP message types (RFC 8894 §3.2.1.2)
+const MSG_TYPE = {
+  CertRep:        '3',
+  PKCSReq:        '19',
+  CertPoll:       '20',
+  GetCert:        '21',
+  GetCRL:         '22',
+  RenewalReq:     '17'
+};
+// SCEP pkiStatus values
+const PKI_STATUS = { SUCCESS: '0', FAILURE: '2', PENDING: '3' };
+// SCEP failInfo values
+const FAIL_INFO  = { badAlg: '0', badMessageCheck: '1', badRequest: '2', badTime: '3', badCertId: '4' };
+
+// SCEP attribute OIDs
+const OID = {
+  messageType:    '2.16.840.1.113733.1.9.2',
+  pkiStatus:      '2.16.840.1.113733.1.9.3',
+  failInfo:       '2.16.840.1.113733.1.9.4',
+  senderNonce:    '2.16.840.1.113733.1.9.5',
+  recipientNonce: '2.16.840.1.113733.1.9.6',
+  transactionId:  '2.16.840.1.113733.1.9.7'
+};
+
 /**
- * Parse a PKCS#7 SCEP request message
- * @param {Buffer} pkcs7Buffer - The PKCS#7 message buffer
- * @returns {Object} Parsed SCEP request with CSR and metadata
+ * Parse a PKCS#7 SCEP request and extract the inner PKCS#10 CSR.
+ *
+ * @param {Buffer} pkcs7Buffer  DER-encoded SignedData from the client
+ * @param {object} caCryptoMaterial { caKeyPem, caCertPem } — used to
+ *                 decrypt the enveloped data (the EnvelopedData's recipient
+ *                 is the SCEP server / CA itself).
+ * @returns {object} { messageType, transactionId, senderNonce,
+ *                     challengePassword, csr (forge object), csrPem,
+ *                     signerCert (forge object) }
  */
-function parseSCEPRequest(pkcs7Buffer) {
-  try {
-    // Convert buffer to forge format
-    const pkcs7Der = forge.util.encode64(pkcs7Buffer);
-    const pkcs7Asn1 = forge.asn1.fromDer(forge.util.decode64(pkcs7Der));
-    const pkcs7 = forge.pkcs7.messageFromAsn1(pkcs7Asn1);
+function parseSCEPRequest(pkcs7Buffer, caCryptoMaterial = null) {
+  const asn1 = forge.asn1.fromDer(forge.util.createBuffer(pkcs7Buffer.toString('binary')));
+  const signed = forge.pkcs7.messageFromAsn1(asn1);
+  if (signed.type !== forge.pki.oids.signedData) {
+    throw new Error('Outer PKCS#7 is not signedData');
+  }
+  if (!signed.signers || signed.signers.length === 0) {
+    throw new Error('SCEP signedData has no signers');
+  }
+  const signer = signed.signers[0];
 
-    // Verify that this is a signed data structure
-    if (pkcs7.type !== forge.pki.oids.signedData) {
-      throw new Error('Invalid PKCS#7 message type');
-    }
+  // SCEP authenticated attributes carry messageType / transactionId / nonces.
+  const attrs = {};
+  for (const a of (signer.authenticatedAttributes || [])) {
+    attrs[a.type] = a.value;
+  }
+  const messageType   = attrs[OID.messageType];
+  const transactionId = attrs[OID.transactionId];
+  const senderNonce   = attrs[OID.senderNonce];
+  if (!messageType || !transactionId) {
+    throw new Error('SCEP signedData missing messageType or transactionId');
+  }
 
-    // Extract the enveloped data (should contain the CSR)
-    const content = pkcs7.content;
-    if (!content) {
-      throw new Error('No content found in PKCS#7 message');
-    }
+  // The signer's certificate identifies the requesting client and is the
+  // public key we'll use to encrypt the response back to them.
+  let signerCert = null;
+  if (signed.certificates && signed.certificates.length > 0) {
+    signerCert = signed.certificates[0];
+  }
 
-    // The content should be another PKCS#7 enveloped data containing the CSR
-    let csrPem = null;
-    let challengePassword = null;
-
-    // Try to extract CSR from the content
+  // Inner content: an EnvelopedData carrying the CSR. node-forge's
+  // signed.content is the raw bytes after the SignedData wrapping. We need
+  // to decrypt with the CA private key.
+  let csr = null, csrPem = null, challengePassword = null;
+  if (caCryptoMaterial && signed.rawCapture && signed.rawCapture.content) {
     try {
-      const contentAsn1 = forge.asn1.fromDer(content);
-      const envelopedData = forge.pkcs7.messageFromAsn1(contentAsn1);
-      
-      if (envelopedData.type === forge.pki.oids.envelopedData) {
-        // This would require decryption in a full implementation
-        // For now, we'll simulate the extraction
-        console.log('Found enveloped data - would need decryption');
+      // The signed content is itself a PKCS#7 EnvelopedData; parse it.
+      const innerAsn1 = forge.asn1.fromDer(signed.rawCapture.content);
+      const enveloped = forge.pkcs7.messageFromAsn1(innerAsn1);
+      if (enveloped.type !== forge.pki.oids.envelopedData) {
+        throw new Error('Inner content is not envelopedData');
+      }
+      const caKey = forge.pki.privateKeyFromPem(caCryptoMaterial.caKeyPem);
+      enveloped.decrypt(enveloped.recipients[0], caKey);
+      // After decrypt, enveloped.content holds the CSR (PKCS#10) bytes.
+      const csrDer = enveloped.content.bytes();
+      const csrAsn1 = forge.asn1.fromDer(csrDer);
+      csr = forge.pki.certificationRequestFromAsn1(csrAsn1);
+      csrPem = forge.pki.certificationRequestToPem(csr);
+
+      // Pull challengePassword out of the CSR attributes (RFC 2985 §5.4.1).
+      for (const a of (csr.attributes || [])) {
+        if (a.type === forge.pki.oids.challengePassword) {
+          challengePassword = Array.isArray(a.value) ? a.value[0]?.value : a.value;
+          break;
+        }
       }
     } catch (err) {
-      // If it's not enveloped data, try to parse as direct CSR
-      try {
-        csrPem = forge.pki.certificationRequestToPem(
-          forge.pki.certificationRequestFromAsn1(forge.asn1.fromDer(content))
-        );
-      } catch (csrErr) {
-        console.log('Could not parse content as CSR directly');
-      }
+      console.error('SCEP: failed to decrypt/parse inner CSR:', err.message);
     }
-
-    // Extract challenge password from attributes if present
-    if (pkcs7.signers && pkcs7.signers.length > 0) {
-      const signer = pkcs7.signers[0];
-      if (signer.authenticatedAttributes) {
-        signer.authenticatedAttributes.forEach(attr => {
-          if (attr.type === forge.pki.oids.challengePassword) {
-            challengePassword = attr.value;
-          }
-        });
-      }
-    }
-
-    return {
-      messageType: 'PKCSReq', // SCEP message type
-      csrPem,
-      challengePassword,
-      transactionId: generateTransactionId(),
-      senderNonce: generateNonce(),
-      parsed: true
-    };
-
-  } catch (error) {
-    console.error('Error parsing PKCS#7 SCEP request:', error);
-    throw new Error(`Failed to parse SCEP request: ${error.message}`);
   }
+
+  return {
+    messageType,
+    transactionId,
+    senderNonce,
+    challengePassword,
+    csr,
+    csrPem,
+    signerCert
+  };
 }
 
 /**
- * Create a PKCS#7 SCEP response message
- * @param {Object} responseData - Response data including certificate
- * @param {string} responseData.certificatePem - Generated certificate in PEM format
- * @param {string} responseData.transactionId - Transaction ID from request
- * @param {string} responseData.recipientNonce - Recipient nonce from request
- * @returns {Buffer} PKCS#7 response message
+ * Build a SCEP CertRep with pkiStatus=SUCCESS containing the issued cert.
+ *
+ * @param {object} opts
+ *   - issuedCertPem: the freshly-signed certificate (PEM)
+ *   - transactionId: from the request
+ *   - recipientNonce: senderNonce from the request becomes recipientNonce
+ *   - signerCert: forge cert representing the requester (used as recipient)
+ *   - caKeyPem, caCertPem: CA crypto material to sign the response
+ * @returns {Buffer} DER-encoded SignedData
  */
-function createSCEPResponse(responseData) {
-  try {
-    const { certificatePem, transactionId, recipientNonce } = responseData;
+function buildSCEPSuccessResponse(opts) {
+  const { issuedCertPem, transactionId, recipientNonce, signerCert,
+          caKeyPem, caCertPem } = opts;
+  if (!signerCert) throw new Error('SCEP response requires signerCert (requester public key)');
 
-    // Parse the certificate
-    const cert = forge.pki.certificateFromPem(certificatePem);
-    
-    // Create PKCS#7 signed data structure
-    const pkcs7 = forge.pkcs7.createSignedData();
-    
-    // Add the certificate to the response
-    pkcs7.content = forge.util.createBuffer(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes());
-    pkcs7.contentInfo.contentType = forge.pki.oids.data;
+  // 1. Wrap the issued certificate in a degenerate PKCS#7 (SignedData with
+  //    no signers — just a cert bag). This is what RFC 8894 §3.3.1 requires
+  //    as the response content.
+  const issuedCert = forge.pki.certificateFromPem(issuedCertPem);
+  const certBag = forge.pkcs7.createSignedData();
+  certBag.addCertificate(issuedCert);
+  const certBagDer = forge.asn1.toDer(certBag.toAsn1()).getBytes();
 
-    // In a full implementation, you would:
-    // 1. Load the CA private key
-    // 2. Sign the response with the CA key
-    // 3. Add proper SCEP attributes (messageType, transactionId, etc.)
-    
-    // For this simplified version, create a basic response
-    const responseMessage = forge.asn1.toDer(forge.pkcs7.messageToAsn1(pkcs7));
-    
-    return Buffer.from(responseMessage.getBytes(), 'binary');
+  // 2. Envelope (encrypt) certBagDer for the requester.
+  const enveloped = forge.pkcs7.createEnvelopedData();
+  enveloped.addRecipient(signerCert);
+  enveloped.content = forge.util.createBuffer(certBagDer);
+  enveloped.encrypt();
+  const envelopedDer = forge.asn1.toDer(enveloped.toAsn1()).getBytes();
 
-  } catch (error) {
-    console.error('Error creating PKCS#7 SCEP response:', error);
-    throw new Error(`Failed to create SCEP response: ${error.message}`);
-  }
+  // 3. Sign the EnvelopedData with the CA key, attaching SCEP auth attributes.
+  const caCert = forge.pki.certificateFromPem(caCertPem);
+  const caKey  = forge.pki.privateKeyFromPem(caKeyPem);
+  const newSenderNonce = forge.util.encode64(forge.random.getBytesSync(16));
+
+  const signed = forge.pkcs7.createSignedData();
+  signed.content = forge.util.createBuffer(envelopedDer);
+  signed.addCertificate(caCert);
+  signed.addSigner({
+    key: caKey,
+    certificate: caCert,
+    digestAlgorithm: forge.pki.oids.sha256,
+    authenticatedAttributes: [
+      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+      { type: forge.pki.oids.messageDigest /* filled in by sign() */ },
+      { type: forge.pki.oids.signingTime, value: new Date() },
+      { type: OID.messageType,    value: MSG_TYPE.CertRep },
+      { type: OID.pkiStatus,      value: PKI_STATUS.SUCCESS },
+      { type: OID.transactionId,  value: transactionId },
+      { type: OID.senderNonce,    value: newSenderNonce },
+      { type: OID.recipientNonce, value: recipientNonce || newSenderNonce }
+    ]
+  });
+  signed.sign();
+  return Buffer.from(forge.asn1.toDer(signed.toAsn1()).getBytes(), 'binary');
 }
 
 /**
- * Extract CSR from SCEP request (simplified approach)
- * @param {Buffer} pkcs7Buffer - The PKCS#7 message buffer
- * @returns {string} CSR in PEM format
+ * Build a SCEP CertRep with pkiStatus=FAILURE. Signed with the CA key.
  */
-function extractCSRFromSCEP(pkcs7Buffer) {
-  try {
-    // This is a simplified extraction method
-    // In a real SCEP implementation, you'd need to properly decrypt the enveloped data
-    
-    // Try to find CSR patterns in the binary data
-    const dataStr = pkcs7Buffer.toString('binary');
-    
-    // Look for CSR ASN.1 structure markers
-    // This is a hack for demo purposes - real implementation needs proper parsing
-    
-    // For now, return null to indicate we need manual CSR input
-    return null;
-    
-  } catch (error) {
-    console.error('Error extracting CSR from SCEP:', error);
-    return null;
-  }
+function buildSCEPFailureResponse(opts) {
+  const { transactionId, recipientNonce, failInfo = FAIL_INFO.badRequest,
+          caKeyPem, caCertPem } = opts;
+  const caCert = forge.pki.certificateFromPem(caCertPem);
+  const caKey  = forge.pki.privateKeyFromPem(caKeyPem);
+  const newSenderNonce = forge.util.encode64(forge.random.getBytesSync(16));
+
+  const signed = forge.pkcs7.createSignedData();
+  // Empty content for failure responses.
+  signed.content = forge.util.createBuffer('');
+  signed.addCertificate(caCert);
+  signed.addSigner({
+    key: caKey,
+    certificate: caCert,
+    digestAlgorithm: forge.pki.oids.sha256,
+    authenticatedAttributes: [
+      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+      { type: forge.pki.oids.messageDigest },
+      { type: forge.pki.oids.signingTime, value: new Date() },
+      { type: OID.messageType,    value: MSG_TYPE.CertRep },
+      { type: OID.pkiStatus,      value: PKI_STATUS.FAILURE },
+      { type: OID.failInfo,       value: failInfo },
+      { type: OID.transactionId,  value: transactionId || generateTransactionId() },
+      { type: OID.senderNonce,    value: newSenderNonce },
+      { type: OID.recipientNonce, value: recipientNonce || newSenderNonce }
+    ]
+  });
+  signed.sign();
+  return Buffer.from(forge.asn1.toDer(signed.toAsn1()).getBytes(), 'binary');
 }
 
-/**
- * Generate a transaction ID for SCEP operations
- * @returns {string} Transaction ID
- */
+// Backwards-compat: older code calls createSCEPFailure(transactionId, failInfo)
+// without the CA material. Keep the signature but require the caller to pass
+// a third argument with the keys; if absent, fall back to a JSON debug stub
+// so we don't crash. New callers should use buildSCEPFailureResponse directly.
+function createSCEPFailure(transactionId, failInfo = 'badRequest', caMaterial = null) {
+  if (caMaterial && caMaterial.caKeyPem && caMaterial.caCertPem) {
+    return buildSCEPFailureResponse({
+      transactionId,
+      failInfo: FAIL_INFO[failInfo] ?? FAIL_INFO.badRequest,
+      caKeyPem: caMaterial.caKeyPem,
+      caCertPem: caMaterial.caCertPem
+    });
+  }
+  // Last-resort: not a real SCEP message, but at least the client gets
+  // SOMETHING distinguishable instead of HTML.
+  return Buffer.from(JSON.stringify({
+    messageType: 'CertRep', pkiStatus: 'FAILURE', failInfo, transactionId
+  }));
+}
+
 function generateTransactionId() {
   return crypto.randomBytes(16).toString('hex');
 }
-
-/**
- * Generate a nonce for SCEP operations
- * @returns {string} Nonce
- */
 function generateNonce() {
   return crypto.randomBytes(16).toString('base64');
 }
 
 /**
- * Validate challenge password against stored challenges
- * @param {string} challengePassword - Challenge password from request
- * @param {Map} challengeStore - Store of active challenges
- * @returns {boolean} Whether challenge is valid
+ * Validate challenge password against stored challenges. Marks valid as used.
  */
 function validateChallenge(challengePassword, challengeStore) {
-  if (!challengePassword) {
-    return false;
-  }
-
-  for (const [key, challenge] of challengeStore.entries()) {
-    if (challenge.challengePassword === challengePassword) {
-      // Check if challenge is still valid
+  if (!challengePassword) return false;
+  for (const [, challenge] of challengeStore.entries()) {
+    const stored = challenge.password ?? challenge.challengePassword;
+    if (stored && stored === challengePassword) {
       if (new Date() < new Date(challenge.expiresAt) && !challenge.used) {
-        // Mark as used
         challenge.used = true;
         return true;
       }
     }
   }
-
   return false;
-}
-
-/**
- * Create a SCEP failure response
- * @param {string} transactionId - Transaction ID
- * @param {string} failInfo - Failure information
- * @returns {Buffer} PKCS#7 failure response
- */
-function createSCEPFailure(transactionId, failInfo = 'badRequest') {
-  try {
-    // Create a simple failure response
-    const failureData = {
-      messageType: 'CertRep',
-      pkiStatus: 'FAILURE',
-      failInfo,
-      transactionId
-    };
-
-    return Buffer.from(JSON.stringify(failureData));
-    
-  } catch (error) {
-    console.error('Error creating SCEP failure response:', error);
-    throw new Error('Failed to create failure response');
-  }
 }
 
 module.exports = {
   parseSCEPRequest,
-  createSCEPResponse,
-  extractCSRFromSCEP,
+  buildSCEPSuccessResponse,
+  buildSCEPFailureResponse,
+  createSCEPFailure,            // legacy alias
+  createSCEPResponse: buildSCEPSuccessResponse, // legacy alias
   generateTransactionId,
   generateNonce,
   validateChallenge,
-  createSCEPFailure
+  MSG_TYPE,
+  PKI_STATUS,
+  FAIL_INFO
 };

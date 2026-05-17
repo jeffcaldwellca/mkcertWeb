@@ -23,20 +23,22 @@ const validateChallengePassword = (password, storedPassword) => {
 };
 
 /**
- * Generate SCEP CA certificate response
- * This returns the CA certificate that SCEP clients need
+ * Generate SCEP CA certificate response (DER-encoded X.509, per RFC 8894).
+ * The Content-Type returned by the SCEP route is `application/x-x509-ca-cert`
+ * which RFC 8894 §3.1 specifies as DER, not PEM. Convert PEM→DER here so
+ * SCEP clients (Intune, JAMF, NetworkManager) get the format they expect.
  */
 const getSCEPCACertificate = async () => {
   try {
-    // Get CA root path from mkcert
-    const result = await security.executeCommand('mkcert -CAROOT');
+    const result = await security.runTool('mkcert', ['-CAROOT']);
     const caRootPath = result.stdout.trim();
-    
-    // Read the CA certificate
     const caCertPath = path.join(caRootPath, 'rootCA.pem');
-    const caCert = await fs.readFile(caCertPath);
-    
-    return caCert;
+    const pem = await fs.readFile(caCertPath, 'utf8');
+
+    // Strip PEM armor and base64-decode to DER bytes
+    const match = pem.match(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/);
+    if (!match) throw new Error(`Root CA at ${caCertPath} is not a PEM certificate`);
+    return Buffer.from(match[1].replace(/\s+/g, ''), 'base64');
   } catch (error) {
     throw new Error(`Failed to get SCEP CA certificate: ${error.message}`);
   }

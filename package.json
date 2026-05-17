@@ -1,6 +1,6 @@
 {
   "name": "mkcert-web-ui",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "description": "Secure, modular Web UI for managing mkcert CLI and certificate files with complete SCEP PKI support and web-based settings management",
   "main": "server.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "env": "node -r dotenv/config server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "docker:build": "docker build -t mkcert-web-ui .",
-    "docker:run": "docker run -d --name mkcert-web-ui -p 3000:3000 -v mkcert_certificates:/app/certificates -v mkcert_data:/app/data mkcert-web-ui",
+    "docker:run": "docker run -d --name mkcert-web-ui -p 3000:3000 -v mkcert_certificates:/app/certificates -v mkcert_data:/app/data -v mkcert_ca:/home/nodejs/.local/share/mkcert mkcert-web-ui",
     "docker:stop": "docker stop mkcert-web-ui && docker rm mkcert-web-ui",
     "docker:logs": "docker logs mkcert-web-ui",
     "compose:up": "docker-compose up -d",
@@ -44,10 +44,11 @@
     "express-rate-limit": "^7.4.0",
     "express-session": "^1.17.3",
     "fs-extra": "^11.2.0",
+    "helmet": "^8.1.0",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "node-forge": "^1.3.1",
-    "nodemailer": "^7.0.5",
+    "nodemailer": "^8.0.7",
     "passport": "^0.7.0",
     "passport-openidconnect": "^0.1.2"
   },

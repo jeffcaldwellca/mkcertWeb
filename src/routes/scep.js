@@ -2,10 +2,43 @@
 const express = require('express');
 const multer = require('multer');
 const crypto = require('crypto');
+const fs = require('fs').promises;
+const path = require('path');
+const os = require('os');
 const scepUtils = require('../utils/scep');
 const pkcs7Utils = require('../utils/pkcs7');
 const enterpriseCA = require('../utils/enterpriseCA');
+const security = require('../security');
 const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
+
+// Load CA key + cert lazily so we don't fail boot if mkcert isn't installed.
+async function loadCAMaterial() {
+  const result = await security.runTool('mkcert', ['-CAROOT']);
+  const caRoot = result.stdout.trim();
+  const caCertPem = await fs.readFile(path.join(caRoot, 'rootCA.pem'),     'utf8');
+  const caKeyPem  = await fs.readFile(path.join(caRoot, 'rootCA-key.pem'), 'utf8');
+  return { caCertPem, caKeyPem, caRoot };
+}
+
+// Sign a CSR with the mkcert CA, returning the issued cert PEM.
+// Uses openssl x509 -req — the same approach as enterpriseCA.js but minimal.
+async function signCSRWithCA(csrPem, caCertPath, caKeyPath, days = 825) {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mkcertweb-scep-'));
+  try {
+    const csrPath  = path.join(tmpDir, 'req.csr');
+    const certPath = path.join(tmpDir, 'cert.pem');
+    await fs.writeFile(csrPath, csrPem, 'utf8');
+    await security.runTool('openssl', [
+      'x509', '-req', '-in', csrPath,
+      '-CA', caCertPath, '-CAkey', caKeyPath, '-CAcreateserial',
+      '-out', certPath, '-days', String(days), '-sha256'
+    ]);
+    return await fs.readFile(certPath, 'utf8');
+  } finally {
+    // Best-effort cleanup
+    try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch (_) {}
+  }
+}
 
 // Configure multer for handling SCEP binary requests
 const upload = multer({
@@ -13,6 +46,14 @@ const upload = multer({
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit for certificate requests
   }
+});
+
+// Raw body parser for SCEP — clients send the binary PKCS#7 directly with
+// Content-Type: application/x-pki-message, not multipart form data.
+const bodyParser = require('body-parser');
+const rawSCEPBody = bodyParser.raw({
+  type: ['application/x-pki-message', 'application/octet-stream'],
+  limit: '10mb'
 });
 
 const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
@@ -56,117 +97,126 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
   }));
 
   // SCEP Certificate Request endpoint
-  router.post('/scep', upload.single('message'), cliRateLimiter, asyncHandler(async (req, res) => {
+  // RFC 8894 §3.2: PKCS#7 SignedData over PKCS#7 EnvelopedData over PKCS#10.
+  router.post('/scep', rawSCEPBody, upload.single('message'), cliRateLimiter, asyncHandler(async (req, res) => {
     const { operation } = req.query;
-
-    if (operation === 'PKIOperation') {
-      try {
-        if (!req.file) {
-          return apiResponse.badRequest(res, 'No PKCS#7 message provided');
-        }
-
-        console.log('Processing SCEP PKIOperation request');
-        console.log('Message size:', req.file.buffer.length, 'bytes');
-
-        // Parse the PKCS#7 SCEP request
-        let scepRequest;
-        try {
-          scepRequest = pkcs7Utils.parseSCEPRequest(req.file.buffer);
-          console.log('SCEP request parsed:', {
-            messageType: scepRequest.messageType,
-            transactionId: scepRequest.transactionId,
-            hasCSR: !!scepRequest.csrPem,
-            hasChallenge: !!scepRequest.challengePassword
-          });
-        } catch (parseError) {
-          console.error('Failed to parse SCEP request:', parseError.message);
-          
-          // Return SCEP failure response
-          const failureResponse = pkcs7Utils.createSCEPFailure(
-            pkcs7Utils.generateTransactionId(),
-            'badRequest'
-          );
-          
-          res.setHeader('Content-Type', 'application/x-pki-message');
-          return res.send(failureResponse);
-        }
-
-        // Validate challenge password if provided
-        if (scepRequest.challengePassword) {
-          const isValidChallenge = pkcs7Utils.validateChallenge(
-            scepRequest.challengePassword, 
-            challengeStore
-          );
-
-          if (!isValidChallenge) {
-            console.log('Invalid challenge password provided');
-            const failureResponse = pkcs7Utils.createSCEPFailure(
-              scepRequest.transactionId,
-              'badRequest'
-            );
-            
-            res.setHeader('Content-Type', 'application/x-pki-message');
-            return res.send(failureResponse);
-          }
-
-          console.log('Challenge password validated successfully');
-        } else {
-          console.log('No challenge password provided - proceeding without validation');
-        }
-
-        // For now, since we can't fully extract CSR from the PKCS#7 message,
-        // we'll create a simplified response that indicates the request was received
-        // but needs manual processing
-
-        // In a full implementation, you would:
-        // 1. Extract the CSR from the decrypted content
-        // 2. Parse the CSR to get the requested domains
-        // 3. Generate a certificate using mkcert
-        // 4. Create a proper PKCS#7 response with the certificate
-
-        // For this implementation, we'll simulate the process
-        console.log('SCEP PKIOperation processed - would generate certificate here');
-        
-        // Create a success response indicating certificate generation would happen
-        const responseData = {
-          certificatePem: '-----BEGIN CERTIFICATE-----\n... (would contain actual certificate) ...\n-----END CERTIFICATE-----',
-          transactionId: scepRequest.transactionId,
-          recipientNonce: scepRequest.senderNonce
-        };
-
-        try {
-          const scepResponse = pkcs7Utils.createSCEPResponse(responseData);
-          
-          res.setHeader('Content-Type', 'application/x-pki-message');
-          res.setHeader('Content-Disposition', 'attachment; filename="scep-response.p7b"');
-          return res.send(scepResponse);
-          
-        } catch (responseError) {
-          console.error('Failed to create SCEP response:', responseError.message);
-          
-          const failureResponse = pkcs7Utils.createSCEPFailure(
-            scepRequest.transactionId,
-            'systemFailure'
-          );
-          
-          res.setHeader('Content-Type', 'application/x-pki-message');
-          return res.send(failureResponse);
-        }
-        
-      } catch (error) {
-        console.error('SCEP PKIOperation error:', error);
-        
-        // Create failure response
-        const failureResponse = pkcs7Utils.createSCEPFailure(
-          pkcs7Utils.generateTransactionId(),
-          'systemFailure'
-        );
-        
-        res.setHeader('Content-Type', 'application/x-pki-message');
-        return res.send(failureResponse);
-      }
-    } else {
+    if (operation !== 'PKIOperation') {
       return apiResponse.badRequest(res, 'Unsupported SCEP operation');
+    }
+
+    // The request body may arrive as multipart (multer "message" field) or
+    // as the raw application/x-pki-message body. Accept both.
+    const body = req.file
+      ? req.file.buffer
+      : (Buffer.isBuffer(req.body) ? req.body : null);
+    if (!body || body.length === 0) {
+      return apiResponse.badRequest(res, 'No PKCS#7 message provided');
+    }
+
+    res.setHeader('Content-Type', 'application/x-pki-message');
+
+    // Load CA material; if mkcert isn't installed, we can't sign at all.
+    let caMaterial;
+    try {
+      caMaterial = await loadCAMaterial();
+    } catch (err) {
+      console.error('SCEP: failed to load CA material:', err.message);
+      return res.status(500).end();
+    }
+
+    const sendFailure = (transactionId, recipientNonce, failInfo) => {
+      try {
+        const buf = pkcs7Utils.buildSCEPFailureResponse({
+          transactionId,
+          recipientNonce,
+          failInfo,
+          caKeyPem:  caMaterial.caKeyPem,
+          caCertPem: caMaterial.caCertPem
+        });
+        return res.send(buf);
+      } catch (err) {
+        console.error('SCEP: failed to build failure response:', err.message);
+        return res.status(500).end();
+      }
+    };
+
+    // Parse + decrypt
+    let scepRequest;
+    try {
+      scepRequest = pkcs7Utils.parseSCEPRequest(body, {
+        caKeyPem:  caMaterial.caKeyPem,
+        caCertPem: caMaterial.caCertPem
+      });
+    } catch (err) {
+      console.error('SCEP: parse failed:', err.message);
+      return sendFailure(null, null, pkcs7Utils.FAIL_INFO.badRequest);
+    }
+
+    console.log('SCEP request parsed:', {
+      messageType: scepRequest.messageType,
+      transactionId: scepRequest.transactionId,
+      hasCSR: !!scepRequest.csrPem,
+      hasChallenge: !!scepRequest.challengePassword
+    });
+
+    if (!scepRequest.csrPem) {
+      return sendFailure(
+        scepRequest.transactionId,
+        scepRequest.senderNonce,
+        pkcs7Utils.FAIL_INFO.badRequest
+      );
+    }
+
+    // Challenge password is *required* when the operator has issued any.
+    // (Pure no-challenge enrollment is allowed when challengeStore is empty.)
+    if (challengeStore.size > 0) {
+      const ok = pkcs7Utils.validateChallenge(scepRequest.challengePassword, challengeStore);
+      if (!ok) {
+        console.warn('SCEP: invalid or missing challenge password');
+        return sendFailure(
+          scepRequest.transactionId,
+          scepRequest.senderNonce,
+          pkcs7Utils.FAIL_INFO.badRequest
+        );
+      }
+    }
+
+    // Sign the CSR with the mkcert CA → real X.509 certificate.
+    let issuedCertPem;
+    try {
+      const caRoot = caMaterial.caRoot;
+      issuedCertPem = await signCSRWithCA(
+        scepRequest.csrPem,
+        path.join(caRoot, 'rootCA.pem'),
+        path.join(caRoot, 'rootCA-key.pem')
+      );
+    } catch (err) {
+      console.error('SCEP: CSR signing failed:', err.error || err.message);
+      return sendFailure(
+        scepRequest.transactionId,
+        scepRequest.senderNonce,
+        pkcs7Utils.FAIL_INFO.badRequest
+      );
+    }
+
+    // Wrap in signed/enveloped response targeted at the requester.
+    try {
+      const responseBuf = pkcs7Utils.buildSCEPSuccessResponse({
+        issuedCertPem,
+        transactionId: scepRequest.transactionId,
+        recipientNonce: scepRequest.senderNonce,
+        signerCert: scepRequest.signerCert,
+        caKeyPem:  caMaterial.caKeyPem,
+        caCertPem: caMaterial.caCertPem
+      });
+      return res.send(responseBuf);
+    } catch (err) {
+      console.error('SCEP: response build failed:', err.message);
+      return sendFailure(
+        scepRequest.transactionId,
+        scepRequest.senderNonce,
+        pkcs7Utils.FAIL_INFO.badRequest
+      );
     }
   }));
 
