@@ -4,6 +4,165 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.0.0] - 2026-05-17
+
+### 🔐 Security (breaking)
+
+This release closes a series of vulnerabilities found in a security audit. Several
+are exploitable from any device on the same network when authentication is
+disabled (the default), so upgrade is strongly recommended.
+
+### 📦 Dependency security updates
+
+All open Dependabot alerts are addressed:
+
+- **nodemailer 7.0.5 → 8.0.7.** Fixes [GHSA-vvjj-xcjg-gr5g](https://github.com/advisories/GHSA-vvjj-xcjg-gr5g)
+  (CRLF injection via SMTP transport `name` option → EHLO/HELO; CVSS 4.9 medium)
+  and [GHSA-c7w3-x93f-qmm8](https://github.com/advisories/GHSA-c7w3-x93f-qmm8)
+  (CRLF injection via `envelope.size` → MAIL FROM; CVSS 2.3 low). Our app
+  never sets a custom transport `name` or `envelope.size`, so the practical
+  risk was limited to admin-attacks-admin via the settings UI — but now moot.
+  The only v7 → v8 breaking change is the `NoAuth` error code rename to
+  `ENOAUTH`, which we don't reference. `npm audit` is now clean.
+- **multer ≥ 2.0.2** (already on this version). Resolves the four prior DoS
+  / memory-leak CVEs in the 1.x line.
+
+- **CRITICAL — Unauthenticated `/api/settings/*` write**. With `ENABLE_AUTH=false`
+  (the default), the settings router previously skipped its auth middleware,
+  letting anyone on the network rewrite credentials, point OIDC at an attacker's
+  IdP, or exfiltrate stored SMTP/OIDC secrets via `/export`. The endpoint is now
+  refused entirely unless authentication is enabled. `/export` is sanitized.
+- **CRITICAL — Command injection via PFX `password` parameter**. The PFX
+  generation route concatenated the user password into a shell command via
+  `-passout pass:${password}`; a newline in the password split the shell command.
+  Passwords are now written to a temp file and passed via `-passout file:`.
+- **CRITICAL — Plaintext password comparison + timing leak**. Login compared
+  `password === AUTH_PASSWORD` directly. Now uses `bcrypt.compare` and
+  `crypto.timingSafeEqual`. Sessions are regenerated on successful login.
+- **CRITICAL — CSRF tokens were issued but never verified**. A `verifyCsrf`
+  middleware now validates `X-CSRF-Token` (or `_csrf` body field) on every
+  mutating request. Session cookies set `sameSite: 'lax'` and `secure: 'auto'`.
+- **CRITICAL — Hardcoded default credentials in Dockerfile and docker-compose.yml**
+  (`admin/admin` plus the published `SESSION_SECRET`). Removed. The server now
+  generates a random `AUTH_PASSWORD` on first boot (printed to logs) and mints
+  an ephemeral `SESSION_SECRET` if none is configured. Set `AUTH_PASSWORD`,
+  `AUTH_PASSWORD_HASH`, or `SESSION_SECRET` to keep credentials stable.
+- **HIGH — Command injection via `mkcert` domain argument** in the legacy
+  inline `/api/generate` route, plus path traversal in legacy inline download
+  routes. All inline duplicates have been deleted; the canonical handlers in
+  `src/routes/certificates.js` (which validate paths and now go through
+  `execFile`) are the only path.
+- **HIGH — All shell-based execution replaced by `execFile`**. The new
+  `security.runTool(name, args)` API spawns processes without a shell, so
+  metacharacters in any user-supplied argument cannot inject commands. The
+  legacy `executeCommand(commandString)` still exists but parses the string
+  back into argv and delegates to `runTool`. The unsafe local `executeCommand`
+  in `server.js` is gone.
+- **HIGH — Frontend XSS via certificate metadata**. Certificate domains, names,
+  filenames, and `cert.path` values from the server were interpolated into
+  HTML and inline `onclick=""` handlers without escaping; a maliciously crafted
+  cert (or upload filename) could execute script. `escapeHtml`, `escapeAttr`,
+  and `escapeJs` helpers were added and applied to the certificate list and
+  expiring-certs dashboard. File-list rendering switched to `document.createElement`
+  + `textContent`.
+- **HIGH — OIDC URLs were hand-built (`${issuer}/auth`, `/token`, `/userinfo`)**
+  and only worked with one specific provider shape. OIDC is now configured via
+  the issuer's `/.well-known/openid-configuration` discovery document; PKCE is
+  enabled when the IdP supports S256. (State is generated and validated by
+  `passport-openidconnect` by default.)
+- **HIGH — `mkcert -uninstall` had no confirmation**. Now requires
+  `{"confirm": true}` in the body and is only available when auth is enabled.
+- **HIGH — `validateAndSanitizePath` returns object misused as string**. Wrappers
+  in `src/utils/fileValidation.js` were treating the result as a string, leaving
+  several routes (`/download/:filename`, `/api/certificate/:filename`, etc.)
+  broken at runtime. Fixed; `validateFilename`/`validateAndGetSafePath` now
+  return predictable values.
+
+### ✨ New Features
+- **Real SCEP PKIOperation**. The `/scep` POST endpoint now decrypts the inner
+  EnvelopedData with the mkcert CA private key, extracts the PKCS#10 CSR, signs
+  it via `openssl x509 -req`, and returns a properly signed PKCS#7 response
+  envelope. The previous placeholder ("would contain actual certificate")
+  string is gone. `GetCACert` now returns DER-encoded X.509 (RFC 8894 §3.1).
+  Failure paths return signed CertRep messages with the correct pkiStatus
+  and failInfo attributes. Challenge-store key mismatch (`password` vs
+  `challengePassword`) fixed.
+- **CA management endpoints in `src/routes/system.js`**: `POST /api/install-ca`,
+  `POST /api/generate-ca`, `POST /api/uninstall-ca` (gated).
+- **Helmet** with a Content-Security-Policy suited to the current frontend.
+- **Trust-proxy configuration** (`loopback,linklocal,uniquelocal`) so
+  rate-limiting buckets per-client and HTTPS detection works behind reverse
+  proxies.
+- **`ALLOWED_ORIGINS` env var** for cross-origin scenarios (default is
+  same-origin only — no `cors()` is registered when the var is empty).
+
+### 🐛 Bug Fixes
+- The system router's `/api/*` 404 catch-all was shadowing the inline
+  `/api/csrf-token`, `/api/auth/status`, and `/api/config/theme` endpoints
+  — meaning CSRF tokens were effectively unreachable even before CSRF
+  verification was wired up. Those endpoints moved above the router mounts.
+- `src/config/index.js` now fails fast on malformed `settings.json` instead of
+  silently falling back to defaults.
+- Archive (bundle ZIP) downloads now have a proper `archive.on('error', …)`
+  handler so a mid-stream failure produces a 500 (when possible) or a destroyed
+  socket rather than a hanging client.
+- PFX temp filename now uses `crypto.randomBytes(8).toString('hex')` instead
+  of `Date.now()`, avoiding collisions between concurrent requests.
+
+### 🧹 Refactor
+- `server.js` shrunk from 1,723 → ~560 lines by removing duplicate inline
+  copies of routes already provided by `src/routes/*`. The duplicates were
+  the unsafe code path (no allowlist, no path validation, no rate limit on
+  login) that actually ran in production; deleting them is the substantive
+  security win.
+- Centralized process execution in `src/security/runTool` with a per-tool
+  argument allowlist (defense in depth on top of `execFile`).
+
+### 🐳 Docker (also breaking)
+
+- **CRITICAL — removed pre-baked mkcert CA from the published image.**
+  Previous versions ran `mkcert -install` at `docker build` time, baking the
+  generated `rootCA.pem` *and `rootCA-key.pem`* into every image layer.
+  Every operator who pulled `jeffcaldwellca/mkcertweb:<= 3.2.0` shared the
+  same private key — anyone who pulled the image could extract that key
+  and forge certificates trusted by any user who installed the CA into
+  their system trust store. Starting in v4.0.0:
+    - The image no longer generates a CA at build time.
+    - The CA is created per-container on first boot via
+      `POST /api/generate-ca` (or the UI button).
+    - `docker-compose.yml` gains a new `mkcert_ca` volume mounted at
+      `/home/nodejs/.local/share/mkcert` so the per-container CA survives
+      restarts.
+  **Action for existing users:** revoke / reissue any certificates that
+  chained from the baked-in CA, and re-add the new per-container CA to
+  your trust stores after upgrade.
+- Added `.dockerignore`. `.env`, `.git`, `node_modules`, test/docs
+  directories, and locally-issued certificates no longer leak into image
+  layers. (If you had real credentials in `.env`, they were being shipped
+  to anyone who pulled the image — rotate them.)
+- Bumped base image to `node:20-alpine` (Node 18 LTS is approaching EOL).
+- `npm install --only=production` replaced with `npm ci --omit=dev` for
+  reproducibility.
+- `docker-build-push.sh` rewritten:
+    - Reads version from `package.json` (no more hardcoded drift)
+    - Refuses to push with uncommitted/untracked changes
+      (override with `--skip-clean-check`)
+    - Verifies Docker Hub credentials before pushing
+    - Publishes `:4.0.0`, `:4.0`, `:4`, and `:latest` floating tags
+    - Adds `--dry-run` for build-without-push verification
+
+### ⚠️ Breaking (application)
+- `AUTH_PASSWORD=admin` is treated as "unset" and triggers random password
+  generation. If you actually want admin/admin, set `AUTH_PASSWORD_HASH` to a
+  bcrypt hash of `admin` instead.
+- `SESSION_SECRET=mkcert-web-ui-secret-key-change-in-production` is treated
+  as "unset" and replaced with an ephemeral random secret. Set a real one
+  to persist sessions across restarts.
+- `/api/settings/*` returns 403 when both `ENABLE_AUTH=false` and
+  `ENABLE_OIDC=false`. Enable one of them to use the settings UI.
+- The legacy single-segment download endpoints (`/api/download/cert/:filename`
+  without a folder) are gone. Use `/api/download/cert/:folder/:filename`.
+
 ## [3.2.0] - 2026-05-07
 
 ### ✨ New Features

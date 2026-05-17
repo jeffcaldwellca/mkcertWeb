@@ -2,6 +2,53 @@
 (function() {
     'use strict';
 
+    // XSS-safe text escaper for HTML element bodies and attribute values.
+    function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
+    }
+
+    // CSRF token cache + helper. Mirrors what script.js does for the main
+    // page; needed here because settings.html doesn't load script.js.
+    // Every mutating request to the server must carry X-CSRF-Token.
+    let csrfToken = null;
+    async function fetchCSRFToken() {
+        try {
+            const r = await fetch('/api/csrf-token');
+            const j = await r.json();
+            if (j && j.csrfToken) csrfToken = j.csrfToken;
+        } catch (e) {
+            console.error('Failed to fetch CSRF token:', e);
+        }
+    }
+    async function authedFetch(url, options = {}) {
+        const method = (options.method || 'GET').toUpperCase();
+        const mutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+        const headers = { ...(options.headers || {}) };
+        if (mutating) {
+            if (!csrfToken) await fetchCSRFToken();
+            if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+        }
+        let res = await fetch(url, { ...options, headers });
+        if (mutating && res.status === 403) {
+            // Token may have been invalidated (e.g. server restart, session
+            // regeneration). Refresh and retry once.
+            try {
+                const body = await res.clone().json();
+                if (body && body.code === 'CSRF_INVALID') {
+                    await fetchCSRFToken();
+                    if (csrfToken) {
+                        headers['X-CSRF-Token'] = csrfToken;
+                        res = await fetch(url, { ...options, headers });
+                    }
+                }
+            } catch (_) { /* not JSON, fall through */ }
+        }
+        return res;
+    }
+
     // Theme handling
     function initTheme() {
         const themeToggle = document.getElementById('theme-toggle');
@@ -25,30 +72,31 @@
         }
     }
 
-    // Authentication handling
+    // Authentication handling. The /api/auth/status endpoint returns
+    // { authenticated, username, authEnabled } — no nested `user` object.
     async function initAuth() {
         try {
-            const response = await fetch('/auth/status');
+            const response = await fetch('/api/auth/status');
             const data = await response.json();
-            
+
             if (data.authenticated) {
                 const authControls = document.getElementById('auth-controls');
                 const usernameDisplay = document.getElementById('username-display');
-                authControls.style.display = 'block';
-                
-                if (data.user) {
-                    usernameDisplay.textContent = data.user.displayName || data.user.username || data.user.email || 'User';
-                } else {
-                    usernameDisplay.textContent = data.username || 'User';
-                }
-                
+                if (authControls) authControls.style.display = 'block';
+                if (usernameDisplay) usernameDisplay.textContent = data.username || 'User';
+
                 // Logout button handler
-                document.getElementById('logout-btn').addEventListener('click', async () => {
-                    const logoutResponse = await fetch('/auth/logout', { method: 'POST' });
-                    if (logoutResponse.ok) {
-                        window.location.href = '/login.html';
-                    }
-                });
+                const logoutBtn = document.getElementById('logout-btn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', async () => {
+                        // Logout is in the CSRF exempt list on the server, but
+                        // we still go through authedFetch for consistency.
+                        const logoutResponse = await authedFetch('/api/auth/logout', { method: 'POST' });
+                        if (logoutResponse.ok) {
+                            window.location.href = '/login';
+                        }
+                    });
+                }
             }
         } catch (error) {
             console.error('Error checking auth status:', error);
@@ -80,13 +128,21 @@
         try {
             const response = await fetch('/api/settings');
             const result = await response.json();
-            
+
             if (result.success) {
                 // Extract config data (everything except success and message)
                 const { success, message, ...configData } = result;
                 populateForm(configData);
+            } else if (response.status === 403) {
+                // Server refused — either auth is disabled (settings API requires
+                // it) or this session isn't authenticated. Surface the server's
+                // own explanation so the user knows why.
+                showAlert(result.error || 'Settings API unavailable', 'error');
+            } else if (response.status === 401) {
+                showAlert('You need to log in to access settings.', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
             } else {
-                showAlert('Error loading settings: ' + result.message, 'error');
+                showAlert('Error loading settings: ' + (result.error || result.message || 'unknown'), 'error');
             }
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -180,7 +236,7 @@
     // Save settings to server
     async function saveSettings(settings) {
         try {
-            const response = await fetch('/api/settings', {
+            const response = await authedFetch('/api/settings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -211,7 +267,7 @@
         }
 
         try {
-            const response = await fetch('/api/settings', {
+            const response = await authedFetch('/api/settings', {
                 method: 'DELETE'
             });
 
@@ -241,21 +297,22 @@
         }, 3000);
     }
 
-    // Show alert message
+    // Show alert message — message is treated as plain text (escaped before
+    // rendering) because callers pass through server error strings.
     function showAlert(message, type = 'info') {
         const alertsContainer = document.getElementById('alerts-container');
         const alertId = 'alert-' + Date.now();
-        
+
         const alertHTML = `
-            <div id="${alertId}" class="alert alert-${type}">
-                <i class="fas fa-${getAlertIcon(type)}"></i>
-                <span>${message}</span>
-                <button class="alert-close" onclick="document.getElementById('${alertId}').remove()">
+            <div id="${escapeHtml(alertId)}" class="alert alert-${escapeHtml(type)}">
+                <i class="fas fa-${escapeHtml(getAlertIcon(type))}"></i>
+                <span>${escapeHtml(message)}</span>
+                <button class="alert-close" onclick="document.getElementById('${escapeHtml(alertId)}').remove()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         `;
-        
+
         alertsContainer.insertAdjacentHTML('beforeend', alertHTML);
         
         // Auto-remove after 5 seconds
@@ -412,18 +469,40 @@
         resultEl.style.display = 'none';
 
         try {
-            const response = await fetch(`/api/${channel}/test`, { method: 'POST' });
+            const response = await authedFetch(`/api/${channel}/test`, { method: 'POST' });
             const data = await response.json();
 
+            // SECURITY: data.message and data.error come from the server and may
+            // include user-supplied content (URLs, error strings). Build the
+            // result with DOM nodes + textContent so any embedded HTML stays literal.
             resultEl.style.display = 'block';
+            while (resultEl.firstChild) resultEl.removeChild(resultEl.firstChild);
+            const span = document.createElement('span');
+            const icon = document.createElement('i');
+            const text = document.createElement('span');
             if (data.success) {
-                resultEl.innerHTML = `<span style="color: var(--success-color, #28a745);"><i class="fas fa-check-circle"></i> ${data.message || 'Test sent successfully'}</span>`;
+                span.style.color = 'var(--success-color, #28a745)';
+                icon.className = 'fas fa-check-circle';
+                text.textContent = ' ' + (data.message || 'Test sent successfully');
             } else {
-                resultEl.innerHTML = `<span style="color: var(--danger-color, #dc3545);"><i class="fas fa-times-circle"></i> ${data.error || data.message || 'Test failed'}</span>`;
+                span.style.color = 'var(--danger-color, #dc3545)';
+                icon.className = 'fas fa-times-circle';
+                text.textContent = ' ' + (data.error || data.message || 'Test failed');
             }
+            span.appendChild(icon);
+            span.appendChild(text);
+            resultEl.appendChild(span);
         } catch (error) {
             resultEl.style.display = 'block';
-            resultEl.innerHTML = `<span style="color: var(--danger-color, #dc3545);"><i class="fas fa-times-circle"></i> Request failed: ${error.message}</span>`;
+            while (resultEl.firstChild) resultEl.removeChild(resultEl.firstChild);
+            const span = document.createElement('span');
+            span.style.color = 'var(--danger-color, #dc3545)';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-times-circle';
+            const text = document.createElement('span');
+            text.textContent = ' Request failed: ' + error.message;
+            span.append(icon, text);
+            resultEl.appendChild(span);
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Test ' + (channel === 'ntfy' ? 'Notification' : 'Payload');

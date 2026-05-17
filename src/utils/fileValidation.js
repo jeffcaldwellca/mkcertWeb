@@ -5,20 +5,22 @@ const security = require('../security');
 const { apiResponse } = require('./responses');
 
 /**
- * Validate filename and return standardized error response if invalid
+ * Validate filename and return standardized error response if invalid.
+ * `security.validateFilename` throws on bad input and returns the cleaned
+ * filename on good input — wrap it so the caller gets a boolean.
  */
 const validateFilename = (filename, res) => {
   if (!filename || typeof filename !== 'string') {
     apiResponse.badRequest(res, 'Filename is required and must be a string');
     return false;
   }
-  
-  if (!security.validateFilename(filename)) {
-    apiResponse.badRequest(res, 'Invalid filename');
+  try {
+    security.validateFilename(filename);
+    return true;
+  } catch (err) {
+    apiResponse.badRequest(res, `Invalid filename: ${err.message}`);
     return false;
   }
-  
-  return true;
 };
 
 /**
@@ -28,33 +30,37 @@ const validateCertificateFile = (filename, res) => {
   if (!validateFilename(filename, res)) {
     return false;
   }
-  
+
   const allowedExtensions = ['.pem', '.crt', '.key', '.p12', '.pfx'];
   const hasAllowedExtension = allowedExtensions.some(ext => filename.endsWith(ext));
-  
+
   if (!hasAllowedExtension) {
     apiResponse.badRequest(res, 'Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed');
     return false;
   }
-  
+
   return true;
 };
 
 /**
- * Validate and sanitize file path, return safe path or send error response
+ * Validate and sanitize file path. Returns the resolved absolute path string,
+ * or null when invalid (and sends a 400 response).
+ *
+ * Note: `security.validateAndSanitizePath` returns `{safe, sanitized, resolved, relative}`
+ * and THROWS on traversal/invalid input. We unwrap to `.resolved` so callers
+ * can use it directly as a path.
  */
 const validateAndGetSafePath = async (filename, baseDir, res) => {
   if (!validateCertificateFile(filename, res)) {
     return null;
   }
-  
-  const safePath = security.validateAndSanitizePath(filename, baseDir);
-  if (!safePath) {
-    apiResponse.badRequest(res, 'Invalid file path');
+  try {
+    const info = security.validateAndSanitizePath(filename, baseDir);
+    return info && info.resolved ? info.resolved : null;
+  } catch (err) {
+    apiResponse.badRequest(res, `Invalid file path: ${err.message}`);
     return null;
   }
-  
-  return safePath;
 };
 
 /**

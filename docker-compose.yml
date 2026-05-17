@@ -19,11 +19,17 @@ services:
       - NODE_ENV=production
       - THEME_MODE=dark
       
-      # Authentication Configuration (disabled by default)
+      # Authentication Configuration (disabled by default).
+      # SECURITY: do NOT set AUTH_PASSWORD or SESSION_SECRET to the placeholder
+      # values shown in older versions of this file. If unset, the app will
+      # mint an ephemeral SESSION_SECRET on each boot, and (if ENABLE_AUTH=true)
+      # generate a random AUTH_PASSWORD that prints to the container logs.
+      # Override here, in a .env file, or with `docker run -e ...`.
       - ENABLE_AUTH=false
       - AUTH_USERNAME=admin
-      - AUTH_PASSWORD=admin
-      - SESSION_SECRET=mkcert-web-ui-secret-key-change-in-production
+      # - AUTH_PASSWORD=<set me to a real password>
+      # - AUTH_PASSWORD_HASH=<bcrypt hash; takes precedence over AUTH_PASSWORD>
+      # - SESSION_SECRET=<long random string; run: openssl rand -hex 48>
       
       # Rate Limiting Configuration
       - CLI_RATE_LIMIT_WINDOW=900000   # CLI operations window (15 minutes)
@@ -41,9 +47,15 @@ services:
       # - OIDC_CALLBACK_URL=
       # - OIDC_SCOPE=openid profile email
     volumes:
-      # Persist certificates and data
+      # Issued certs + app data
       - mkcert_certificates:/app/certificates
       - mkcert_data:/app/data
+      # Persist the per-container mkcert Root CA across container restarts.
+      # As of v4.0.0 the image no longer ships a baked-in CA (every pulled
+      # image used to share the same rootCA-key.pem — see CHANGELOG). The
+      # CA is generated on first boot inside the container via
+      # POST /api/generate-ca, and this volume keeps it across restarts.
+      - mkcert_ca:/home/nodejs/.local/share/mkcert
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
@@ -56,4 +68,6 @@ volumes:
   mkcert_certificates:
     driver: local
   mkcert_data:
+    driver: local
+  mkcert_ca:
     driver: local

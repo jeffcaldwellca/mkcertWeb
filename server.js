@@ -2,18 +2,21 @@
 require('dotenv').config();
 
 const express = require('express');
-const { exec } = require('child_process');
 const fs = require('fs-extra');
 const path = require('path');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const archiver = require('archiver');
 const https = require('https');
 const http = require('http');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const OpenIDConnectStrategy = require('passport-openidconnect');
+const helmet = require('helmet');
+
+// Single safe execution path — execFile, no shell. (executeCommand isn't
+// used directly in server.js anymore; the route modules import it themselves.)
+const { runTool } = require('./src/security');
 
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
@@ -46,7 +49,44 @@ const FORCE_HTTPS  = config.server.forceHttps;
 const ENABLE_AUTH    = config.auth.enabled;
 const AUTH_USERNAME  = config.auth.username;
 const AUTH_PASSWORD  = config.auth.password;
-const SESSION_SECRET = config.auth.sessionSecret;
+
+// SECURITY: refuse to run with the published default session secret.
+// If unset (or still the documented placeholder), mint a per-process random secret.
+// This invalidates sessions across restarts when no real secret is configured,
+// which is the desired behavior — it forces operators to set one in production.
+const DEFAULT_SESSION_SECRET = 'mkcert-web-ui-secret-key-change-in-production';
+const TEST_SESSION_SECRET    = 'test-secret-key-for-development';
+let SESSION_SECRET = config.auth.sessionSecret;
+if (!SESSION_SECRET || SESSION_SECRET === DEFAULT_SESSION_SECRET || SESSION_SECRET === TEST_SESSION_SECRET) {
+  SESSION_SECRET = require('crypto').randomBytes(48).toString('hex');
+  console.warn('⚠ SESSION_SECRET not configured (or using a known default). Generated an ephemeral secret for this process.');
+  console.warn('  Sessions will not survive restarts. Set SESSION_SECRET to a long random string in production.');
+}
+
+// SECURITY: hash the password at startup so the plaintext doesn't sit in memory or get
+// reflected back through any future logging/error path. Also accept a pre-hashed value
+// via AUTH_PASSWORD_HASH for operators who prefer not to put plaintext in env.
+let AUTH_PASSWORD_HASH = process.env.AUTH_PASSWORD_HASH || null;
+if (ENABLE_AUTH && !AUTH_PASSWORD_HASH) {
+  let plaintext = AUTH_PASSWORD;
+  if (!plaintext || plaintext === 'admin') {
+    plaintext = require('crypto').randomBytes(18).toString('base64');
+    console.warn('⚠ AUTH_PASSWORD not set (or still "admin"). Generated a random one-time password:');
+    console.warn(`   username: ${AUTH_USERNAME}`);
+    console.warn(`   password: ${plaintext}`);
+    console.warn('  Set AUTH_PASSWORD (or AUTH_PASSWORD_HASH) to keep credentials stable across restarts.');
+  }
+  AUTH_PASSWORD_HASH = bcrypt.hashSync(plaintext, 12);
+}
+
+// Timing-safe string compare for the username (constant-time on equal-length buffers).
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return require('crypto').timingSafeEqual(ab, bb);
+}
 
 // OIDC configuration
 const ENABLE_OIDC      = config.oidc.enabled;
@@ -57,60 +97,162 @@ const OIDC_CALLBACK_URL  = config.oidc.callbackUrl || `http://localhost:${PORT}/
 const OIDC_SCOPE         = config.oidc.scope || 'openid profile email';
 
 // Middleware
-app.use(cors());
+// CORS: same-origin app. Allow cross-origin only if explicitly configured via
+// ALLOWED_ORIGINS (comma-separated). Otherwise no CORS is emitted, which
+// makes the browser's same-origin policy do its job.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+if (allowedOrigins.length > 0) {
+  app.use(cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true
+  }));
+}
+
+// Security headers via helmet. CSP allows the FontAwesome CDN and inline
+// styles/scripts the app currently uses; tighten by removing 'unsafe-inline'
+// after migrating the frontend off inline handlers.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src':  ["'self'", "'unsafe-inline'"],
+      'style-src':   ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+      'font-src':    ["'self'", 'https://cdnjs.cloudflare.com', 'data:'],
+      'img-src':     ["'self'", 'data:'],
+      'connect-src': ["'self'"],
+      'frame-ancestors': ["'none'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // we serve PEM downloads; COEP would block
+  referrerPolicy: { policy: 'no-referrer' }
+}));
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Trust the first proxy hop if one is in front of us (so req.secure/req.ip work
+// correctly and rate-limiting buckets per-client rather than per-proxy).
+// Safe default for LAN/reverse-proxy deployments; tighten if you know better.
+app.set('trust proxy', 'loopback,linklocal,uniquelocal');
 
 // Session configuration
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  name: 'mkcertweb.sid',
   cookie: {
-    secure: ENABLE_HTTPS && process.env.NODE_ENV === 'production',
+    // 'auto' = secure when the connection is TLS, plain otherwise. Works in dev + prod.
+    secure: ENABLE_HTTPS ? 'auto' : false,
     httpOnly: true,
+    sameSite: 'lax', // CSRF defense; 'lax' allows OIDC redirect-back to carry the cookie
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// Rate limiters need to exist before auth routes are registered (we apply
+// authRateLimiter to the login POST). Services that depend on config can be
+// created later — only the limiter map needs to be hoisted.
+const rateLimiters = createRateLimiters(config);
 
 // CSRF Protection
 const Tokens = require('csrf');
 const tokens = new Tokens();
 
+// CSRF verification middleware — applied to every state-changing request that
+// has an authenticated session. GET/HEAD/OPTIONS are exempt by definition.
+// We skip the login POST (no session yet) and the OIDC callback (state param
+// is the OAuth-layer defense). The frontend already sends the token in
+// X-CSRF-Token (public/script.js:141).
+const CSRF_EXEMPT_PATHS = new Set([
+  '/api/auth/login',
+  '/login',
+  '/api/auth/logout',     // logout is intentionally low-friction; protected by sameSite
+  '/auth/oidc',
+  '/auth/oidc/callback',
+  '/scep'                 // SCEP is a protocol endpoint, not a browser form
+]);
+function verifyCsrf(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if (CSRF_EXEMPT_PATHS.has(req.path)) return next();
+  const secret = req.session && req.session.csrfSecret;
+  const token  = req.get('x-csrf-token') || (req.body && req.body._csrf);
+  if (!secret || !token || !tokens.verify(secret, token)) {
+    return res.status(403).json({ success: false, error: 'Invalid CSRF token', code: 'CSRF_INVALID' });
+  }
+  next();
+}
+
 // Passport configuration
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Passport serialization
+// Passport serialization — keep the session cookie small by storing only the
+// minimum needed to identify the user. We have no user store to rehydrate
+// from, so the deserialized object is exactly what we serialized.
 passport.serializeUser((user, done) => {
-  done(null, user);
+  done(null, { id: user.id, email: user.email, name: user.name, provider: user.provider });
 });
 
 passport.deserializeUser((user, done) => {
   done(null, user);
 });
 
-// OIDC Strategy Configuration
-if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
-  passport.use('oidc', new OpenIDConnectStrategy({
-    issuer: OIDC_ISSUER,
-    authorizationURL: `${OIDC_ISSUER}/auth`,
-    tokenURL: `${OIDC_ISSUER}/token`,
-    userInfoURL: `${OIDC_ISSUER}/userinfo`,
-    clientID: OIDC_CLIENT_ID,
-    clientSecret: OIDC_CLIENT_SECRET,
-    callbackURL: OIDC_CALLBACK_URL,
-    scope: OIDC_SCOPE
-  }, (issuer, profile, done) => {
-    // You can customize user profile processing here
-    const user = {
-      id: profile.id,
-      email: profile.emails ? profile.emails[0].value : null,
-      name: profile.displayName || profile.username,
-      provider: 'oidc'
-    };
-    return done(null, user);
-  }));
+// OIDC Strategy Configuration — uses discovery instead of guessing endpoint
+// paths. We fetch ${issuer}/.well-known/openid-configuration at startup and
+// hand the discovered URLs to passport-openidconnect, which doesn't do
+// discovery on its own. Falls back to error logging (rather than crashing
+// boot) so basic auth still works when OIDC is misconfigured.
+async function discoverOIDC(issuer) {
+  // Trim trailing slash so we don't get a double slash in the URL
+  const base = issuer.replace(/\/$/, '');
+  const url  = `${base}/.well-known/openid-configuration`;
+  const res  = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Discovery failed: ${res.status} ${res.statusText} for ${url}`);
+  const doc = await res.json();
+  for (const field of ['authorization_endpoint', 'token_endpoint', 'userinfo_endpoint']) {
+    if (!doc[field]) throw new Error(`Discovery doc from ${url} is missing ${field}`);
+  }
+  return doc;
+}
+
+async function configureOIDC() {
+  if (!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET)) return;
+  try {
+    const doc = await discoverOIDC(OIDC_ISSUER);
+    const supportsPKCE = Array.isArray(doc.code_challenge_methods_supported)
+      && doc.code_challenge_methods_supported.includes('S256');
+    passport.use('oidc', new OpenIDConnectStrategy({
+      issuer: OIDC_ISSUER,
+      authorizationURL: doc.authorization_endpoint,
+      tokenURL:         doc.token_endpoint,
+      userInfoURL:      doc.userinfo_endpoint,
+      clientID:         OIDC_CLIENT_ID,
+      clientSecret:     OIDC_CLIENT_SECRET,
+      callbackURL:      OIDC_CALLBACK_URL,
+      scope:            OIDC_SCOPE,
+      // passport-openidconnect generates a `state` param by default and
+      // validates it on callback (the OAuth 2.0 CSRF defense).
+      pkce: supportsPKCE
+    }, (issuer, profile, done) => {
+      const user = {
+        id: profile.id,
+        email: profile.emails ? profile.emails[0].value : null,
+        name: profile.displayName || profile.username,
+        provider: 'oidc'
+      };
+      return done(null, user);
+    }));
+    console.log(`✓ OIDC configured via discovery (${OIDC_ISSUER})${supportsPKCE ? ' with PKCE' : ''}`);
+  } catch (err) {
+    console.error(`⚠ OIDC discovery failed: ${err.message}`);
+    console.error('  OIDC login will be unavailable. Basic auth (if enabled) still works.');
+  }
 }
 
 // Authentication middleware
@@ -149,24 +291,30 @@ if (ENABLE_AUTH) {
   });
 
   // Login API
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', rateLimiters.authRateLimiter, async (req, res) => {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
       return res.status(400).json({
         success: false,
         error: 'Username and password are required'
       });
     }
-    
-    // Check credentials
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
-      req.session.authenticated = true;
-      req.session.username = username;
-      res.json({
-        success: true,
-        message: 'Login successful',
-        redirectTo: '/'
+
+    // Always run bcrypt.compare even on a username miss so timing doesn't leak
+    // which axis failed (username vs. password).
+    const usernameOk = safeEqual(username, AUTH_USERNAME);
+    const passwordOk = await bcrypt.compare(password, AUTH_PASSWORD_HASH);
+
+    if (usernameOk && passwordOk) {
+      // Rotate the session ID on successful login (session fixation defense)
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ success: false, error: 'Login failed' });
+        }
+        req.session.authenticated = true;
+        req.session.username = username;
+        res.json({ success: true, message: 'Login successful', redirectTo: '/' });
       });
     } else {
       res.status(401).json({
@@ -231,17 +379,23 @@ if (ENABLE_AUTH) {
   });
 
   // Traditional form-based login route
-  app.post('/login', async (req, res) => {
+  app.post('/login', rateLimiters.authRateLimiter, async (req, res) => {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
       return res.redirect('/login?error=missing_credentials');
     }
-    
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
-      req.session.authenticated = true;
-      req.session.username = username;
-      res.redirect('/');
+
+    const usernameOk = safeEqual(username, AUTH_USERNAME);
+    const passwordOk = await bcrypt.compare(password, AUTH_PASSWORD_HASH);
+
+    if (usernameOk && passwordOk) {
+      req.session.regenerate((err) => {
+        if (err) return res.redirect('/login?error=session_error');
+        req.session.authenticated = true;
+        req.session.username = username;
+        res.redirect('/');
+      });
     } else {
       res.redirect('/login?error=invalid_credentials');
     }
@@ -279,8 +433,45 @@ const ntfyService = new NtfyService(config);
 const webhookService = new WebhookService(config);
 const monitoringService = new CertificateMonitoringService(config, emailService, ntfyService, webhookService);
 
-// Create rate limiters
-const rateLimiters = createRateLimiters(config);
+// (rateLimiters was created earlier so it could be applied to the login routes)
+
+// Apply CSRF verification to every request reaching the route handlers below.
+// Auth/login/OIDC paths are exempted inside verifyCsrf itself.
+app.use(verifyCsrf);
+
+// These "always available" endpoints MUST be registered before the mounted
+// routers, because createSystemRoutes mounts a `/api/*` catch-all 404 that
+// would otherwise shadow them.
+app.get('/api/csrf-token', rateLimiters.generalRateLimiter, (req, res) => {
+  if (!req.session.csrfSecret) {
+    req.session.csrfSecret = tokens.secretSync();
+  }
+  res.json({ success: true, csrfToken: tokens.create(req.session.csrfSecret) });
+});
+
+app.get('/api/auth/status', rateLimiters.generalRateLimiter, (req, res) => {
+  if (ENABLE_AUTH) {
+    res.json({
+      authenticated: !!(req.session && req.session.authenticated),
+      username: req.session ? req.session.username : null,
+      authEnabled: true
+    });
+  } else {
+    res.json({ authenticated: false, username: null, authEnabled: false });
+  }
+});
+
+app.get('/api/auth/methods', rateLimiters.generalRateLimiter, (req, res) => {
+  res.json({
+    basic: ENABLE_AUTH,
+    oidc: { enabled: !!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) }
+  });
+});
+
+app.get('/api/config/theme', rateLimiters.generalRateLimiter, (req, res) => {
+  const defaultTheme = config.theme.mode || 'dark';
+  res.json({ defaultTheme: ['dark', 'light'].includes(defaultTheme) ? defaultTheme : 'dark' });
+});
 
 // Mount notification routes
 app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService, monitoringService, ntfyService, webhookService));
@@ -300,1222 +491,18 @@ app.use('/api/settings', createSettingsRoutes(config, rateLimiters, requireAuth)
 // Mount system routes
 app.use(createSystemRoutes(config, rateLimiters, requireAuth));
 
-// Auth status endpoint (always available)
-app.get('/api/auth/status', (req, res) => {
-  if (ENABLE_AUTH) {
-    res.json({
-      authenticated: req.session && req.session.authenticated,
-      username: req.session ? req.session.username : null,
-      authEnabled: true
-    });
-  } else {
-    res.json({
-      authenticated: false,
-      username: null,
-      authEnabled: false
-    });
-  }
-});
-
-// Theme configuration endpoint (always available)
-app.get('/api/config/theme', (req, res) => {
-  const defaultTheme = config.theme.mode || 'dark';
-  res.json({
-    defaultTheme: ['dark', 'light'].includes(defaultTheme) ? defaultTheme : 'dark'
-  });
-});
-
-// CSRF token endpoint (always available)
-app.get('/api/csrf-token', (req, res) => {
-  // Initialize CSRF secret in session if not exists
-  if (!req.session.csrfSecret) {
-    req.session.csrfSecret = tokens.secretSync();
-  }
-  
-  const token = tokens.create(req.session.csrfSecret);
-  res.json({ csrfToken: token });
-});
+// (csrf-token, auth/status, config/theme moved above the router mounts to
+// avoid being shadowed by the /api/* catch-all in createSystemRoutes.)
 
 // Favicon handler (return 204 No Content if not found)
 app.get('/favicon.ico', (req, res) => {
   res.status(204).end();
 });
 
-// Certificate storage directory
+// Certificate storage directory — kept for boot-time visibility/logging.
+// The actual cert routes resolve their own paths under process.cwd()/certificates.
 const CERT_DIR = path.join(__dirname, 'certificates');
-
-// Ensure certificates directory exists
 fs.ensureDirSync(CERT_DIR);
-
-// Helper function to execute shell commands
-const executeCommand = (command) => {
-  return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        reject({ error: error.message, stderr });
-      } else {
-        resolve({ stdout, stderr });
-      }
-    });
-  });
-};
-
-// Routes
-
-// Get mkcert status and CA info
-app.get('/api/status', requireAuth, async (req, res) => {
-  try {
-    const result = await executeCommand('mkcert -CAROOT');
-    const caRoot = result.stdout.trim();
-    
-    // Check if CA exists
-    const caKeyPath = path.join(caRoot, 'rootCA-key.pem');
-    const caCertPath = path.join(caRoot, 'rootCA.pem');
-    
-    let caExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-    
-    // Auto-generate CA if it doesn't exist
-    let autoGenerated = false;
-    if (!caExists) {
-      try {
-        console.log('Root CA not found, attempting to generate...');
-        await executeCommand('mkcert -install');
-        caExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-        autoGenerated = caExists;
-        if (autoGenerated) {
-          console.log('Root CA auto-generated successfully');
-          
-          // Copy auto-generated CA to public area
-          try {
-            const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
-            await fs.copy(caCertPath, publicCACertPath);
-            console.log('Auto-generated Root CA copied to public certificates directory');
-          } catch (copyError) {
-            console.error('Failed to copy auto-generated Root CA to public area:', copyError.message);
-          }
-        }
-      } catch (generateError) {
-        console.error('Failed to auto-generate Root CA:', generateError.message);
-      }
-    } else {
-      // If CA exists, ensure it's available in public area for download
-      try {
-        const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
-        const publicCAExists = await fs.pathExists(publicCACertPath);
-        
-        if (!publicCAExists) {
-          await fs.copy(caCertPath, publicCACertPath);
-          console.log('Existing Root CA copied to public certificates directory for download access');
-        }
-      } catch (copyError) {
-        console.error('Failed to copy existing Root CA to public area:', copyError.message);
-      }
-    }
-    
-    // Check if OpenSSL is available
-    let opensslAvailable = false;
-    try {
-      await executeCommand('openssl version');
-      opensslAvailable = true;
-    } catch (opensslError) {
-      opensslAvailable = false;
-    }
-    
-    res.json({
-      success: true,
-      caRoot,
-      caExists,
-      caCertPath: caExists ? caCertPath : null,
-      mkcertInstalled: true,
-      opensslAvailable,
-      autoGenerated
-    });
-  } catch (error) {
-    res.json({
-      success: false,
-      mkcertInstalled: false,
-      error: 'mkcert not found or not installed'
-    });
-  }
-});
-
-// Install CA (mkcert -install)
-app.post('/api/install-ca', requireAuth, async (req, res) => {
-  try {
-    const result = await executeCommand('mkcert -install');
-    res.json({
-      success: true,
-      message: 'CA installed successfully',
-      output: result.stdout
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.error,
-      details: error.stderr
-    });
-  }
-});
-
-// Generate new Root CA (mkcert -install creates a new CA if one doesn't exist)
-app.post('/api/generate-ca', requireAuth, async (req, res) => {
-  try {
-    // First check if mkcert is available
-    try {
-      await executeCommand('mkcert -help');
-    } catch (helpError) {
-      return res.status(500).json({
-        success: false,
-        error: 'mkcert is not installed or not available in PATH'
-      });
-    }
-
-    // Get current CA root directory
-    let caRoot;
-    try {
-      const caRootResult = await executeCommand('mkcert -CAROOT');
-      caRoot = caRootResult.stdout.trim();
-    } catch (caRootError) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to get mkcert CA root directory'
-      });
-    }
-
-    // Check if CA already exists
-    const caKeyPath = path.join(caRoot, 'rootCA-key.pem');
-    const caCertPath = path.join(caRoot, 'rootCA.pem');
-    const caExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-
-    if (caExists) {
-      // Even if CA exists, ensure it's available in the public area for download
-      try {
-        const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
-        const publicCAExists = await fs.pathExists(publicCACertPath);
-        
-        if (!publicCAExists) {
-          await fs.copy(caCertPath, publicCACertPath);
-          console.log('Existing Root CA copied to public certificates directory for download access');
-        }
-      } catch (copyError) {
-        console.error('Failed to copy existing Root CA to public area:', copyError.message);
-      }
-      
-      return res.json({
-        success: true,
-        message: 'Root CA already exists',
-        caRoot,
-        caExists: true,
-        action: 'none',
-        publicCACertPath: path.join(CERT_DIR, 'mkcert-rootCA.pem')
-      });
-    }
-
-    // Generate new CA by running mkcert -install
-    // This will create a new CA if one doesn't exist
-    const installResult = await executeCommand('mkcert -install');
-    
-    // Verify CA was created
-    const newCaExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-    
-    if (!newCaExists) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to generate Root CA - files not found after installation'
-      });
-    }
-
-    // Get CA information
-    let caInfo = {};
-    try {
-      const caResult = await executeCommand(`openssl x509 -in "${caCertPath}" -noout -subject -issuer -dates`);
-      caInfo.details = caResult.stdout;
-      
-      // Extract expiry date
-      const expiryMatch = caResult.stdout.match(/notAfter=(.+)/);
-      if (expiryMatch) {
-        caInfo.expiry = new Date(expiryMatch[1]);
-      }
-    } catch (error) {
-      console.log('Could not read CA info with OpenSSL (this is optional)');
-    }
-
-    // Copy CA certificate to public certificates directory for easy download access
-    try {
-      const publicCACertPath = path.join(CERT_DIR, 'mkcert-rootCA.pem');
-      await fs.copy(caCertPath, publicCACertPath);
-      console.log('Root CA copied to public certificates directory for download access');
-    } catch (copyError) {
-      console.error('Failed to copy Root CA to public area:', copyError.message);
-      // Continue anyway - this is not critical
-    }
-
-    res.json({
-      success: true,
-      message: 'Root CA generated and installed successfully',
-      caRoot,
-      caExists: true,
-      caInfo,
-      action: 'generated',
-      output: installResult.stdout,
-      caCopiedToPublic: true, // Flag to indicate CA was copied for public download
-      publicCACertPath: path.join(CERT_DIR, 'mkcert-rootCA.pem')
-    });
-
-  } catch (error) {
-    const message = error.error || error.message || 'Unknown error';
-    const detail  = error.stderr ? error.stderr.trim() : null;
-    console.error('Error generating Root CA:', message, detail || '');
-    res.status(500).json({
-      success: false,
-      error: detail ? `${message} — ${detail}` : message,
-      details: error.stderr
-    });
-  }
-});
-
-// Download Root CA certificate
-app.get('/api/download/rootca', requireAuth, async (req, res) => {
-  try {
-    const result = await executeCommand('mkcert -CAROOT');
-    const caRoot = result.stdout.trim();
-    const caCertPath = path.join(caRoot, 'rootCA.pem');
-    
-    if (!await fs.pathExists(caCertPath)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Root CA certificate not found. Please install CA first.'
-      });
-    }
-    
-    // Read CA certificate to get information
-    let caInfo = {};
-    try {
-      const caResult = await executeCommand(`openssl x509 -in "${caCertPath}" -noout -subject -issuer -dates`);
-      caInfo.details = caResult.stdout;
-      
-      // Extract expiry date
-      const expiryMatch = caResult.stdout.match(/notAfter=(.+)/);
-      if (expiryMatch) {
-        caInfo.expiry = new Date(expiryMatch[1]);
-      }
-    } catch (error) {
-      console.error('Error reading CA info:', error);
-    }
-    
-    // Set appropriate headers
-    res.setHeader('Content-Type', 'application/x-pem-file');
-    res.setHeader('Content-Disposition', 'attachment; filename="mkcert-rootCA.pem"');
-    
-    // Send the CA certificate file
-    res.sendFile(caCertPath);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.error || error.message,
-      details: error.stderr
-    });
-  }
-});
-
-// Get Root CA information
-app.get('/api/rootca/info', requireAuth, async (req, res) => {
-  try {
-    const result = await executeCommand('mkcert -CAROOT');
-    const caRoot = result.stdout.trim();
-    const caCertPath = path.join(caRoot, 'rootCA.pem');
-    
-    if (!await fs.pathExists(caCertPath)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Root CA certificate not found. Please install CA first.'
-      });
-    }
-    
-    // Get CA certificate information
-    const caResult = await executeCommand(`openssl x509 -in "${caCertPath}" -noout -text`);
-    const certInfo = caResult.stdout;
-    
-    // Extract specific information
-    const subjectMatch = certInfo.match(/Subject: (.+)/);
-    const issuerMatch = certInfo.match(/Issuer: (.+)/);
-    const serialMatch = certInfo.match(/Serial Number:\s*\n\s*([^\n]+)/);
-    const validFromMatch = certInfo.match(/Not Before: (.+)/);
-    const validToMatch = certInfo.match(/Not After : (.+)/);
-    const fingerprintResult = await executeCommand(`openssl x509 -in "${caCertPath}" -noout -fingerprint -sha256`);
-    const fingerprintMatch = fingerprintResult.stdout.match(/sha256 Fingerprint=(.+)/i);
-    
-    // Calculate days until expiry
-    let daysUntilExpiry = null;
-    let isExpired = false;
-    if (validToMatch) {
-      const expiry = new Date(validToMatch[1]);
-      const now = new Date();
-      const timeDiff = expiry.getTime() - now.getTime();
-      daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
-      isExpired = daysUntilExpiry < 0;
-    }
-    
-    res.json({
-      success: true,
-      caInfo: {
-        path: caCertPath,
-        subject: subjectMatch ? subjectMatch[1].trim() : 'Unknown',
-        issuer: issuerMatch ? issuerMatch[1].trim() : 'Unknown',
-        serial: serialMatch ? serialMatch[1].trim() : 'Unknown',
-        validFrom: validFromMatch ? validFromMatch[1].trim() : 'Unknown',
-        validTo: validToMatch ? validToMatch[1].trim() : 'Unknown',
-        fingerprint: fingerprintMatch ? fingerprintMatch[1].trim() : 'Unknown',
-        daysUntilExpiry,
-        isExpired,
-        isInstalled: true
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.error || error.message,
-      details: error.stderr
-    });
-  }
-});
-
-// Generate certificate
-app.post('/api/generate', requireAuth, async (req, res) => {
-  try {
-    const { domains, format = 'pem' } = req.body;
-    
-    if (!domains || !Array.isArray(domains) || domains.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Domains array is required'
-      });
-    }
-
-    // Validate format
-    const validFormats = ['pem', 'crt'];
-    if (!validFormats.includes(format)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Format must be either "pem" or "crt"'
-      });
-    }
-
-    // Create organized subfolder with clean naming
-    const now = new Date();
-    const dateFolder = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    
-    // Sanitize domain names for folder name - keep it clean and readable
-    const sanitizedDomains = domains.map(domain => {
-      // Remove protocol if present
-      let cleanDomain = domain.replace(/^https?:\/\//, '');
-      // Replace wildcards and special chars with underscores
-      return cleanDomain.replace(/[^\w.-]/g, '_').replace(/^_+|_+$/g, '');
-    });
-    
-    // Create folder name from domains
-    const folderName = sanitizedDomains.join('_');
-    
-    // Create subfolder: certificates/YYYY-MM-DD/domain_names/
-    const certSubDir = path.join(CERT_DIR, dateFolder, folderName);
-    
-    // Ensure subfolder exists
-    await fs.ensureDir(certSubDir);
-    
-    // Set file extensions based on format
-    const certExt = format === 'crt' ? '.crt' : '.pem';
-    const keyExt = format === 'crt' ? '.key' : '-key.pem';
-    
-    // Use clean cert name (same as folder name for consistency)
-    const certName = folderName;
-    
-    const certPath = path.join(certSubDir, `${certName}${certExt}`);
-    const keyPath = path.join(certSubDir, `${certName}${keyExt}`);
-
-    // Build mkcert command
-    const domainsArg = domains.join(' ');
-    const command = `cd "${certSubDir}" && mkcert -cert-file "${certName}${certExt}" -key-file "${certName}${keyExt}" ${domainsArg}`;
-    
-    const result = await executeCommand(command);
-    
-    // Verify files were created
-    const certExists = await fs.pathExists(certPath);
-    const keyExists = await fs.pathExists(keyPath);
-    
-    if (certExists && keyExists) {
-      res.json({
-        success: true,
-        message: 'Certificate generated successfully',
-        certFile: `${certName}${certExt}`,
-        keyFile: `${certName}${keyExt}`,
-        folder: `${dateFolder}/${folderName}`,
-        format,
-        domains,
-        output: result.stdout
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Certificate files were not created'
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.error,
-      details: error.stderr
-    });
-  }
-});
-
-// Helper function to get certificate expiry date
-const getCertificateExpiry = async (certPath) => {
-  try {
-    const result = await executeCommand(`openssl x509 -in "${certPath}" -noout -enddate`);
-    // Parse output like "notAfter=Jan 25 12:34:56 2026 GMT"
-    const match = result.stdout.match(/notAfter=(.+)/);
-    if (match) {
-      return new Date(match[1]);
-    }
-    return null;
-  } catch (error) {
-    console.error('Error getting certificate expiry:', error);
-    return null;
-  }
-};
-
-// Helper function to get certificate domains
-const getCertificateDomains = async (certPath) => {
-  try {
-    const result = await executeCommand(`openssl x509 -in "${certPath}" -noout -text`);
-    const domains = [];
-    
-    // Extract Common Name
-    const cnMatch = result.stdout.match(/Subject:.*CN\s*=\s*([^,\n]+)/);
-    if (cnMatch) {
-      domains.push(cnMatch[1].trim());
-    }
-    
-    // Extract Subject Alternative Names
-    const sanMatch = result.stdout.match(/X509v3 Subject Alternative Name:\s*\n\s*([^\n]+)/);
-    if (sanMatch) {
-      const sanDomains = sanMatch[1].split(',').map(san => {
-        const match = san.trim().match(/DNS:(.+)/);
-        return match ? match[1] : null;
-      }).filter(Boolean);
-      domains.push(...sanDomains);
-    }
-    
-    // Remove duplicates and return
-    return [...new Set(domains)];
-  } catch (error) {
-    console.error('Error getting certificate domains:', error);
-    return [];
-  }
-};
-
-// Helper function to recursively find all certificate files
-const findAllCertificateFiles = async (dir, relativePath = '') => {
-  const files = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    const relativeFilePath = path.join(relativePath, entry.name);
-    
-    if (entry.isDirectory()) {
-      // Recursively scan subdirectories
-      const subFiles = await findAllCertificateFiles(fullPath, relativeFilePath);
-      files.push(...subFiles);
-    } else if (entry.isFile()) {
-      // Check if it's a certificate file
-      if ((entry.name.endsWith('.pem') && !entry.name.endsWith('-key.pem')) || 
-          entry.name.endsWith('.crt')) {
-        files.push({
-          name: entry.name,
-          fullPath,
-          relativePath: relativeFilePath,
-          directory: relativePath
-        });
-      }
-    }
-  }
-  
-  return files;
-};
-
-// List all certificates
-app.get('/api/certificates', requireAuth, async (req, res) => {
-  try {
-    // Find all certificate files recursively
-    const certFiles = await findAllCertificateFiles(CERT_DIR);
-    const certificates = [];
-    
-    for (const certFileInfo of certFiles) {
-      let keyFile;
-      let certName;
-      
-      // Determine key file based on cert file format
-      if (certFileInfo.name.endsWith('.crt')) {
-        certName = certFileInfo.name.replace('.crt', '');
-        keyFile = `${certName}.key`;
-      } else {
-        certName = certFileInfo.name.replace('.pem', '');
-        keyFile = `${certName}-key.pem`;
-      }
-      
-      const certPath = certFileInfo.fullPath;
-      const keyPath = path.join(path.dirname(certFileInfo.fullPath), keyFile);
-      
-      const certStat = await fs.stat(certPath);
-      const keyExists = await fs.pathExists(keyPath);
-      
-      // Get certificate expiry and domains
-      const expiry = await getCertificateExpiry(certPath);
-      const domains = await getCertificateDomains(certPath);
-      
-      // Calculate days until expiry
-      let daysUntilExpiry = null;
-      let isExpired = false;
-      if (expiry) {
-        const now = new Date();
-        const timeDiff = expiry.getTime() - now.getTime();
-        daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
-        isExpired = daysUntilExpiry < 0;
-      }
-      
-      // Determine format based on file extension
-      const format = certFileInfo.name.endsWith('.crt') ? 'crt' : 'pem';
-      
-      // Check if certificate is archived
-      const isArchived = certFileInfo.directory.includes('archive');
-      
-      // Skip archived certificates - they shouldn't appear in the main list
-      if (isArchived) {
-        continue;
-      }
-      
-      // Create unique identifier that includes folder structure
-      const uniqueName = certFileInfo.directory ? 
-        `${certFileInfo.directory.replace(/[/\\]/g, '_')}_${certName}` : 
-        certName;
-      
-      certificates.push({
-        name: certName,
-        uniqueName,
-        certFile: certFileInfo.name,
-        keyFile: keyExists ? keyFile : null,
-        folder: certFileInfo.directory || 'root',
-        relativePath: certFileInfo.relativePath,
-        created: certStat.birthtime,
-        size: certStat.size,
-        expiry,
-        daysUntilExpiry,
-        isExpired,
-        domains,
-        format,
-        isArchived: false // Always false since we're filtering out archived ones
-      });
-    }
-    
-    res.json({
-      success: true,
-      certificates
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Download certificate file
-app.get('/api/download/cert/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, folder, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      success: false,
-      error: 'Certificate file not found'
-    });
-  }
-  
-  // Set proper headers for download
-  res.setHeader('Content-Type', 'application/x-pem-file');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-cache');
-  
-  res.download(filePath, filename);
-});
-
-// Download key file
-app.get('/api/download/key/:folder/:filename', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, folder, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      success: false,
-      error: 'Key file not found'
-    });
-  }
-  
-  // Set proper headers for download
-  res.setHeader('Content-Type', 'application/x-pem-file');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Cache-Control', 'no-cache');
-  
-  res.download(filePath, filename);
-});
-
-// Download both cert and key as zip
-app.get('/api/download/bundle/:folder/:certname', requireAuth, (req, res) => {
-  const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-  const certName = req.params.certname;
-  
-  // Try both formats
-  const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-  const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-  
-  let certFile, keyFile, certPath, keyPath;
-  
-  // Find existing files
-  for (const cert of possibleCertFiles) {
-    const testPath = path.join(CERT_DIR, folder, cert);
-    if (fs.existsSync(testPath)) {
-      certFile = cert;
-      certPath = testPath;
-      break;
-    }
-  }
-  
-  for (const key of possibleKeyFiles) {
-    const testPath = path.join(CERT_DIR, folder, key);
-    if (fs.existsSync(testPath)) {
-      keyFile = key;
-      keyPath = testPath;
-      break;
-    }
-  }
-  
-  if (!certPath || !keyPath) {
-    return res.status(404).json({
-      success: false,
-      error: 'Certificate or key file not found'
-    });
-  }
-  
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${certName}.zip"`);
-  
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(res);
-  
-  archive.file(certPath, { name: certFile });
-  archive.file(keyPath, { name: keyFile });
-  
-  archive.finalize();
-});
-
-// Legacy download endpoints for backward compatibility
-app.get('/api/download/cert/:filename', requireAuth, (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      success: false,
-      error: 'Certificate file not found'
-    });
-  }
-  
-  res.download(filePath, filename);
-});
-
-app.get('/api/download/key/:filename', requireAuth, (req, res) => {
-  const filename = req.params.filename;
-  const filePath = path.join(CERT_DIR, filename);
-  
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      success: false,
-      error: 'Key file not found'
-    });
-  }
-  
-  res.download(filePath, filename);
-});
-
-app.get('/api/download/bundle/:certname', requireAuth, (req, res) => {
-  const certName = req.params.certname;
-  
-  // Try both formats in root directory
-  const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-  const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-  
-  let certFile, keyFile, certPath, keyPath;
-  
-  for (const cert of possibleCertFiles) {
-    const testPath = path.join(CERT_DIR, cert);
-    if (fs.existsSync(testPath)) {
-      certFile = cert;
-      certPath = testPath;
-      break;
-    }
-  }
-  
-  for (const key of possibleKeyFiles) {
-    const testPath = path.join(CERT_DIR, key);
-    if (fs.existsSync(testPath)) {
-      keyFile = key;
-      keyPath = testPath;
-      break;
-    }
-  }
-  
-  if (!certPath || !keyPath) {
-    return res.status(404).json({
-      success: false,
-      error: 'Certificate or key file not found'
-    });
-  }
-  
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${certName}.zip"`);
-  
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(res);
-  
-  archive.file(certPath, { name: certFile });
-  archive.file(keyPath, { name: keyFile });
-  
-  archive.finalize();
-});
-
-// Generate PFX file from certificate and key
-app.post('/api/generate/pfx/*', requireAuth, async (req, res) => {
-  try {
-    // Parse the wildcard path to extract folder and certname
-    const fullPath = req.params[0]; // Get the wildcard part
-    const pathParts = fullPath.split('/');
-    
-    if (pathParts.length < 2) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid path format. Expected: /folder/certname'
-      });
-    }
-    
-    // Last part is certname, everything else is folder path
-    const certName = pathParts.pop();
-    const encodedFolder = pathParts.join('/');
-    const folder = encodedFolder === 'root' ? '' : decodeURIComponent(encodedFolder);
-    const password = req.body.password || '';
-    
-    console.log('PFX generation request:', { encodedFolder, folder, certName });
-    
-    // Protect root directory certificates
-    if (encodedFolder === 'root' || folder === '') {
-      return res.status(403).json({
-        success: false,
-        error: 'PFX generation not available for root certificates'
-      });
-    }
-    
-    // Find certificate and key files
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-    
-    let certPath = null;
-    let keyPath = null;
-    
-    for (const cert of possibleCertFiles) {
-      const testPath = path.join(CERT_DIR, folder, cert);
-      if (fs.existsSync(testPath)) {
-        certPath = testPath;
-        break;
-      }
-    }
-    
-    for (const key of possibleKeyFiles) {
-      const testPath = path.join(CERT_DIR, folder, key);
-      if (fs.existsSync(testPath)) {
-        keyPath = testPath;
-        break;
-      }
-    }
-    
-    if (!certPath || !keyPath) {
-      return res.status(404).json({
-        success: false,
-        error: 'Certificate or key file not found'
-      });
-    }
-    
-    // Create temporary PFX file
-    const tempDir = path.join(__dirname, 'temp');
-    await fs.ensureDir(tempDir);
-    const timestamp = Date.now();
-    const tempPfxPath = path.join(tempDir, `${certName}_${timestamp}.pfx`);
-    const tempPassFile = path.join(tempDir, `pass_${timestamp}.txt`);
-    
-    try {
-      // Get the actual CA certificate path from mkcert
-      let caCertPath = null;
-      let caExists = false;
-      
-      try {
-        const caRootResult = await executeCommand('mkcert -CAROOT');
-        const caRoot = caRootResult.stdout.trim();
-        caCertPath = path.join(caRoot, 'rootCA.pem');
-        caExists = fs.existsSync(caCertPath);
-      } catch (caError) {
-        console.log('Could not get mkcert CA root, proceeding without CA chain');
-      }
-      
-      // Generate PFX using OpenSSL with proper Windows compatibility
-      // Use file-based password to avoid shell escaping issues
-      
-      let opensslCmd;
-      if (password) {
-        // Write password to temporary file WITHOUT newline for secure passing
-        await fs.writeFile(tempPassFile, password, { encoding: 'utf8', flag: 'w' });
-        opensslCmd = caExists 
-          ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -certfile "${caCertPath}" -passout file:"${tempPassFile}" -legacy`
-          : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout file:"${tempPassFile}" -legacy`;
-      } else {
-        // For empty password, use explicit empty string
-        opensslCmd = caExists
-          ? `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -certfile "${caCertPath}" -passout pass: -legacy`
-          : `openssl pkcs12 -export -out "${tempPfxPath}" -inkey "${keyPath}" -in "${certPath}" -passout pass: -legacy`;
-      }
-      
-      console.log('Executing OpenSSL command for PFX generation...');
-      console.log('CA exists:', caExists);
-      console.log('Password provided:', !!password);
-      
-      const opensslResult = await executeCommand(opensslCmd);
-      console.log('OpenSSL PFX generation completed successfully');
-      
-      // Clean up password file immediately after use
-      if (password && fs.existsSync(tempPassFile)) {
-        fs.unlinkSync(tempPassFile);
-      }
-      
-      // Check if PFX file was created
-      if (!fs.existsSync(tempPfxPath)) {
-        throw new Error('PFX file generation failed');
-      }
-      
-      // Set headers for download
-      res.setHeader('Content-Type', 'application/x-pkcs12');
-      res.setHeader('Content-Disposition', `attachment; filename="${certName}.pfx"`);
-      res.setHeader('Cache-Control', 'no-cache');
-      
-      // Stream the file and clean up
-      const fileStream = fs.createReadStream(tempPfxPath);
-      fileStream.pipe(res);
-      
-      fileStream.on('end', () => {
-        // Clean up temp file
-        fs.unlink(tempPfxPath).catch(err => {
-          console.error('Failed to cleanup temp PFX file:', err);
-        });
-      });
-      
-      fileStream.on('error', (error) => {
-        console.error('Error streaming PFX file:', error);
-        fs.unlink(tempPfxPath).catch(() => {});
-        res.status(500).json({
-          success: false,
-          error: 'Failed to download PFX file'
-        });
-      });
-      
-    } catch (error) {
-      // Clean up temp files on error
-      try {
-        if (fs.existsSync(tempPfxPath)) {
-          fs.unlinkSync(tempPfxPath);
-        }
-        if (fs.existsSync(tempPassFile)) {
-          fs.unlinkSync(tempPassFile);
-        }
-      } catch (cleanupError) {
-        console.error('Error during cleanup:', cleanupError);
-      }
-      
-      console.error('Detailed PFX generation error:', {
-        message: error.message,
-        stderr: error.stderr,
-        certPath,
-        keyPath,
-        password: !!password
-      });
-      
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error('PFX generation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'PFX generation failed: ' + error.message
-    });
-  }
-});
-
-// Archive certificate (instead of deleting)
-app.post('/api/certificates/:folder/:certname/archive', requireAuth, async (req, res) => {
-  try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
-    
-    // Protect root directory certificates from archiving
-    if (req.params.folder === 'root' || folder === '') {
-      return res.status(403).json({
-        success: false,
-        error: 'Certificates in the root directory are read-only and cannot be archived'
-      });
-    }
-    
-    // Source folder path
-    const sourceFolderPath = path.join(CERT_DIR, folder);
-    
-    // Create archive folder within the same directory
-    const archiveFolderPath = path.join(sourceFolderPath, 'archive');
-    await fs.ensureDir(archiveFolderPath);
-    
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-    
-    let archived = [];
-    
-    // Archive certificate files
-    for (const certFile of possibleCertFiles) {
-      const sourcePath = path.join(sourceFolderPath, certFile);
-      const destPath = path.join(archiveFolderPath, certFile);
-      
-      if (await fs.pathExists(sourcePath)) {
-        await fs.move(sourcePath, destPath);
-        archived.push(certFile);
-      }
-    }
-    
-    // Archive key files
-    for (const keyFile of possibleKeyFiles) {
-      const sourcePath = path.join(sourceFolderPath, keyFile);
-      const destPath = path.join(archiveFolderPath, keyFile);
-      
-      if (await fs.pathExists(sourcePath)) {
-        await fs.move(sourcePath, destPath);
-        archived.push(keyFile);
-      }
-    }
-    
-    if (archived.length === 0) {
-      // Show all file paths checked for debugging
-      const checkedCertPaths = possibleCertFiles.map(f => path.join(sourceFolderPath, f));
-      const checkedKeyPaths = possibleKeyFiles.map(f => path.join(sourceFolderPath, f));
-      return res.status(404).json({
-        success: false,
-        error: 'Certificate files not found',
-        checkedCertPaths,
-        checkedKeyPaths
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: 'Certificate archived successfully',
-      archived,
-      archivePath: path.join(folder, 'archive')
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Restore certificate from archive
-app.post('/api/certificates/:folder/:certname/restore', requireAuth, async (req, res) => {
-  try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
-    
-    // Source folder paths
-    const folderPath = path.join(CERT_DIR, folder);
-    const archiveFolderPath = path.join(folderPath, 'archive');
-    
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-    
-    let restored = [];
-    
-    // Restore certificate files
-    for (const certFile of possibleCertFiles) {
-      const sourcePath = path.join(archiveFolderPath, certFile);
-      const destPath = path.join(folderPath, certFile);
-      
-      if (await fs.pathExists(sourcePath)) {
-        // Check if destination file already exists
-        if (await fs.pathExists(destPath)) {
-          return res.status(409).json({
-            success: false,
-            error: `Certificate file ${certFile} already exists in the active directory`
-          });
-        }
-        await fs.move(sourcePath, destPath);
-        restored.push(certFile);
-      }
-    }
-    
-    // Restore key files
-    for (const keyFile of possibleKeyFiles) {
-      const sourcePath = path.join(archiveFolderPath, keyFile);
-      const destPath = path.join(folderPath, keyFile);
-      
-      if (await fs.pathExists(sourcePath)) {
-        // Check if destination file already exists
-        if (await fs.pathExists(destPath)) {
-          return res.status(409).json({
-            success: false,
-            error: `Key file ${keyFile} already exists in the active directory`
-          });
-        }
-        await fs.move(sourcePath, destPath);
-        restored.push(keyFile);
-      }
-    }
-    
-    if (restored.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Archived certificate files not found'
-      });
-    }
-    
-    // Check if archive folder is empty and remove it if so
-    try {
-      const remainingFiles = await fs.readdir(archiveFolderPath);
-      if (remainingFiles.length === 0) {
-        await fs.remove(archiveFolderPath);
-      }
-    } catch (error) {
-      // Archive folder might already be removed or not exist
-    }
-    
-    res.json({
-      success: true,
-      message: 'Certificate restored successfully',
-      restored
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Delete certificate permanently from archive
-app.delete('/api/certificates/:folder/:certname', requireAuth, async (req, res) => {
-  try {
-    const folder = req.params.folder === 'root' ? '' : decodeURIComponent(req.params.folder);
-    const certName = req.params.certname;
-    
-    // Only allow deletion from archive folders
-    if (!folder.includes('archive')) {
-      return res.status(403).json({
-        success: false,
-        error: 'Certificates can only be permanently deleted from archive folders. Use archive endpoint instead.'
-      });
-    }
-    
-    // Check for both .pem and .crt formats
-    const possibleCertFiles = [`${certName}.pem`, `${certName}.crt`];
-    const possibleKeyFiles = [`${certName}-key.pem`, `${certName}.key`];
-    
-    let deleted = [];
-    
-    // Delete certificate files
-    for (const certFile of possibleCertFiles) {
-      const certPath = path.join(CERT_DIR, folder, certFile);
-      if (await fs.pathExists(certPath)) {
-        await fs.remove(certPath);
-        deleted.push(certFile);
-      }
-    }
-    
-    // Delete key files
-    for (const keyFile of possibleKeyFiles) {
-      const keyPath = path.join(CERT_DIR, folder, keyFile);
-      if (await fs.pathExists(keyPath)) {
-        await fs.remove(keyPath);
-        deleted.push(keyFile);
-      }
-    }
-    
-    if (deleted.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Certificate files not found in archive'
-      });
-    }
-    
-    // Check if archive folder is empty and remove it if so
-    const archiveFolderPath = path.join(CERT_DIR, folder);
-    try {
-      const remainingFiles = await fs.readdir(archiveFolderPath);
-      if (remainingFiles.length === 0) {
-        await fs.remove(archiveFolderPath);
-        deleted.push(`archive folder: ${folder}`);
-      }
-    } catch (error) {
-      // Folder might already be removed or not exist
-    }
-    
-    res.json({
-      success: true,
-      message: 'Certificate permanently deleted from archive',
-      deleted
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Legacy delete endpoint for backward compatibility
-app.delete('/api/certificates/:certname', requireAuth, async (req, res) => {
-  try {
-    const certName = req.params.certname;
-    
-    // Protect root directory certificates from deletion
-    return res.status(403).json({
-      success: false,
-      error: 'Certificates in the root directory are read-only and cannot be deleted'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Note: SCEP routes are now mounted earlier in the file with the other route modules
-// This ensures they are registered before the system routes catch-all handler
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -1530,33 +517,25 @@ app.use((err, req, res, next) => {
 async function generateSSLCertificate() {
   const sslDir = path.join(__dirname, 'ssl');
   const certPath = path.join(sslDir, `${SSL_DOMAIN}.pem`);
-  const keyPath = path.join(sslDir, `${SSL_DOMAIN}-key.pem`);
-  
-  try {
-    // Ensure SSL directory exists
-    await fs.ensureDir(sslDir);
-    
-    // Check if certificates already exist and are valid
-    if (await fs.pathExists(certPath) && await fs.pathExists(keyPath)) {
-      console.log(`✓ SSL certificates already exist for domain: ${SSL_DOMAIN}`);
-      return { certPath, keyPath };
-    }
-    
-    console.log(`🔐 Generating SSL certificate for domain: ${SSL_DOMAIN}...`);
-    
-    // Generate certificate using mkcert
-    const command = `mkcert -cert-file "${certPath}" -key-file "${keyPath}" "${SSL_DOMAIN}" "127.0.0.1" "::1"`;
-    await executeCommand(command);
-    
-    console.log(`✓ SSL certificate generated successfully`);
-    console.log(`   Certificate: ${certPath}`);
-    console.log(`   Private Key: ${keyPath}`);
-    
+  const keyPath  = path.join(sslDir, `${SSL_DOMAIN}-key.pem`);
+
+  await fs.ensureDir(sslDir);
+
+  if (await fs.pathExists(certPath) && await fs.pathExists(keyPath)) {
+    console.log(`✓ SSL certificates already exist for domain: ${SSL_DOMAIN}`);
     return { certPath, keyPath };
-  } catch (error) {
-    console.error(`❌ Failed to generate SSL certificate:`, error);
-    throw error;
   }
+
+  console.log(`🔐 Generating SSL certificate for domain: ${SSL_DOMAIN}...`);
+  await runTool('mkcert', [
+    '-cert-file', certPath,
+    '-key-file',  keyPath,
+    SSL_DOMAIN, '127.0.0.1', '::1'
+  ]);
+  console.log(`✓ SSL certificate generated successfully`);
+  console.log(`   Certificate: ${certPath}`);
+  console.log(`   Private Key: ${keyPath}`);
+  return { certPath, keyPath };
 }
 
 // HTTPS redirect middleware
@@ -1570,6 +549,9 @@ function redirectToHTTPS(req, res, next) {
 // Start server(s)
 async function startServer() {
   try {
+    // OIDC discovery happens before we accept any /auth/oidc traffic.
+    await configureOIDC();
+
     // Always start HTTP server (for API and optionally for redirects)
     if (ENABLE_HTTPS && FORCE_HTTPS) {
       // Add HTTPS redirect middleware to HTTP server

@@ -14,12 +14,19 @@ const SETTINGS_FILE = path.join(__dirname, '../../config/settings.json');
  */
 function createSettingsRoutes(config, rateLimiters, requireAuth) {
   const router = express.Router();
-  
-  // Apply authentication if enabled
-  if (config.auth.enabled || config.oidc.enabled) {
-    router.use(requireAuth);
-  }
-  
+
+  // SECURITY: settings include credentials, OIDC client secrets, SMTP passwords,
+  // webhook URLs, and rate-limit knobs. When auth is disabled application-wide,
+  // requireAuth is a no-op AND there is no identity to gate on, so an unauthenticated
+  // attacker on the same network could otherwise rewrite credentials, repoint OIDC,
+  // or exfiltrate SMTP creds via /export. Refuse the entire settings API in that mode.
+  router.use((req, res, next) => {
+    if (!config.auth.enabled && !config.oidc.enabled) {
+      return apiResponse.forbidden(res, 'Settings API is disabled because authentication is not enabled. Set ENABLE_AUTH=true (or configure OIDC) and restart.');
+    }
+    return requireAuth(req, res, next);
+  });
+
   // Apply API rate limiter
   router.use(rateLimiters.apiRateLimiter);
 
@@ -206,17 +213,20 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
 
   /**
    * GET /api/settings/export
-   * Export current settings as JSON file for backup
+   * Export current settings as JSON file for backup. Secrets are masked — the
+   * exported file is suitable for sharing and for re-import (re-importing the
+   * masked placeholders simply leaves the real secrets unchanged, see the POST
+   * handler's "don't save placeholder" logic).
    */
   router.get('/export', asyncHandler(async (req, res) => {
     try {
       const savedSettings = await loadSettings();
-      
-      // Set headers for file download
+      const sanitized = sanitizeSettings(savedSettings);
+
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="mkcert-settings-${Date.now()}.json"`);
-      
-      res.send(JSON.stringify(savedSettings, null, 2));
+
+      res.send(JSON.stringify(sanitized, null, 2));
     } catch (error) {
       console.error('Error exporting settings:', error);
       apiResponse.serverError(res, 'Failed to export settings');

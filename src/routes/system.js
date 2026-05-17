@@ -2,7 +2,8 @@
 const express = require('express');
 const os = require('os');
 const path = require('path');
-const { executeCommand } = require('../security');
+const fs = require('fs-extra');
+const { runTool, executeCommand } = require('../security');
 const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
 
 const createSystemRoutes = (config, rateLimiters, requireAuth) => {
@@ -152,6 +153,98 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     };
 
     apiResponse.success(res, status);
+  }));
+
+  // CA management endpoints
+  // POST /api/install-ca  — runs `mkcert -install` (no destructive effects;
+  // adds the root CA to the system trust store if it isn't already).
+  router.post('/api/install-ca', requireAuth, rateLimiters.cliRateLimiter, asyncHandler(async (req, res) => {
+    try {
+      const result = await runTool('mkcert', ['-install']);
+      apiResponse.success(res, { output: result.stdout }, 'CA installed successfully');
+    } catch (err) {
+      apiResponse.serverError(res, err.error || err.message || 'Install failed');
+    }
+  }));
+
+  // POST /api/generate-ca — generates a new root CA via `mkcert -install`
+  // (mkcert creates one on first install) and copies it to certificates/ so
+  // the UI can offer a download link.
+  router.post('/api/generate-ca', requireAuth, rateLimiters.cliRateLimiter, asyncHandler(async (req, res) => {
+    try {
+      await runTool('mkcert', ['-help']);
+    } catch (_) {
+      return apiResponse.serverError(res, 'mkcert is not installed or not on PATH');
+    }
+
+    let caRoot;
+    try {
+      const result = await runTool('mkcert', ['-CAROOT']);
+      caRoot = result.stdout.trim();
+    } catch (_) {
+      return apiResponse.serverError(res, 'Failed to read mkcert CA root directory');
+    }
+
+    const caKeyPath  = path.join(caRoot, 'rootCA-key.pem');
+    const caCertPath = path.join(caRoot, 'rootCA.pem');
+    const publicCertDir  = path.join(process.cwd(), 'certificates');
+    const publicCertPath = path.join(publicCertDir, 'mkcert-rootCA.pem');
+
+    const alreadyExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
+    if (alreadyExists) {
+      try {
+        await fs.ensureDir(publicCertDir);
+        if (!(await fs.pathExists(publicCertPath))) await fs.copy(caCertPath, publicCertPath);
+      } catch (e) {
+        console.error('Failed to copy existing Root CA to public area:', e.message);
+      }
+      return apiResponse.success(res, {
+        caRoot, caExists: true, action: 'none', publicCACertPath: publicCertPath
+      }, 'Root CA already exists');
+    }
+
+    try {
+      const installResult = await runTool('mkcert', ['-install']);
+      const created = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
+      if (!created) {
+        return apiResponse.serverError(res, 'mkcert -install ran but CA files were not created');
+      }
+      try {
+        await fs.ensureDir(publicCertDir);
+        await fs.copy(caCertPath, publicCertPath);
+      } catch (e) {
+        console.error('Failed to copy new Root CA to public area:', e.message);
+      }
+      apiResponse.success(res, {
+        caRoot, caExists: true, action: 'generated',
+        output: installResult.stdout, publicCACertPath: publicCertPath
+      }, 'Root CA generated and installed successfully');
+    } catch (err) {
+      const message = err.error || err.message || 'Unknown error';
+      const detail  = err.stderr ? err.stderr.trim() : null;
+      console.error('Error generating Root CA:', message, detail || '');
+      apiResponse.serverError(res, detail ? `${message} — ${detail}` : message);
+    }
+  }));
+
+  // POST /api/uninstall-ca — removes the root CA from the system trust store.
+  // SECURITY: this is destructive and would break every cert this server has
+  // issued. Require explicit confirm:true and only allow it when auth is enabled
+  // (so an anonymous LAN attacker can't break trust with a single POST).
+  router.post('/api/uninstall-ca', requireAuth, rateLimiters.cliRateLimiter, asyncHandler(async (req, res) => {
+    if (!config.auth.enabled && !config.oidc.enabled) {
+      return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled');
+    }
+    if (req.body?.confirm !== true) {
+      return apiResponse.badRequest(res, 'Pass { "confirm": true } to acknowledge this will remove the local root CA from the system trust store');
+    }
+    console.warn(`⚠ mkcert -uninstall requested by ${req.session?.username || req.user?.email || 'unknown'} from ${req.ip}`);
+    try {
+      const result = await runTool('mkcert', ['-uninstall']);
+      apiResponse.success(res, { output: result.stdout }, 'CA uninstalled');
+    } catch (err) {
+      apiResponse.serverError(res, err.error || err.message || 'Uninstall failed');
+    }
   }));
 
   // API endpoints discovery

@@ -434,12 +434,14 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const { folder, certname } = req.params;
     const { password } = req.body;
     const certificatesDir = path.join(process.cwd(), 'certificates');
-    
-    // Validate the certificate name through security module
-    if (!security.validateFilename(`${certname}.pem`)) {
+
+    // Validate the certificate name through security module (throws on invalid)
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (err) {
       return apiResponse.badRequest(res, 'Invalid certificate name');
     }
-    
+
     // Determine the source directory based on folder parameter
     let sourceDir;
     if (folder === 'interface-ssl' || folder === 'legacy') {
@@ -449,50 +451,57 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     } else {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
-    
-    // Use security-validated paths
+
+    // validateAndSanitizePath returns { safe, sanitized, resolved, relative } — use .resolved
     let certFile, keyFile, pfxFile;
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir);
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir);
-      pfxFile = security.validateAndSanitizePath(`${certname}.pfx`, sourceDir);
+      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
+      keyFile  = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+      pfxFile  = security.validateAndSanitizePath(`${certname}.pfx`, sourceDir).resolved;
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
+    const fsSync = require('fs');
+    if (!fsSync.existsSync(certFile) || !fsSync.existsSync(keyFile)) {
+      return apiResponse.notFound(res, 'Certificate or key file not found');
+    }
+
+    // SECURITY: never interpolate the password into a shell string.
+    // Write it to a temp file and pass via `-passout file:"..."` so even
+    // shell metacharacters in the password cannot escape.
+    const os = require('os');
+    const crypto = require('crypto');
+    const passFile = password && password.trim() !== ''
+      ? path.join(os.tmpdir(), `mkcertweb-pfxpass-${crypto.randomBytes(8).toString('hex')}`)
+      : null;
+
+    const opensslCommand = passFile
+      ? `openssl pkcs12 -export -out "${pfxFile}" -inkey "${keyFile}" -in "${certFile}" -passout file:"${passFile}"`
+      : `openssl pkcs12 -export -out "${pfxFile}" -inkey "${keyFile}" -in "${certFile}" -passout pass:`;
+
     try {
-      const fs = require('fs');
-      
-      // Check if certificate and key files exist
-      if (!fs.existsSync(certFile) || !fs.existsSync(keyFile)) {
-        return apiResponse.notFound(res, 'Certificate or key file not found');
+      if (passFile) {
+        // Write without trailing newline; 0600 perms.
+        await fs.writeFile(passFile, password, { encoding: 'utf8', mode: 0o600 });
       }
-      
-      // Generate PFX file using OpenSSL
-      let opensslCommand = `openssl pkcs12 -export -out "${pfxFile}" -inkey "${keyFile}" -in "${certFile}"`;
-      
-      if (password && password.trim() !== '') {
-        opensslCommand += ` -passout pass:${password}`;
-      } else {
-        opensslCommand += ` -passout pass:`;
-      }
-      
-      const result = await security.executeCommand(opensslCommand);
-      
-      // If we get here without an exception, the command succeeded
-      // Return the PFX file for download
+
+      await security.executeCommand(opensslCommand);
+
       res.download(pfxFile, `${certname}.pfx`, (err) => {
-        if (err) {
-          console.error('PFX download error:', err);
-        }
-        // Clean up the temporary PFX file
-        if (fs.existsSync(pfxFile)) {
-          fs.unlinkSync(pfxFile);
-        }
+        if (err) console.error('PFX download error:', err);
+        if (fsSync.existsSync(pfxFile)) fsSync.unlinkSync(pfxFile);
       });
     } catch (error) {
       console.error('PFX generation error:', error);
-      apiResponse.serverError(res, `Failed to generate PFX: ${error.message}`);
+      if (fsSync.existsSync(pfxFile)) {
+        try { fsSync.unlinkSync(pfxFile); } catch (_) {}
+      }
+      return apiResponse.serverError(res, `Failed to generate PFX: ${error.message || error.error || 'unknown error'}`);
+    } finally {
+      if (passFile && fsSync.existsSync(passFile)) {
+        try { fsSync.unlinkSync(passFile); } catch (_) {}
+      }
     }
   }));
 
@@ -810,28 +819,41 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     
     try {
       const archiver = require('archiver');
-      
+
       if (!certFile && !keyFile) {
         return apiResponse.notFound(res, 'Certificate files not found');
       }
-      
+
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${certname}.zip"`);
-      
+
       const archive = archiver('zip', { zlib: { level: 9 }});
+
+      // Surface archiver errors instead of leaving the response hanging.
+      // Once headers are sent we can't 500; the best we can do is destroy
+      // the socket so the client sees an aborted download.
+      archive.on('error', (err) => {
+        console.error('Archive stream error:', err);
+        if (!res.headersSent) {
+          return apiResponse.serverError(res, `Bundle stream failed: ${err.message}`);
+        }
+        try { res.destroy(err); } catch (_) {}
+      });
+      archive.on('warning', (err) => {
+        if (err.code !== 'ENOENT') console.warn('Archive warning:', err);
+      });
+
       archive.pipe(res);
-      
-      if (certFile) {
-        archive.file(certFile, { name: `${certname}${certExt}` });
-      }
-      if (keyFile) {
-        archive.file(keyFile, { name: `${certname}${keyExt}` });
-      }
-      
+
+      if (certFile) archive.file(certFile, { name: `${certname}${certExt}` });
+      if (keyFile)  archive.file(keyFile,  { name: `${certname}${keyExt}` });
+
       await archive.finalize();
     } catch (error) {
       console.error('Bundle download error:', error);
-      apiResponse.serverError(res, `Failed to download bundle: ${error.message}`);
+      if (!res.headersSent) {
+        apiResponse.serverError(res, `Failed to download bundle: ${error.message}`);
+      }
     }
   }));
 

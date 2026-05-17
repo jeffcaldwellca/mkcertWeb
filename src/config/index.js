@@ -7,17 +7,22 @@ const path = require('path');
 const SETTINGS_FILE = path.join(__dirname, '../../config/settings.json');
 let savedSettings = {};
 
-try {
-  if (fs.existsSync(SETTINGS_FILE)) {
+if (fs.existsSync(SETTINGS_FILE)) {
+  try {
     const settingsData = fs.readFileSync(SETTINGS_FILE, 'utf8');
     savedSettings = JSON.parse(settingsData);
     console.log('✓ Loaded settings from settings.json');
     console.log('  Settings override:', Object.keys(savedSettings).join(', '));
-  } else {
-    console.log('ℹ No settings.json found, using .env and defaults');
+  } catch (error) {
+    // Fail fast: a malformed settings.json silently falling back to defaults
+    // means operators think their saved configuration is active when it isn't.
+    // Better to refuse to start so the problem is visible.
+    console.error(`❌ Failed to load ${SETTINGS_FILE}: ${error.message}`);
+    console.error('   Fix the file (or delete it to reset to defaults) and restart.');
+    process.exit(1);
   }
-} catch (error) {
-  console.warn('⚠ Warning: Could not load settings.json:', error.message);
+} else {
+  console.log('ℹ No settings.json found, using .env and defaults');
 }
 
 /**
