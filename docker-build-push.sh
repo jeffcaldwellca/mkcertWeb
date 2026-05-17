@@ -111,7 +111,7 @@ fi
 
 # ---------- buildx setup ----------
 info "Setting up buildx builder..."
-if ! docker buildx ls | grep -q '^multiarch'; then
+if ! docker buildx inspect multiarch >/dev/null 2>&1; then
   docker buildx create --name multiarch --use >/dev/null
 else
   docker buildx use multiarch >/dev/null
