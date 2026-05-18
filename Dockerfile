@@ -1,3 +1,15 @@
+# ── Dependency stage ──────────────────────────────────────────────────────────
+# Runs on the BUILD host's native architecture so that npm ci never runs under
+# QEMU emulation (which causes exit code 132 / SIGILL on cross-platform buildx
+# runs).  node_modules are then copied into the final target-platform image.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS deps
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force \
+    && tar -czf /tmp/deps.tar.gz node_modules
+
+# ── Final image ───────────────────────────────────────────────────────────────
 # Use Node.js 20 LTS Alpine for smaller image size
 FROM node:20-alpine
 
@@ -34,12 +46,15 @@ RUN addgroup -g 1001 -S nodejs \
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --omit=dev && npm cache clean --force
+# Copy pre-built node_modules from the native deps stage (no QEMU involved).
+# Packed as a tarball to avoid the dockerfile-language-server false positive
+# that mis-parses `COPY --from=<stage> <dir>` as a multi-source COPY.
+COPY --from=deps /tmp/deps.tar.gz /tmp/deps.tar.gz
+RUN tar -xzf /tmp/deps.tar.gz && rm /tmp/deps.tar.gz
 
 # Copy application code (.dockerignore prevents .env, .git, node_modules, etc.
 # from leaking into image layers)
-COPY . .
+COPY . ./
 
 # Create the runtime directory tree owned by the unprivileged user. The
 # /home/nodejs/.local/share/mkcert path is where mkcert stores rootCA{,key}.pem;
