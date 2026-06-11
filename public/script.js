@@ -1933,7 +1933,7 @@ async function testEmailConfiguration() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
         button.disabled = true;
         
-        const response = await apiRequest('/email/test', 'POST');
+        const response = await apiRequest('/email/test', { method: 'POST' });
         
         showAlert(`Test email sent successfully! Message ID: ${response.messageId}`, 'success');
         
@@ -1957,7 +1957,7 @@ async function verifySmtpConnection() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
         button.disabled = true;
         
-        const response = await apiRequest('/email/verify', 'POST');
+        const response = await apiRequest('/email/verify', { method: 'POST' });
         
         showAlert('SMTP connection verified successfully!', 'success');
         
@@ -1981,7 +1981,7 @@ async function checkCertificateExpiry() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
         button.disabled = true;
         
-        await apiRequest('/monitoring/check', 'POST');
+        await apiRequest('/monitoring/check', { method: 'POST' });
         
         showAlert('Certificate expiry check completed successfully!', 'success');
         
@@ -2010,7 +2010,7 @@ async function startCertificateMonitoring() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
         button.disabled = true;
         
-        await apiRequest('/monitoring/start', 'POST');
+        await apiRequest('/monitoring/start', { method: 'POST' });
         
         showAlert('Certificate monitoring started successfully!', 'success');
         
@@ -2039,7 +2039,7 @@ async function stopCertificateMonitoring() {
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Stopping...';
         button.disabled = true;
         
-        await apiRequest('/monitoring/stop', 'POST');
+        await apiRequest('/monitoring/stop', { method: 'POST' });
         
         showAlert('Certificate monitoring stopped successfully!', 'success');
         
