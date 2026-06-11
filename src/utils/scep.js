@@ -85,14 +85,17 @@ const processSCEPCertificateRequest = async (requestData) => {
       // Directory might already exist, continue
     }
     
-    // Generate certificate using enterprise CA or mkcert fallback
-    const result = await enterpriseCA.generateEnterpriseOrMkcertCertificate(
+    // Generate certificate using enterprise CA or mkcert fallback.
+    // The function takes a single options object — passing positional args
+    // made `options` the commonName string, so every call threw
+    // "Common name is required".
+    const result = await enterpriseCA.generateEnterpriseOrMkcertCertificate({
       commonName,
       template,
       upn,
       subjectAltNames,
-      certDir
-    );
+      outputPath: certDir
+    });
     
     console.log(`✅ SCEP certificate generated using ${result.method}`);
     
