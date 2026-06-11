@@ -94,6 +94,16 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           fullCommand = 'mkcert -install';
           break;
         case 'uninstall-ca':
+          // SECURITY: mkcert -uninstall is destructive (breaks trust for every
+          // cert this server issued). Mirror the guards on POST /api/uninstall-ca
+          // so this path can't be used to bypass them.
+          if (!config.auth.enabled && !config.oidc.enabled) {
+            return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled');
+          }
+          if (req.body?.confirm !== true) {
+            return apiResponse.badRequest(res, 'Pass { "confirm": true } to acknowledge this will remove the local root CA from the system trust store');
+          }
+          console.warn(`⚠ mkcert -uninstall requested by ${req.session?.username || req.user?.email || 'unknown'} from ${req.ip}`);
           fullCommand = 'mkcert -uninstall';
           break;
         case 'generate':
@@ -122,8 +132,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
           
           // Generate certificates in the date-based folder using cwd option
           const domainName = sanitizedInput.split(' ')[0];
-          let fullCommand;
-          
+
           if (format === 'crt') {
             fullCommand = `mkcert -cert-file "${domainName}.crt" -key-file "${domainName}.key" ${sanitizedInput}`;
           } else if (format === 'p12') {
@@ -164,9 +173,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       // Execute command (generate case handles its own execution above)
       if (command !== 'generate') {
         const result = await security.executeCommand(fullCommand);
-        
+
         apiResponse.success(res, {
-          output: result.output,
+          output: result.stdout || result.stderr,
           command: fullCommand
         });
       }
