@@ -17,6 +17,7 @@ const helmet = require('helmet');
 // Single safe execution path — execFile, no shell. (executeCommand isn't
 // used directly in server.js anymore; the route modules import it themselves.)
 const { runTool } = require('./src/security');
+const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
 
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
@@ -541,7 +542,12 @@ async function generateSSLCertificate() {
 // HTTPS redirect middleware
 function redirectToHTTPS(req, res, next) {
   if (FORCE_HTTPS && !req.secure && req.get('x-forwarded-proto') !== 'https') {
-    return res.redirect(301, `https://${req.get('host').replace(PORT, HTTPS_PORT)}${req.url}`);
+    const target = buildHttpsRedirectUrl(req.get('host'), req.url, HTTPS_PORT);
+    if (target) {
+      return res.redirect(301, target);
+    }
+    // No Host header to redirect to — fail loudly rather than crash.
+    return res.status(400).send('Missing Host header');
   }
   next();
 }
