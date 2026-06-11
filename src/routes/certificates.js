@@ -244,68 +244,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       }
     }));
     
-    // Group certificates by domain
-    const grouped = {};
-    certificates.forEach(cert => {
-      if (cert.error) return;
-      
-      // Handle both .pem and .crt/.key patterns and .p12/.pfx
-      let baseName;
-      if (cert.filename.endsWith('-key.pem')) {
-        baseName = cert.filename.replace(/-key\.pem$/, '');
-      } else if (cert.filename.endsWith('.key')) {
-        baseName = cert.filename.replace(/\.key$/, '');
-      } else if (cert.filename.endsWith('.pem')) {
-        baseName = cert.filename.replace(/\.pem$/, '');
-      } else if (cert.filename.endsWith('.crt')) {
-        baseName = cert.filename.replace(/\.crt$/, '');
-      } else if (cert.filename.endsWith('.p12')) {
-        baseName = cert.filename.replace(/\.p12$/, '');
-      } else if (cert.filename.endsWith('.pfx')) {
-        baseName = cert.filename.replace(/\.pfx$/, '');
-      } else {
-        baseName = cert.filename;
-      }
-      
-      if (!grouped[baseName]) {
-        grouped[baseName] = {
-          name: baseName,
-          cert: null,
-          key: null,
-          domains: [],
-          expiry: null,
-          fingerprint: null,
-          format: cert.format || 'pem',
-          folder: cert.folder || null,
-          folderDate: cert.folderDate || null,
-          isArchived: cert.isArchived || false,
-          isInterfaceSSL: cert.isInterfaceSSL || false,
-          canEdit: cert.canEdit !== false // Default to true unless explicitly false
-        };
-      }
-      
-      if (cert.type === 'p12') {
-        // P12 files are standalone bundles containing both cert and key
-        grouped[baseName].cert = cert;
-        grouped[baseName].key = { filename: cert.filename, type: 'p12-bundle' };
-        grouped[baseName].domains = cert.domains || [];
-        grouped[baseName].expiry = cert.expiry;
-        grouped[baseName].fingerprint = cert.fingerprint;
-        grouped[baseName].format = cert.format;
-      } else if (cert.type === 'cert') {
-        grouped[baseName].cert = cert;
-        grouped[baseName].domains = cert.domains || [];
-        grouped[baseName].expiry = cert.expiry;
-        grouped[baseName].fingerprint = cert.fingerprint;
-        grouped[baseName].format = cert.format;
-      } else {
-        grouped[baseName].key = cert;
-      }
-    });
-    
+    // Group certificate files into logical certificates, keyed by folder +
+    // base name so same-named certs in different folders don't collide.
+    const groupedCertificates = certificateUtils.groupCertificates(certificates);
+
     apiResponse.success(res, {
-      certificates: Object.values(grouped),
-      total: Object.keys(grouped).length
+      certificates: groupedCertificates,
+      total: groupedCertificates.length
     });
   }));
 

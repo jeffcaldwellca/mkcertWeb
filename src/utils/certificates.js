@@ -95,9 +95,79 @@ const findAllCertificateFiles = async (dir, relativePath = '') => {
   return files;
 };
 
+// Strip a known certificate/key extension to get the logical base name.
+// Order matters: -key.pem must be tested before .pem.
+const stripCertExtension = (filename) =>
+  filename.replace(/(-key\.pem|\.pem|\.crt|\.key|\.p12|\.pfx)$/, '');
+
+/**
+ * Group flat certificate-file entries into logical certificates.
+ *
+ * The group key is (containing folder + base name), NOT base name alone:
+ * two certs that happen to share a name in different date folders (or in the
+ * archive) are distinct certificates and must not collapse into one entry with
+ * mismatched cert/key/expiry and download links pointing at the wrong folder.
+ *
+ * @param {Array} certificates - per-file entries as built by GET /api/certificates
+ * @returns {Array} grouped certificate objects
+ */
+const groupCertificates = (certificates) => {
+  const grouped = {};
+
+  for (const cert of certificates) {
+    if (cert.error) continue;
+
+    const baseName = stripCertExtension(cert.filename);
+    // Folder context: the directory the file lives in, relative to the certs
+    // root. cert and key for one certificate share this directory.
+    const dir = cert.relativePath ? path.dirname(cert.relativePath) : '.';
+    const groupKey = `${dir}\0${baseName}`;
+
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = {
+        name: baseName,
+        cert: null,
+        key: null,
+        domains: [],
+        expiry: null,
+        fingerprint: null,
+        format: cert.format || 'pem',
+        folder: cert.folder || null,
+        folderDate: cert.folderDate || null,
+        isArchived: cert.isArchived || false,
+        isInterfaceSSL: cert.isInterfaceSSL || false,
+        canEdit: cert.canEdit !== false
+      };
+    }
+
+    const group = grouped[groupKey];
+    if (cert.type === 'p12') {
+      // P12 files are standalone bundles containing both cert and key.
+      group.cert = cert;
+      group.key = { filename: cert.filename, type: 'p12-bundle' };
+      group.domains = cert.domains || [];
+      group.expiry = cert.expiry;
+      group.fingerprint = cert.fingerprint;
+      group.format = cert.format;
+    } else if (cert.type === 'cert') {
+      group.cert = cert;
+      group.domains = cert.domains || [];
+      group.expiry = cert.expiry;
+      group.fingerprint = cert.fingerprint;
+      group.format = cert.format;
+    } else {
+      group.key = cert;
+    }
+  }
+
+  return Object.values(grouped);
+};
+
 module.exports = {
   getCertificateExpiry,
   getCertificateDomains,
   getCertificateFingerprint,
-  findAllCertificateFiles
+  findAllCertificateFiles,
+  stripCertExtension,
+  groupCertificates
 };
