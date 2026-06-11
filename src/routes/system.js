@@ -73,10 +73,10 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       rateLimiting: {
         enabled: true,
         limits: {
-          general: `${config.rateLimiting.general.max} requests per ${config.rateLimiting.general.windowMs / 1000} seconds`,
-          api: `${config.rateLimiting.api.max} requests per ${config.rateLimiting.api.windowMs / 1000} seconds`,
-          cli: `${config.rateLimiting.cli.max} requests per ${config.rateLimiting.cli.windowMs / 1000} seconds`,
-          auth: `${config.rateLimiting.auth.max} requests per ${config.rateLimiting.auth.windowMs / 1000} seconds`
+          general: `${config.rateLimit.general.max} requests per ${config.rateLimit.general.window / 1000} seconds`,
+          api: `${config.rateLimit.api.max} requests per ${config.rateLimit.api.window / 1000} seconds`,
+          cli: `${config.rateLimit.cli.max} requests per ${config.rateLimit.cli.window / 1000} seconds`,
+          auth: `${config.rateLimit.auth.max} requests per ${config.rateLimit.auth.window / 1000} seconds`
         }
       }
     });
