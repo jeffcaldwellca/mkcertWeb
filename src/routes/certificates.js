@@ -465,10 +465,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     const certificatesDir = path.join(process.cwd(), 'certificates');
     
     // Validate the certificate name through security module
-    if (!security.validateFilename(`${certname}.pem`)) {
+    // (validateFilename throws on invalid input — it does not return false).
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (error) {
       return apiResponse.badRequest(res, 'Invalid certificate name');
     }
-    
+
     // Determine the source directory based on folder parameter
     let sourceDir;
     if (folder === 'interface-ssl' || folder === 'legacy') {
@@ -478,7 +481,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     } else {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
-    
+
     // Use security-validated paths
     let certFile, keyFile, archiveDir;
     try {

@@ -18,6 +18,7 @@ const helmet = require('helmet');
 // used directly in server.js anymore; the route modules import it themselves.)
 const { runTool } = require('./src/security');
 const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
+const { apiResponse } = require('./src/utils/responses');
 
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
@@ -505,13 +506,14 @@ app.get('/favicon.ico', (req, res) => {
 const CERT_DIR = path.join(__dirname, 'certificates');
 fs.ensureDirSync(CERT_DIR);
 
-// Error handling middleware
+// Centralized error-handling middleware. asyncHandler forwards all async
+// route errors here so error formatting lives in one place.
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    error: 'Internal server error'
-  });
+  console.error(err.stack || err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  apiResponse.serverError(res, 'Internal server error', err);
 });
 
 // Auto-generate SSL certificates for HTTPS

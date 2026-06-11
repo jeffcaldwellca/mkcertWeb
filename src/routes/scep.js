@@ -80,12 +80,11 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
         return apiResponse.serverError(res, 'Failed to retrieve CA certificate');
       }
     } else if (operation === 'GetCACaps') {
-      // Return SCEP capabilities
+      // Return SCEP capabilities. Deliberately omits SHA-1 and DES3 so clients
+      // negotiate modern message protection (SHA-256 + AES) only.
       const capabilities = [
         'Renewal',
-        'SHA-1',
         'SHA-256',
-        'DES3',
         'AES'
       ].join('\n');
       
@@ -380,9 +379,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       ],
       capabilities: [
         'Renewal',
-        'SHA-1',
         'SHA-256',
-        'DES3',
         'AES'
       ],
       notes: {
