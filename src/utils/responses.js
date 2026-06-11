@@ -96,10 +96,9 @@ const handleError = (res, error, context = '', statusCode = 500) => {
  */
 const asyncHandler = (fn) => {
   return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch((error) => {
-      console.error('Async route error:', error);
-      apiResponse.serverError(res, 'Internal server error', error);
-    });
+    // Forward to the centralized error-handling middleware instead of
+    // formatting the response here, so all routes share one error path.
+    Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
 
@@ -112,12 +111,17 @@ const validateRequest = (validators) => {
     
     for (const [field, validator] of Object.entries(validators)) {
       const value = req.body[field] || req.params[field] || req.query[field];
-      
-      if (validator.required && (!value || value.trim() === '')) {
+
+      // A non-string (or empty/whitespace string) fails a required check —
+      // never call .trim() on a value that might not be a string.
+      const isBlank = value == null ||
+        (typeof value === 'string' ? value.trim() === '' : false);
+
+      if (validator.required && (typeof value !== 'string' || isBlank)) {
         errors.push(`${field} is required`);
         continue;
       }
-      
+
       if (value && validator.validate && !validator.validate(value)) {
         errors.push(validator.message || `${field} is invalid`);
       }

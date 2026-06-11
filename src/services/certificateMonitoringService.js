@@ -12,7 +12,13 @@ class CertificateMonitoringService {
     this.isRunning = false;
     
     if (config.monitoring.enabled) {
-      this.start();
+      // Don't let a bad cron expression crash server boot; the explicit
+      // POST /api/monitoring/start path still surfaces the error to the user.
+      try {
+        this.start();
+      } catch (error) {
+        console.error('Failed to auto-start certificate monitoring service:', error.message);
+      }
     }
   }
 
@@ -22,27 +28,36 @@ class CertificateMonitoringService {
       return;
     }
 
-    try {
-      console.log(`Starting certificate monitoring service with interval: ${this.config.monitoring.checkInterval}`);
-      
-      this.cronJob = cron.schedule(this.config.monitoring.checkInterval, async () => {
-        await this.checkCertificates();
-      }, {
-        scheduled: true,
-        timezone: "UTC"
-      });
+    const interval = this.config.monitoring.checkInterval;
+    console.log(`Starting certificate monitoring service with interval: ${interval}`);
 
-      this.isRunning = true;
-      console.log('Certificate monitoring service started successfully');
-      
-      // Run an initial check
-      setTimeout(() => this.checkCertificates(), 5000); // 5 second delay
-    } catch (error) {
-      console.error('Failed to start certificate monitoring service:', error.message);
+    // Validate up front so an invalid cron expression is a hard error the
+    // caller can report, rather than a silently dead scheduler.
+    if (!cron.validate(interval)) {
+      throw new Error(`Invalid cron expression for checkInterval: ${JSON.stringify(interval)}`);
     }
+
+    this.cronJob = cron.schedule(interval, async () => {
+      await this.checkCertificates();
+    }, {
+      scheduled: true,
+      timezone: "UTC"
+    });
+
+    this.isRunning = true;
+    console.log('Certificate monitoring service started successfully');
+
+    // Run an initial check shortly after startup. unref() so this timer never
+    // keeps the process (or a test run) alive on its own.
+    this.initialCheckTimer = setTimeout(() => this.checkCertificates(), 5000);
+    if (this.initialCheckTimer.unref) this.initialCheckTimer.unref();
   }
 
   stop() {
+    if (this.initialCheckTimer) {
+      clearTimeout(this.initialCheckTimer);
+      this.initialCheckTimer = null;
+    }
     if (this.cronJob) {
       this.cronJob.stop();
       this.cronJob = null;

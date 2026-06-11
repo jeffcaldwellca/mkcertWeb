@@ -252,7 +252,7 @@
                 // Reload settings to show sanitized values
                 setTimeout(() => loadSettings(), 500);
             } else {
-                showAlert('Error saving settings: ' + result.message, 'error');
+                showAlert('Error saving settings: ' + (result.error || result.message), 'error');
             }
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -279,7 +279,7 @@
                 const { success, message, ...configData } = result;
                 populateForm(configData);
             } else {
-                showAlert('Error resetting settings: ' + result.message, 'error');
+                showAlert('Error resetting settings: ' + (result.error || result.message), 'error');
             }
         } catch (error) {
             console.error('Error resetting settings:', error);
@@ -380,7 +380,7 @@
                 // Pretty print the configuration
                 content.textContent = JSON.stringify(configData, null, 2);
             } else {
-                content.textContent = 'Error: ' + result.message;
+                content.textContent = 'Error: ' + (result.error || result.message);
                 showAlert('Failed to load running configuration', 'error');
             }
         } catch (error) {
