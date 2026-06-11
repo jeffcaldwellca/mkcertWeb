@@ -255,8 +255,101 @@ function validateChallenge(challengePassword, challengeStore) {
   return false;
 }
 
+const net = require('net');
+
+// One DNS label: alphanumeric with internal hyphens, max 63 chars.
+const HOSTNAME_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i;
+
+function isValidHostname(name) {
+  if (typeof name !== 'string' || name.length === 0 || name.length > 253) return false;
+  let labels = name.split('.');
+  if (labels[0] === '*') labels = labels.slice(1); // single leading wildcard is fine (mkcert supports it)
+  return labels.length > 0 && labels.every((l) => HOSTNAME_LABEL.test(l));
+}
+
+function matchesDomainSuffix(name, suffixes) {
+  const bare = name.toLowerCase().replace(/^\*\./, '');
+  return suffixes.some((suffix) => bare === suffix || bare.endsWith('.' + suffix));
+}
+
+/**
+ * Extract the identity a CSR is asking for: { cn, dns: [], ips: [] }.
+ */
+function extractCSRNames(csr) {
+  const names = { cn: null, dns: [], ips: [] };
+  const cnField = csr.subject && csr.subject.getField && csr.subject.getField('CN');
+  if (cnField && cnField.value) names.cn = cnField.value;
+
+  const extReq = csr.getAttribute && csr.getAttribute({ name: 'extensionRequest' });
+  for (const ext of (extReq && extReq.extensions) || []) {
+    if (ext.name !== 'subjectAltName') continue;
+    for (const altName of ext.altNames || []) {
+      if (altName.type === 2) names.dns.push(altName.value);       // dNSName
+      else if (altName.type === 7) names.ips.push(altName.ip);     // iPAddress
+    }
+  }
+  return names;
+}
+
+/**
+ * Validate the subject identity of a CSR before signing it.
+ *
+ * Every requested name (CN + all SANs) must be a syntactically valid
+ * hostname or IP address, and — when an allowlist is configured — must
+ * fall under one of the allowed domain suffixes (IPs must be listed
+ * exactly). Returns { ok, reason, names }.
+ */
+function validateCSRIdentity(csr, allowedDomains = []) {
+  const names = extractCSRNames(csr);
+  const hostnames = [...(names.cn ? [names.cn] : []), ...names.dns];
+
+  if (hostnames.length === 0 && names.ips.length === 0) {
+    return { ok: false, reason: 'CSR contains no subject CN or subjectAltName', names };
+  }
+  for (const name of hostnames) {
+    if (!isValidHostname(name)) {
+      return { ok: false, reason: `Invalid hostname in CSR: ${JSON.stringify(name)}`, names };
+    }
+  }
+  for (const ip of names.ips) {
+    if (net.isIP(ip) === 0) {
+      return { ok: false, reason: `Invalid IP address in CSR: ${JSON.stringify(ip)}`, names };
+    }
+  }
+
+  if (allowedDomains.length > 0) {
+    for (const name of hostnames) {
+      if (!matchesDomainSuffix(name, allowedDomains)) {
+        return { ok: false, reason: `Name not permitted by allowlist: ${name}`, names };
+      }
+    }
+    for (const ip of names.ips) {
+      if (!allowedDomains.includes(ip)) {
+        return { ok: false, reason: `IP not permitted by allowlist: ${ip}`, names };
+      }
+    }
+  }
+
+  return { ok: true, reason: null, names };
+}
+
+/**
+ * Decide whether a PKIOperation enrollment may proceed. Fails closed:
+ * a valid challenge password is always required unless the operator has
+ * explicitly enabled open enrollment. A wrong challenge is always rejected,
+ * even in open-enrollment mode.
+ */
+function isEnrollmentAuthorized({ challengePassword, challengeStore, allowOpenEnrollment = false }) {
+  if (challengePassword) {
+    return validateChallenge(challengePassword, challengeStore);
+  }
+  return allowOpenEnrollment === true;
+}
+
 module.exports = {
   parseSCEPRequest,
+  isEnrollmentAuthorized,
+  validateCSRIdentity,
   buildSCEPSuccessResponse,
   buildSCEPFailureResponse,
   createSCEPFailure,            // legacy alias

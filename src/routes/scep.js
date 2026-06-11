@@ -167,18 +167,37 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       );
     }
 
-    // Challenge password is *required* when the operator has issued any.
-    // (Pure no-challenge enrollment is allowed when challengeStore is empty.)
-    if (challengeStore.size > 0) {
-      const ok = pkcs7Utils.validateChallenge(scepRequest.challengePassword, challengeStore);
-      if (!ok) {
-        console.warn('SCEP: invalid or missing challenge password');
-        return sendFailure(
-          scepRequest.transactionId,
-          scepRequest.senderNonce,
-          pkcs7Utils.FAIL_INFO.badRequest
-        );
-      }
+    // Fail closed: a valid challenge password is always required unless the
+    // operator explicitly enabled open enrollment (scep.allowOpenEnrollment).
+    // Anything else would let an unauthenticated client mint certificates
+    // trusted by every machine that trusts the mkcert root.
+    const authorized = pkcs7Utils.isEnrollmentAuthorized({
+      challengePassword: scepRequest.challengePassword,
+      challengeStore,
+      allowOpenEnrollment: config.scep?.allowOpenEnrollment === true
+    });
+    if (!authorized) {
+      console.warn('SCEP: enrollment rejected (invalid or missing challenge password)');
+      return sendFailure(
+        scepRequest.transactionId,
+        scepRequest.senderNonce,
+        pkcs7Utils.FAIL_INFO.badRequest
+      );
+    }
+
+    // Never sign for a subject we wouldn't issue: every CN/SAN must be a
+    // valid hostname/IP and pass the configured allowlist (if any).
+    const identity = pkcs7Utils.validateCSRIdentity(
+      scepRequest.csr,
+      config.scep?.allowedDomains || []
+    );
+    if (!identity.ok) {
+      console.warn(`SCEP: CSR rejected: ${identity.reason}`);
+      return sendFailure(
+        scepRequest.transactionId,
+        scepRequest.senderNonce,
+        pkcs7Utils.FAIL_INFO.badCertId
+      );
     }
 
     // Sign the CSR with the mkcert CA → real X.509 certificate.

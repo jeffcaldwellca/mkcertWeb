@@ -141,6 +141,12 @@ function buildExplicitEnvOverrides() {
       criticalDays:   num(e.CERT_CRITICAL_DAYS),
       includeUploaded: e.CERT_MONITOR_UPLOADED !== undefined ? (e.CERT_MONITOR_UPLOADED !== 'false') : undefined
     },
+    scep: {
+      allowOpenEnrollment: bool(e.SCEP_ALLOW_OPEN_ENROLLMENT),
+      allowedDomains: e.SCEP_ALLOWED_DOMAINS !== undefined
+        ? e.SCEP_ALLOWED_DOMAINS.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        : undefined
+    },
     paths: {
       certificates: str(e.CERTIFICATES_DIR),
       uploaded:     str(e.UPLOADED_CERTS_DIR)
@@ -250,6 +256,18 @@ const baseConfig = {
     warningDays: parseInt(process.env.CERT_WARNING_DAYS) || 30, // Warn 30 days before expiry
     criticalDays: parseInt(process.env.CERT_CRITICAL_DAYS) || 7, // Critical warning 7 days before expiry
     includeUploaded: process.env.CERT_MONITOR_UPLOADED !== 'false' // Monitor uploaded certificates by default
+  },
+
+  // SCEP enrollment configuration
+  scep: {
+    // When false (default), PKIOperation enrollment always requires a valid
+    // challenge password issued via /api/scep/challenge.
+    allowOpenEnrollment: process.env.SCEP_ALLOW_OPEN_ENROLLMENT === 'true' || process.env.SCEP_ALLOW_OPEN_ENROLLMENT === '1',
+    // Optional comma-separated list of domain suffixes the CA will issue for
+    // (e.g. "internal.example.com,localhost"). Empty = any syntactically
+    // valid name is allowed.
+    allowedDomains: (process.env.SCEP_ALLOWED_DOMAINS || '')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
   },
 
   // Paths configuration
