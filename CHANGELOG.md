@@ -4,6 +4,76 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.1.0] - 2026-06-11
+
+This release closes several vulnerabilities and bugs found in a follow-up code
+review, and adds a `node:test` suite (`npm test`) covering the fixes. The two
+SCEP findings are the most serious — together they allowed an unauthenticated
+caller to obtain certificates trusted by every machine that trusts the local CA.
+
+### Security
+
+- **SCEP enrollment now fails closed.** `PKIOperation` previously skipped the
+  challenge-password check whenever the in-memory challenge store was empty (its
+  state at every boot), so any unauthenticated client could get a CSR signed by
+  the mkcert root CA. A valid challenge is now always required unless
+  `SCEP_ALLOW_OPEN_ENROLLMENT` is explicitly enabled.
+- **SCEP CSRs are validated before signing.** Every CN/SAN must be a syntactically
+  valid hostname or IP, and the optional `SCEP_ALLOWED_DOMAINS` allowlist
+  restricts issuance to configured domain suffixes — the CA no longer signs for
+  arbitrary subjects (e.g. a victim hostname for MITM).
+- **All settings secrets are now masked.** `GET /api/settings`, `/running`, and
+  `/export` previously masked only four fields, leaking `ntfy.token`,
+  `ntfy.password`, and `webhook.headers` (which carry Authorization secrets) in
+  API responses and the downloadable export. All secret fields are masked.
+- **Settings writes are confined to the editable schema.** `POST /api/settings`
+  and `/import` previously deep-merged arbitrary keys into `settings.json`
+  (loaded verbatim at boot), allowing prototype pollution and injection of
+  non-UI config keys. Writes are now allowlisted to the settings form schema.
+- **`/api/execute` `uninstall-ca` now requires `confirm: true` and enabled
+  authentication**, matching the dedicated `/api/uninstall-ca` guards it
+  previously bypassed.
+- **Enterprise CA config injection blocked.** Unvalidated CN/UPN/SAN values were
+  interpolated into the generated OpenSSL config; a newline in a SAN could
+  inject arbitrary x509 extensions (e.g. `basicConstraints=CA:TRUE`). Identity
+  values are now rejected if they contain control or shell/config metacharacters.
+- **SCEP `GetCACaps` no longer advertises weak SHA-1 or DES3.**
+
+### Fixed
+
+- **`/api/execute` was broken for `install-ca`, `uninstall-ca`, `caroot`, and
+  `list`** — a redeclared `let` put the command variable in the temporal dead
+  zone, throwing `ReferenceError` (HTTP 500). Also fixed the response reading a
+  non-existent `result.output` field.
+- **SCEP certificate generation always threw** — `processSCEPCertificateRequest`
+  called `generateEnterpriseOrMkcertCertificate` with positional arguments, but
+  it expects a single options object, so `commonName` was always undefined.
+- **Five UI buttons silently did nothing** — Test Email, Verify SMTP, Check
+  Expiry, and Start/Stop Monitoring passed `'POST'` as a string where an options
+  object belongs, so `fetch` issued GET against POST-only routes.
+- **Certificates with the same name in different folders merged into one entry.**
+  `GET /api/certificates` grouped by base filename only; grouping is now keyed by
+  folder + base name, so date-folder and archived copies stay distinct.
+- **`GET /api/rate-limit/status` returned 500 on every request** — it read a
+  config key (`rateLimiting`/`windowMs`) that doesn't exist.
+- **The `FORCE_HTTPS` redirect corrupted addresses** — it string-replaced the
+  port digits anywhere in the host (e.g. `192.168.80.5` → `192.168.3443.5`),
+  did nothing when the Host had no port, and crashed on a missing Host header.
+- **Certificate monitoring reported success on an invalid cron expression** while
+  the scheduler was silently dead. `start()` now validates and surfaces the
+  error, and `PUT /api/monitoring/config` rejects an invalid cron before mutating
+  runtime config.
+- **`validateRequest` returned 500 instead of 400** for non-string body values;
+  `asyncHandler` now forwards errors to the centralized error middleware; and the
+  settings UI shows the real error message instead of `undefined`.
+
+### Added
+
+- **Test suite.** A `node:test` suite (`npm test`) with 63 tests covering the
+  fixes above.
+- **SCEP configuration knobs:** `SCEP_ALLOW_OPEN_ENROLLMENT` (default off) and
+  `SCEP_ALLOWED_DOMAINS`.
+
 ## [4.0.0] - 2026-05-17
 
 ### 🔐 Security (breaking)
