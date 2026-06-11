@@ -1,0 +1,51 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Dependencies (rebuilt in the deps stage)
+node_modules
+npm-debug.log*
+
+# Local environment & secrets
+.env
+.env.*
+config/settings.json
+cookies.txt
+*.cookies
+
+# Generated certificates & keys
+certificates
+ssl
+*.pem
+*.key
+*.crt
+*.pfx
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
+docker-build-push.sh
+
+# Docs, examples, tests — not needed at runtime
+docs
+examples
+test
+*.md
+LICENSE
+
+# Dev/ops artifacts
+mkcert-web-ui.service
+setup-demo.sh
+coverage
+.nyc_output
+logs
+*.log
+temp
+
+# Editor/OS noise
+.vscode
+.idea
+.DS_Store
+*.swp

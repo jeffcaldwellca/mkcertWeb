@@ -45,7 +45,7 @@ mkcert -install    # First time only
 npm start
 ```
 
-**For detailed setup instructions, see [DOCKER.md](DOCKER.md)**
+**For detailed setup instructions, see [DOCKER.md](docs/DOCKER.md)**
 
 ## ⚙️ Configuration
 
@@ -110,7 +110,7 @@ Built-in SCEP (Simple Certificate Enrollment Protocol) server for automatic cert
 - **Standard Compliance**: Implements GetCACert and GetCACaps operations
 - **Web Management**: `/scep.html` interface for managing SCEP operations
 
-**For detailed SCEP configuration, see [SCEP.md](SCEP.md)**
+**For detailed SCEP configuration, see [SCEP.md](docs/SCEP.md)**
 
 ## 🔒 Security Features
 
@@ -231,4 +231,4 @@ This project is licensed under the GPLv3 License - see the [LICENSE](LICENSE) fi
 ## 📞 Support
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/jeffcaldwellca/mkcertWeb/issues)
-- 📖 **Documentation**: [README.md](README.md), [DOCKER.md](DOCKER.md), [SCEP.md](SCEP.md)
+- 📖 **Documentation**: [README.md](README.md), [DOCKER.md](docs/DOCKER.md), [SCEP.md](docs/SCEP.md)

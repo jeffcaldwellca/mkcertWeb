@@ -199,4 +199,4 @@ networks:
     external: true
 ```
 
-For more information, see [README.md](README.md).
+For more information, see [README.md](../README.md).

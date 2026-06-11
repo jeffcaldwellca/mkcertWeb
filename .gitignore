@@ -15,7 +15,6 @@ temp/
 *.pfx
 
 # Test files (stray/ad-hoc test artifacts anywhere in the tree)
-*test*
 *.test.js
 *.spec.js
 
@@ -120,8 +119,5 @@ ehthumbs.db
 Thumbs.db
 
 # Docker
-.dockerignore
 docker-compose.override.yml
 .docker/
-
-.github/
