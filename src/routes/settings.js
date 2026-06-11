@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const { apiResponse, asyncHandler } = require('../utils/responses');
+const { sanitizeSettings, filterAllowedSettings, stripPlaceholderSecrets } = require('../utils/settingsSecurity');
 
 const SETTINGS_FILE = path.join(__dirname, '../../config/settings.json');
 
@@ -57,35 +58,16 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
     await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
   }
 
-  /**
-   * Sanitize settings before sending to client (remove sensitive data)
-   */
-  function sanitizeSettings(settings) {
-    const sanitized = JSON.parse(JSON.stringify(settings)); // Deep clone
-    
-    // Remove sensitive fields
-    if (sanitized.auth?.password) {
-      sanitized.auth.password = ''; // Don't send password to client
-    }
-    if (sanitized.auth?.sessionSecret) {
-      sanitized.auth.sessionSecret = sanitized.auth.sessionSecret ? '********' : '';
-    }
-    if (sanitized.oidc?.clientSecret) {
-      sanitized.oidc.clientSecret = sanitized.oidc.clientSecret ? '********' : '';
-    }
-    if (sanitized.email?.smtp?.auth?.pass) {
-      sanitized.email.smtp.auth.pass = sanitized.email.smtp.auth.pass ? '********' : '';
-    }
-    
-    return sanitized;
-  }
+  // sanitizeSettings (secret masking) and the editable-key allowlist live in
+  // ../utils/settingsSecurity so they can be unit-tested and stay in sync with
+  // the settings form schema.
 
   /**
    * Merge user settings with current config, handling nested objects
    */
   function mergeSettings(base, updates) {
     const merged = { ...base };
-    
+
     for (const key in updates) {
       if (updates[key] && typeof updates[key] === 'object' && !Array.isArray(updates[key])) {
         merged[key] = mergeSettings(merged[key] || {}, updates[key]);
@@ -93,7 +75,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
         merged[key] = updates[key];
       }
     }
-    
+
     return merged;
   }
 
@@ -145,33 +127,25 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
    */
   router.post('/', asyncHandler(async (req, res) => {
     try {
-      const updates = req.body;
-      
+      // Confine writes to the known editable schema: drop unknown keys and
+      // prototype-polluting keys before they ever reach settings.json (which
+      // config/index.js loads verbatim at boot).
+      const updates = filterAllowedSettings(req.body);
+
       // Validate input
-      if (!updates || typeof updates !== 'object') {
+      if (!req.body || typeof req.body !== 'object') {
         return apiResponse.badRequest(res, 'Invalid settings data');
       }
-      
+
       // Load existing saved settings
       const existingSettings = await loadSettings();
-      
+
       // Merge with new updates
       const mergedSettings = mergeSettings(existingSettings, updates);
-      
-      // Don't save empty or placeholder password values
-      if (mergedSettings.auth?.password === '' || mergedSettings.auth?.password === '********') {
-        delete mergedSettings.auth.password;
-      }
-      if (mergedSettings.auth?.sessionSecret === '********') {
-        delete mergedSettings.auth.sessionSecret;
-      }
-      if (mergedSettings.oidc?.clientSecret === '********') {
-        delete mergedSettings.oidc.clientSecret;
-      }
-      if (mergedSettings.email?.smtp?.auth?.pass === '********') {
-        delete mergedSettings.email.smtp.auth.pass;
-      }
-      
+
+      // Don't persist masked placeholders — leave existing secrets intact.
+      stripPlaceholderSecrets(mergedSettings);
+
       // Save to file
       await saveSettings(mergedSettings);
       
@@ -239,19 +213,28 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
    */
   router.post('/import', asyncHandler(async (req, res) => {
     try {
-      const importedSettings = req.body;
-      
       // Validate input
-      if (!importedSettings || typeof importedSettings !== 'object') {
+      if (!req.body || typeof req.body !== 'object') {
         return apiResponse.badRequest(res, 'Invalid settings data');
       }
-      
-      // Save imported settings
-      await saveSettings(importedSettings);
-      
+
+      // Confine imports to the editable schema too — an imported file is just
+      // as untrusted as a POST body.
+      const importedSettings = filterAllowedSettings(req.body);
+
+      // Merge over existing saved settings rather than replacing wholesale, so
+      // an import can't wipe unrelated saved config.
+      const existingSettings = await loadSettings();
+      const mergedSettings = mergeSettings(existingSettings, importedSettings);
+
+      // Don't persist masked placeholders — leave existing secrets intact.
+      stripPlaceholderSecrets(mergedSettings);
+
+      await saveSettings(mergedSettings);
+
       // Return sanitized settings
-      const sanitized = sanitizeSettings(importedSettings);
-      
+      const sanitized = sanitizeSettings(mergedSettings);
+
       apiResponse.success(res, sanitized, 'Settings imported successfully. Restart the server for changes to take effect.');
     } catch (error) {
       console.error('Error importing settings:', error);
