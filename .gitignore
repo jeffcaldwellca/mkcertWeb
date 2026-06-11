@@ -14,11 +14,14 @@ certificates/*.key
 temp/
 *.pfx
 
-# Test files
-test/
+# Test files (stray/ad-hoc test artifacts anywhere in the tree)
 *test*
 *.test.js
 *.spec.js
+
+# ...but DO track the project's own test suite under test/
+!test/
+!test/**
 
 # Cookie files
 cookies.txt
