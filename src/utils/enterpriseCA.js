@@ -3,6 +3,38 @@ const fs = require('fs');
 const path = require('path');
 const security = require('../security');
 
+// Characters that would let an attacker break out of the OpenSSL config /
+// subject string / shell-quoted command: control chars (esp. newline) and
+// shell/quote metacharacters. Any subject value containing one is rejected.
+const UNSAFE_NAME_CHARS = /[\x00-\x1f\x7f"'`$\\;\n\r]/;
+const HOSTNAME_RE = /^\*?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+
+function isSafeName(value) {
+  return typeof value === 'string' && value.length > 0 && !UNSAFE_NAME_CHARS.test(value);
+}
+
+/**
+ * Reject subject identity values that could inject OpenSSL config directives
+ * or shell metacharacters before they are interpolated into a .conf file,
+ * subject string, or command. Throws on the first unsafe value.
+ */
+function assertSafeIdentity({ commonName, upn, subjectAltNames = [] }) {
+  if (!isSafeName(commonName)) {
+    throw new Error('Invalid common name: contains control or unsafe characters');
+  }
+  if (upn !== undefined && upn !== null && upn !== '') {
+    if (!isSafeName(upn) || !validateUPN(upn)) {
+      throw new Error('Invalid UPN format');
+    }
+  }
+  for (const san of subjectAltNames) {
+    // SANs become DNS entries — require a valid hostname (also blocks newlines).
+    if (!isSafeName(san) || !HOSTNAME_RE.test(san)) {
+      throw new Error(`Invalid subject alt name: ${JSON.stringify(san)}`);
+    }
+  }
+}
+
 /**
  * Enterprise CA configuration from environment variables
  */
@@ -65,6 +97,8 @@ async function generateEnterpriseOrMkcertCertificate(options) {
   if (!commonName) {
     throw new Error('Common name is required');
   }
+  // Reject injection before any value reaches a config file or command.
+  assertSafeIdentity({ commonName, upn, subjectAltNames });
 
   // Check if enterprise CA is configured and available
   if (enterpriseCAConfig.enabled && await isEnterpriseCaAvailable()) {
@@ -278,6 +312,10 @@ async function generateMkcert(options) {
  * @returns {string} Generated configuration content
  */
 async function createOpenSSLConfig({ commonName, template, upn, subjectAltNames, configPath }) {
+  // Defense in depth: never write a config from unvalidated identity values,
+  // even if a caller reaches this directly.
+  assertSafeIdentity({ commonName, upn, subjectAltNames });
+
   const config = `
 [req]
 distinguished_name = req_distinguished_name
@@ -477,6 +515,8 @@ module.exports = {
   generateEnterpriseOrMkcertCertificate,
   isEnterpriseCaAvailable,
   validateUPN,
+  assertSafeIdentity,
+  createOpenSSLConfig,
   getAvailableTemplates,
   getEnterpriseCAStatus,
   getCertificateTemplates,
