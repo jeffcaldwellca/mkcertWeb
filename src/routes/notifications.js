@@ -1,5 +1,6 @@
 // Email, NTFY, webhook, and monitoring routes module
 const express = require('express');
+const cron = require('node-cron');
 const { apiResponse, asyncHandler } = require('../utils/responses');
 
 const createNotificationRoutes = (config, rateLimiters, requireAuth, emailService, monitoringService, ntfyService, webhookService) => {
@@ -161,7 +162,9 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
     }
     
     if (checkInterval !== undefined) {
-      if (typeof checkInterval !== 'string') {
+      // Validate the cron expression here so a bad value is rejected before it
+      // mutates runtime config or restarts (and kills) the scheduler.
+      if (typeof checkInterval !== 'string' || !cron.validate(checkInterval)) {
         return apiResponse.badRequest(res, 'Check interval must be a valid cron expression');
       }
       updates.checkInterval = checkInterval;
