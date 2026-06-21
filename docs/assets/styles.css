@@ -141,3 +141,12 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 }
 .btn:hover, .btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
 .btn-primary { box-shadow: var(--glow); }
+
+/* ---------- Feature grid ---------- */
+.feature-grid { list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.feature { border: 1px solid var(--border); background: var(--bg-panel); padding: 18px 18px 20px; }
+.feature h3 { font-family: var(--display); font-size: 26px; color: var(--phosphor); margin: 0 0 6px; }
+.feature h3::before { content: "› "; color: var(--phosphor-soft); }
+.feature p { margin: 0; color: var(--text); font-size: 15.5px; }
+.feature:hover { border-color: var(--phosphor); box-shadow: var(--glow); }
