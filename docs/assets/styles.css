@@ -73,3 +73,25 @@ h1, h2, .display { font-family: var(--display); font-weight: 400; letter-spacing
 .section-head::before { content: ">_ "; color: var(--phosphor-soft); }
 
 section { padding: 56px 0; border-top: 1px solid var(--border); }
+
+/* ---------- CRT overlay (decorative, never blocks input) ---------- */
+.crt {
+  position: fixed; inset: 0; z-index: 9000;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 120% at 50% 50%,
+      rgba(0,0,0,0) 60%, rgba(0,0,0,0.55) 100%),           /* vignette */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.16) 3px, rgba(0,0,0,0.16) 3px);          /* scanlines */
+}
+@keyframes crt-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.82; }
+  98% { opacity: 0.95; }
+  99% { opacity: 0.86; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .crt { animation: crt-flicker 6s linear infinite; }
+}
