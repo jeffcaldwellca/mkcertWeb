@@ -2,6 +2,8 @@
 
 A secure, modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with enterprise-grade security and an intuitive web interface.
 
+> 🖥️ **Landing page:** a terminal-themed project page lives in [`/docs`](docs/) and is published via GitHub Pages (Settings → Pages → Deploy from branch → `main` / `/docs`).
+
 ## ✨ Key Features
 
 - **🔐 Certificate Generation**: Create certificates for multiple domains and IP addresses
