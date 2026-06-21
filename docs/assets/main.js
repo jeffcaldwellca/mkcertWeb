@@ -47,7 +47,7 @@
     var textEl = document.getElementById('boot-text');
     if (!boot || !textEl) return;
 
-    function dismiss() { boot.classList.add('is-hidden'); cleanup(); }
+    function dismiss() { boot.style.display = ''; boot.classList.add('is-hidden'); cleanup(); }
     function cleanup() {
       window.removeEventListener('keydown', onSkip);
       window.removeEventListener('click', onSkip);
