@@ -67,7 +67,7 @@
     boot.style.display = 'flex';
 
     var lines = [
-      'ROBCO-STYLE TERMLINK // MKCERT-OS',
+      'MKCERT-OS // SECURE TERMINAL LINK',
       'MKCERT-OS v4.1.0  —  CERTIFICATE AUTHORITY TERMINAL',
       '',
       'INITIALIZING ............ OK',
