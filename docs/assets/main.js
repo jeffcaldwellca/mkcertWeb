@@ -82,6 +82,32 @@
     });
   }
 
+  function initCopyButtons() {
+    var buttons = document.querySelectorAll('.copy-btn[data-copy-target]');
+    Array.prototype.forEach.call(buttons, function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.getAttribute('data-copy-target'));
+        if (!target) return;
+        var text = target.innerText.replace(/\n$/, '');
+        function done() {
+          var prev = btn.textContent;
+          btn.textContent = 'COPIED'; btn.classList.add('copied');
+          setTimeout(function () { btn.textContent = prev; btn.classList.remove('copied'); }, 1400);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+        } else { fallbackCopy(text, done); }
+      });
+    });
+  }
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'absolute'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* no-op */ }
+    document.body.removeChild(ta);
+  }
+
   // expose for later tasks
   window.MKCERTOS = { typeLines: typeLines, reduceMotion: reduceMotion };
 
@@ -92,5 +118,6 @@
       window.MKCERTOS.typeLines(tagline, ['Local TLS, minus the pain.'],
         { speed: 38, linePause: 0 });
     }
+    initCopyButtons();
   });
 })();
