@@ -95,7 +95,9 @@ docs/
    confirmation).
 7. **`>_ MANIFEST`** — requirements (Node 16+, mkcert, OpenSSL), license (GPLv3),
    version, key links.
-8. **Footer** — links, GPLv3 notice, homage disclaimer ("Fan homage to the RobCo
+8. **`>_ CONSOLE`** — dedicated easter-egg command strip (see below), placed
+   directly above the footer.
+9. **Footer** — links, GPLv3 notice, homage disclaimer ("Fan homage to the RobCo
    terminal aesthetic; not affiliated with or endorsed by Bethesda."), blinking
    cursor sign-off.
 
@@ -108,8 +110,8 @@ interactive elements' usability.
 
 ### Easter-egg command prompt (v1)
 
-A small always-present input styled as a terminal prompt (e.g. anchored in the
-footer or a dedicated `>_ CONSOLE` strip). Recognizes a handful of commands:
+A small always-present input styled as a terminal prompt, placed in a dedicated
+`>_ CONSOLE` strip directly above the footer. Recognizes a handful of commands:
 
 - `help` — lists available commands
 - `about` — one-liner about the project
