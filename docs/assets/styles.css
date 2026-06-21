@@ -1,0 +1,75 @@
+/* ============================================================
+   mkcert-OS terminal landing — design system
+   Palette: Pip-Boy green on near-black. Amber reserved/unused.
+   ============================================================ */
+
+@font-face {
+  font-family: 'VT323';
+  src: url('fonts/vt323-latin-400-normal.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+
+:root {
+  --bg:          #070b07;
+  --bg-panel:    #0c130c;
+  --border:      #15431f;
+  --phosphor:    #2bff88;   /* bright accent / headings */
+  --phosphor-soft:#7dffb8;
+  --text:        #c8f7da;   /* body — AA on --bg */
+  --muted:       #5f9d77;   /* secondary */
+  --amber:       #ffb000;   /* RESERVED — do not use by default */
+  --glow:        0 0 6px rgba(43, 255, 136, 0.55);
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --display: 'VT323', var(--mono);
+  --maxw: 1040px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 17px;
+  line-height: 1.6;
+  text-shadow: var(--glow);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+a { color: var(--phosphor); }
+
+.skip-link {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--phosphor); color: var(--bg);
+  padding: 8px 14px; z-index: 10000; text-shadow: none;
+}
+.skip-link:focus { left: 8px; top: 8px; }
+
+h1, h2, .display { font-family: var(--display); font-weight: 400; letter-spacing: 1px; }
+
+/* Section heading like a typed command, e.g. ">_ SYSTEM CAPABILITIES" */
+.section-head {
+  font-family: var(--display);
+  font-size: clamp(28px, 4vw, 44px);
+  color: var(--phosphor);
+  margin: 0 0 18px;
+}
+.section-head::before { content: ">_ "; color: var(--phosphor-soft); }
+
+section { padding: 56px 0; border-top: 1px solid var(--border); }
