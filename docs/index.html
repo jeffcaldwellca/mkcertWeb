@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>mkcert Web UI — local TLS, minus the pain</title>
+  <meta name="description" content="A secure web interface for managing local TLS certificates with mkcert. SCEP enrollment, multiple formats, Docker-ready." />
+  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="preload" href="assets/fonts/vt323-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="manifest" href="assets/site.webmanifest" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <div class="crt" aria-hidden="true"></div>
+  <div id="boot" class="boot" role="status" aria-label="System boot sequence">
+    <pre id="boot-text" class="boot-text" aria-hidden="true"></pre>
+    <p class="boot-hint">[ PRESS ANY KEY TO SKIP ]</p>
+  </div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="titlebar">
+    <div class="wrap titlebar-inner">
+      <span class="titlebar-name">MKCERT-OS TERMINAL</span>
+      <span class="titlebar-status">v4.1.0 · LINK: SECURE · CA: ONLINE<span class="caret">▋</span></span>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <h1 class="hero-title display">mkcert&nbsp;Web&nbsp;UI</h1>
+        <p class="hero-tagline" id="hero-tagline" aria-label="Local TLS, minus the pain.">Local TLS, minus the pain.</p>
+        <p class="hero-sub">A secure web interface for managing local TLS certificates with mkcert — generation, SCEP enrollment, multiple formats, Docker-ready.</p>
+        <nav class="hero-actions" aria-label="Primary">
+          <a class="btn btn-primary" href="https://github.com/jeffcaldwellca/mkcertWeb">[ DEPLOY VIA DOCKER ]</a>
+          <a class="btn" href="https://github.com/jeffcaldwellca/mkcertWeb">[ VIEW SOURCE ]</a>
+          <a class="btn" href="https://hub.docker.com/r/jeffcaldwellca/mkcertweb">[ DOCKER HUB ]</a>
+        </nav>
+      </div>
+    </section>
+    <section id="capabilities">
+      <div class="wrap">
+        <h2 class="section-head">SYSTEM CAPABILITIES</h2>
+        <ul class="feature-grid">
+          <li class="feature"><h3>Certificate Generation</h3><p>Create certificates for multiple domains and IP addresses in one pass.</p></li>
+          <li class="feature"><h3>SCEP Enrollment</h3><p>Simple Certificate Enrollment Protocol for automatic device enrollment.</p></li>
+          <li class="feature"><h3>Enterprise Security</h3><p>Command-injection &amp; path-traversal protection with comprehensive rate limiting.</p></li>
+          <li class="feature"><h3>Multiple Formats</h3><p>Export PEM, CRT, and PFX (PKCS#12) certificates.</p></li>
+          <li class="feature"><h3>Flexible Auth</h3><p>Basic auth plus OpenID Connect SSO.</p></li>
+          <li class="feature"><h3>Email Notifications</h3><p>Automated SMTP alerts for expiring certificates.</p></li>
+          <li class="feature"><h3>Certificate Monitoring</h3><p>Automatic monitoring with configurable warning periods.</p></li>
+          <li class="feature"><h3>Docker Ready</h3><p>Complete containerization with docker-compose.</p></li>
+        </ul>
+      </div>
+    </section>
+    <section id="display">
+      <div class="wrap">
+        <h2 class="section-head">DISPLAY OUTPUT</h2>
+        <figure class="monitor">
+          <div class="monitor-screen">
+            <img src="assets/screenshot.png" width="1244" height="529"
+                 alt="mkcert Web UI showing the certificate generation and management interface" />
+            <span class="monitor-scan" aria-hidden="true"></span>
+          </div>
+          <figcaption>// RobCo-style management console — certificate generation &amp; monitoring</figcaption>
+        </figure>
+      </div>
+    </section>
+    <section id="quick-start">
+      <div class="wrap">
+        <h2 class="section-head">QUICK START</h2>
+        <p class="muted">Docker is the recommended path. Then open <code>http://localhost:3000</code>.</p>
+
+        <div class="codeblock">
+          <button class="copy-btn" type="button" data-copy-target="qs-docker">COPY</button>
+          <pre id="qs-docker"><code>git clone https://github.com/jeffcaldwellca/mkcertWeb.git
+cd mkcertWeb
+docker-compose up -d</code></pre>
+        </div>
+
+        <p class="muted">Or run locally (requires Node.js 16+, mkcert, OpenSSL):</p>
+        <div class="codeblock">
+          <button class="copy-btn" type="button" data-copy-target="qs-local">COPY</button>
+          <pre id="qs-local"><code>npm install
+mkcert -install
+npm start</code></pre>
+        </div>
+      </div>
+    </section>
+    <section id="manifest">
+      <div class="wrap">
+        <h2 class="section-head">MANIFEST</h2>
+        <dl class="manifest">
+          <dt>VERSION</dt><dd>4.1.0</dd>
+          <dt>LICENSE</dt><dd><a href="https://github.com/jeffcaldwellca/mkcertWeb/blob/main/LICENSE">GPLv3</a></dd>
+          <dt>REQUIRES</dt><dd>Node.js 16+ · mkcert · OpenSSL</dd>
+          <dt>SOURCE</dt><dd><a href="https://github.com/jeffcaldwellca/mkcertWeb">github.com/jeffcaldwellca/mkcertWeb</a></dd>
+          <dt>IMAGE</dt><dd><a href="https://hub.docker.com/r/jeffcaldwellca/mkcertweb">hub.docker.com/r/jeffcaldwellca/mkcertweb</a></dd>
+        </dl>
+      </div>
+    </section>
+    <section id="console">
+      <div class="wrap">
+        <h2 class="section-head">CONSOLE</h2>
+        <p class="muted">Interactive terminal. Type <code>help</code> and press Enter.</p>
+        <div class="console">
+          <div id="console-out" class="console-out" role="log" aria-live="polite" aria-label="Console output"></div>
+          <form id="console-form" class="console-form" autocomplete="off">
+            <label class="console-prompt" for="console-input">&gt;</label>
+            <input id="console-input" class="console-input" type="text"
+                   aria-label="Console command input" spellcheck="false" />
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://github.com/jeffcaldwellca/mkcertWeb">GitHub</a>
+        <a href="https://hub.docker.com/r/jeffcaldwellca/mkcertweb">Docker Hub</a>
+        <a href="https://github.com/jeffcaldwellca/mkcertWeb/blob/main/LICENSE">License (GPLv3)</a>
+      </nav>
+      <p class="footer-note">
+        mkcert Web UI v4.1.0 — released under GPLv3.<br />
+        Fan homage to the RobCo terminal aesthetic; not affiliated with or endorsed by Bethesda.
+      </p>
+      <p class="footer-sign">MKCERT-OS // SESSION ENDED<span class="caret">▋</span></p>
+    </div>
+  </footer>
+  <script src="assets/console-commands.js"></script>
+  <script src="assets/main.js" defer></script>
+</body>
+</html>
