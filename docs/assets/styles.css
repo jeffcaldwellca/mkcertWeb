@@ -1,31 +1,39 @@
 /* ============================================================
    mkcert-OS terminal landing — design system
-   Palette: phosphor green on near-black. Amber reserved/unused.
+   Shares the unified design language with the product dashboard.
    ============================================================ */
 
-@font-face {
-  font-family: 'VT323';
-  src: url('fonts/vt323-latin-400-normal.woff2') format('woff2');
-  font-weight: 400; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  src: url('fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
-  font-weight: 400; font-style: normal; font-display: swap;
-}
+/* ===== SHARED DESIGN LANGUAGE — keep in sync with the other stylesheet.
+   Canonical source: docs/superpowers/specs/2026-06-21-unified-design-language-design.md ===== */
 :root {
+  --accent:          #2cf5b8;
+  --accent-soft:     #8cf5d4;
+  --accent-contrast: #04140f;
+  --accent-glow:     rgba(44, 245, 184, 0.40);
+  --glow:            0 0 8px var(--accent-glow);
+  --font-mono:       ui-monospace, 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+  --radius:          4px;
+  --radius-lg:       8px;
+  --border-width:    1px;
+  --muted:           #7d8590;
+  --success:         #4ade80;
+  --warning:         #fbbf24;
+  --error:           #f87171;
+}
+/* ===== END SHARED DESIGN LANGUAGE ===== */
+
+:root {
+  /* landing surface layer (near-black for CRT punch) */
   --bg:          #070b07;
   --bg-panel:    #0c130c;
-  --border:      #15431f;
-  --phosphor:    #2bff88;   /* bright accent / headings */
-  --phosphor-soft:#7dffb8;
+  --border:      #2f4a40;   /* aqua-tinted dark */
   --text:        #c8f7da;   /* body — AA on --bg */
-  --muted:       #5f9d77;   /* secondary */
-  --amber:       #ffb000;   /* RESERVED — do not use by default */
-  --glow:        0 0 6px rgba(43, 255, 136, 0.55);
-  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --display: 'VT323', var(--mono);
-  --maxw: 1040px;
+  --maxw:        1040px;
+  /* aliases → shared language (keeps existing usage lines working) */
+  --mono:        var(--font-mono);
+  --display:     var(--font-mono);   /* web fonts retired; headings use shared mono */
+  --phosphor:    var(--accent);
+  --phosphor-soft: var(--accent-soft);
 }
 
 * { box-sizing: border-box; }
@@ -55,14 +63,16 @@ a { color: var(--phosphor); }
 }
 .skip-link:focus { left: 8px; top: 8px; }
 
-h1, h2, .display { font-family: var(--display); font-weight: 400; letter-spacing: 1px; }
+h1, h2, .display { font-family: var(--display); font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
 
 /* Section heading like a typed command, e.g. ">_ SYSTEM CAPABILITIES" */
 .section-head {
   font-family: var(--display);
   font-size: clamp(28px, 4vw, 44px);
-  color: var(--phosphor);
+  color: var(--accent);
   margin: 0 0 18px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 .section-head::before { content: ">_ "; color: var(--phosphor-soft); }
 
@@ -114,6 +124,7 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 }
 .titlebar-inner { display: flex; justify-content: space-between; align-items: center;
   font-family: var(--display); font-size: 22px; color: var(--phosphor); padding: 8px 20px; }
+.titlebar-name { font-weight: 700; text-transform: uppercase; }
 .titlebar-status { color: var(--muted); font-size: 18px; }
 .caret { animation: caret 1s step-end infinite; }
 @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
@@ -121,7 +132,7 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 
 /* ---------- Hero ---------- */
 .hero { padding: 72px 0 64px; border-top: none; }
-.hero-title { font-size: clamp(48px, 10vw, 104px); line-height: 0.95; margin: 0; color: var(--phosphor); }
+.hero-title { font-size: clamp(48px, 10vw, 104px); line-height: 0.95; margin: 0; color: var(--phosphor); font-weight: 700; text-transform: uppercase; }
 .hero-tagline { font-family: var(--display); font-size: clamp(24px, 4vw, 38px); color: var(--phosphor-soft); min-height: 1.4em; margin: 10px 0 0; }
 .hero-tagline::after { content: "▋"; animation: caret 1s step-end infinite; }
 @media (prefers-reduced-motion: reduce) { .hero-tagline::after { animation: none; } }
@@ -133,6 +144,7 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
   display: inline-block; font-family: var(--display); font-size: 22px;
   color: var(--phosphor); text-decoration: none; text-shadow: var(--glow);
   border: 1px solid var(--phosphor); padding: 8px 16px; background: transparent;
+  border-radius: var(--radius);
   transition: background .12s linear, color .12s linear;
 }
 .btn:hover, .btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
@@ -141,8 +153,8 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 /* ---------- Feature grid ---------- */
 .feature-grid { list-style: none; margin: 0; padding: 0;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-.feature { border: 1px solid var(--border); background: var(--bg-panel); padding: 18px 18px 20px; }
-.feature h3 { font-family: var(--display); font-size: 26px; color: var(--phosphor); margin: 0 0 6px; }
+.feature { border: 1px solid var(--border); background: var(--bg-panel); padding: 18px 18px 20px; border-radius: var(--radius); }
+.feature h3 { font-family: var(--display); font-size: 26px; color: var(--phosphor); margin: 0 0 6px; font-weight: 700; text-transform: uppercase; }
 .feature h3::before { content: "› "; color: var(--phosphor-soft); }
 .feature p { margin: 0; color: var(--text); font-size: 15.5px; }
 .feature:hover { border-color: var(--phosphor); box-shadow: var(--glow); }
@@ -151,7 +163,7 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .monitor { margin: 0; }
 .monitor-screen {
   position: relative; border: 2px solid var(--border);
-  border-radius: 10px; padding: 10px; background: #050805;
+  border-radius: var(--radius-lg); padding: 10px; background: #050805;
   box-shadow: inset 0 0 60px rgba(43,255,136,0.10), var(--glow);
 }
 .monitor-screen img { display: block; width: 100%; height: auto; border-radius: 4px; }
@@ -168,20 +180,21 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .codeblock pre {
   margin: 0; background: var(--bg-panel); border: 1px solid var(--border);
   border-left: 3px solid var(--phosphor); padding: 16px 18px; overflow-x: auto;
-  color: var(--text); text-shadow: none;
+  color: var(--text); text-shadow: none; border-radius: var(--radius);
 }
 .codeblock code { font-family: var(--mono); font-size: 15px; white-space: pre; }
 .copy-btn {
   position: absolute; top: 8px; right: 8px; font-family: var(--display); font-size: 16px;
   color: var(--phosphor); background: var(--bg); border: 1px solid var(--phosphor);
   padding: 2px 10px; cursor: pointer; text-shadow: var(--glow);
+  border-radius: var(--radius);
 }
 .copy-btn:hover, .copy-btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
 .copy-btn.copied { background: var(--phosphor); color: var(--bg); }
 
 /* ---------- Manifest ---------- */
 .manifest { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; margin: 0; }
-.manifest dt { font-family: var(--display); font-size: 22px; color: var(--phosphor); }
+.manifest dt { font-family: var(--display); font-size: 22px; color: var(--phosphor); font-weight: 700; text-transform: uppercase; }
 .manifest dd { margin: 0; color: var(--text); }
 @media (max-width: 520px) { .manifest { grid-template-columns: 1fr; gap: 2px 0; } .manifest dd { margin-bottom: 10px; } }
 
@@ -191,7 +204,7 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .console-out .echo { color: var(--phosphor-soft); }
 .console-out .err { color: var(--muted); }
 .console-form { display: flex; align-items: center; gap: 8px; }
-.console-prompt { font-family: var(--display); font-size: 22px; color: var(--phosphor); }
+.console-prompt { font-family: var(--display); font-size: 22px; color: var(--phosphor); font-weight: 700; text-transform: uppercase; }
 .console-input {
   flex: 1; background: transparent; border: none; outline: none;
   color: var(--phosphor); font-family: var(--mono); font-size: 16px; text-shadow: var(--glow);
@@ -202,4 +215,4 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .site-footer { border-top: 1px solid var(--border); padding: 40px 0 64px; }
 .footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
 .footer-note { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
-.footer-sign { font-family: var(--display); color: var(--phosphor); margin: 0; }
+.footer-sign { font-family: var(--display); color: var(--phosphor); margin: 0; font-weight: 700; text-transform: uppercase; }
