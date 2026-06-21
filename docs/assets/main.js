@@ -19,15 +19,15 @@
       el.textContent = lines.join('\n') + '\n';
     }
     var promise = new Promise(function (resolve) {
-      if (reduceMotion) { skip(); return resolve(skip); }
+      if (reduceMotion) { skip(); return resolve(); }
       var li = 0, ci = 0;
       (function tick() {
-        if (skipped) return resolve(skip);
-        if (li >= lines.length) return resolve(skip);
+        if (skipped) return resolve();
+        if (li >= lines.length) return resolve();
         var line = lines[li];
         if (ci <= line.length) {
           el.textContent = lines.slice(0, li).join('\n') +
-            (li > 0 ? '\n' : '') + line.slice(0, ci) + (li > 0 || ci > 0 ? '' : '');
+            (li > 0 ? '\n' : '') + line.slice(0, ci);
           ci++;
           setTimeout(tick, speed);
         } else {
@@ -52,7 +52,8 @@
       window.removeEventListener('keydown', onSkip);
       window.removeEventListener('click', onSkip);
     }
-    function onSkip() { sessionStorage.setItem('mkcertos_booted', '1'); dismiss(); }
+    var t;
+    function onSkip() { if (t) t.skip(); sessionStorage.setItem('mkcertos_booted', '1'); dismiss(); }
 
     // Skip entirely if already booted this session or reduced motion.
     if (sessionStorage.getItem('mkcertos_booted') === '1' || reduceMotion) {
@@ -74,7 +75,7 @@
     ];
     window.addEventListener('keydown', onSkip);
     window.addEventListener('click', onSkip);
-    var t = typeLines(textEl, lines, { speed: 14, linePause: 160 });
+    t = typeLines(textEl, lines, { speed: 14, linePause: 160 });
     t.promise.then(function () {
       sessionStorage.setItem('mkcertos_booted', '1');
       setTimeout(dismiss, 650);
