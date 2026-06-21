@@ -95,3 +95,17 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 @media (prefers-reduced-motion: no-preference) {
   .crt { animation: crt-flicker 6s linear infinite; }
 }
+
+/* ---------- Boot / POST overlay ---------- */
+.boot {
+  position: fixed; inset: 0; z-index: 9500;
+  background: var(--bg);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 6vh 8vw;
+}
+.boot.is-hidden { display: none; }
+.boot-text { font-family: var(--mono); color: var(--phosphor); margin: 0; white-space: pre-wrap; }
+.boot-hint { color: var(--muted); margin-top: 24px; }
+.boot-text::after { content: "▋"; animation: caret 1s step-end infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .boot-text::after { animation: none; } }

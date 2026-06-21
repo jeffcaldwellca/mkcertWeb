@@ -14,10 +14,15 @@
 </head>
 <body>
   <div class="crt" aria-hidden="true"></div>
+  <div id="boot" class="boot" role="status" aria-label="System boot sequence">
+    <pre id="boot-text" class="boot-text"></pre>
+    <p class="boot-hint">[ PRESS ANY KEY TO SKIP ]</p>
+  </div>
   <a class="skip-link" href="#main">Skip to content</a>
   <main id="main" class="wrap">
     <h1 class="display">mkcert Web UI</h1>
     <p>Local TLS, minus the pain.</p>
   </main>
+  <script src="assets/main.js" defer></script>
 </body>
 </html>
