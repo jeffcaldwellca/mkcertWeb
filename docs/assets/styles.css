@@ -182,3 +182,9 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 }
 .copy-btn:hover, .copy-btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
 .copy-btn.copied { background: var(--phosphor); color: var(--bg); }
+
+/* ---------- Manifest ---------- */
+.manifest { display: grid; grid-template-columns: max-content 1fr; gap: 8px 24px; margin: 0; }
+.manifest dt { font-family: var(--display); font-size: 22px; color: var(--phosphor); }
+.manifest dd { margin: 0; color: var(--text); }
+@media (max-width: 520px) { .manifest { grid-template-columns: 1fr; gap: 2px 0; } .manifest dd { margin-bottom: 10px; } }
