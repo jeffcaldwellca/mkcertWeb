@@ -165,3 +165,20 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
     rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.10) 3px, rgba(0,0,0,0.10) 3px);
 }
 .monitor figcaption { color: var(--muted); margin-top: 12px; font-size: 15px; }
+
+/* ---------- Code blocks ---------- */
+.muted { color: var(--muted); }
+.codeblock { position: relative; margin: 14px 0 22px; }
+.codeblock pre {
+  margin: 0; background: var(--bg-panel); border: 1px solid var(--border);
+  border-left: 3px solid var(--phosphor); padding: 16px 18px; overflow-x: auto;
+  color: var(--text); text-shadow: none;
+}
+.codeblock code { font-family: var(--mono); font-size: 15px; white-space: pre; }
+.copy-btn {
+  position: absolute; top: 8px; right: 8px; font-family: var(--display); font-size: 16px;
+  color: var(--phosphor); background: var(--bg); border: 1px solid var(--phosphor);
+  padding: 2px 10px; cursor: pointer; text-shadow: var(--glow);
+}
+.copy-btn:hover, .copy-btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
+.copy-btn.copied { background: var(--phosphor); color: var(--bg); }

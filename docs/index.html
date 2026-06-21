@@ -66,6 +66,27 @@
         </figure>
       </div>
     </section>
+    <section id="quick-start">
+      <div class="wrap">
+        <h2 class="section-head">QUICK START</h2>
+        <p class="muted">Docker is the recommended path. Then open <code>http://localhost:3000</code>.</p>
+
+        <div class="codeblock">
+          <button class="copy-btn" type="button" data-copy-target="qs-docker">COPY</button>
+          <pre id="qs-docker"><code>git clone https://github.com/jeffcaldwellca/mkcertWeb.git
+cd mkcertWeb
+docker-compose up -d</code></pre>
+        </div>
+
+        <p class="muted">Or run locally (requires Node.js 16+, mkcert, OpenSSL):</p>
+        <div class="codeblock">
+          <button class="copy-btn" type="button" data-copy-target="qs-local">COPY</button>
+          <pre id="qs-local"><code>npm install
+mkcert -install
+npm start</code></pre>
+        </div>
+      </div>
+    </section>
   </main>
   <script src="assets/main.js" defer></script>
 </body>
