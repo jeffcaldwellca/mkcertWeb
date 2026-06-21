@@ -97,10 +97,12 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 }
 
 /* ---------- Boot / POST overlay ---------- */
+/* If JS never runs, never let the boot overlay hide the page. */
 .boot {
+  display: none; /* JS sets display:flex on the real boot path */
   position: fixed; inset: 0; z-index: 9500;
   background: var(--bg);
-  display: flex; flex-direction: column; justify-content: center;
+  flex-direction: column; justify-content: center;
   padding: 6vh 8vw;
 }
 .boot.is-hidden { display: none; }
@@ -188,3 +190,22 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .manifest dt { font-family: var(--display); font-size: 22px; color: var(--phosphor); }
 .manifest dd { margin: 0; color: var(--text); }
 @media (max-width: 520px) { .manifest { grid-template-columns: 1fr; gap: 2px 0; } .manifest dd { margin-bottom: 10px; } }
+
+/* ---------- Console ---------- */
+.console { border: 1px solid var(--border); background: var(--bg-panel); padding: 14px; }
+.console-out { min-height: 1.6em; white-space: pre-wrap; color: var(--text); text-shadow: none; margin-bottom: 8px; }
+.console-out .echo { color: var(--phosphor-soft); }
+.console-out .err { color: var(--muted); }
+.console-form { display: flex; align-items: center; gap: 8px; }
+.console-prompt { font-family: var(--display); font-size: 22px; color: var(--phosphor); }
+.console-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--phosphor); font-family: var(--mono); font-size: 16px; text-shadow: var(--glow);
+}
+.console-input:focus { box-shadow: none; }
+
+/* ---------- Footer ---------- */
+.site-footer { border-top: 1px solid var(--border); padding: 40px 0 64px; }
+.footer-links { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+.footer-note { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
+.footer-sign { font-family: var(--display); color: var(--phosphor); margin: 0; }

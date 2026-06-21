@@ -57,9 +57,11 @@
 
     // Skip entirely if already booted this session or reduced motion.
     if (sessionStorage.getItem('mkcertos_booted') === '1' || reduceMotion) {
-      boot.classList.add('is-hidden');
       return;
     }
+
+    // JS is running and boot should play — show the overlay.
+    boot.style.display = 'flex';
 
     var lines = [
       'ROBCO-STYLE TERMLINK // MKCERT-OS',
@@ -108,6 +110,38 @@
     document.body.removeChild(ta);
   }
 
+  function initConsole() {
+    var form = document.getElementById('console-form');
+    var input = document.getElementById('console-input');
+    var out = document.getElementById('console-out');
+    if (!form || !input || !out || !window.ConsoleCommands) return;
+
+    function append(text, cls) {
+      var div = document.createElement('div');
+      if (cls) div.className = cls;
+      div.textContent = text;
+      out.appendChild(div);
+    }
+    append('MKCERT-OS console ready. Type "help".', 'err');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var raw = input.value;
+      append('> ' + raw, 'echo');
+      var res = window.ConsoleCommands.runCommand(raw);
+      if (res.clear) { out.replaceChildren(); }
+      else {
+        res.lines.forEach(function (line) {
+          var isErr = line.indexOf('command not found') === 0;
+          append(line, isErr ? 'err' : null);
+        });
+      }
+      if (res.navigate) { window.open(res.navigate, '_blank', 'noopener'); }
+      input.value = '';
+      out.scrollTop = out.scrollHeight;
+    });
+  }
+
   // expose for later tasks
   window.MKCERTOS = { typeLines: typeLines, reduceMotion: reduceMotion };
 
@@ -119,5 +153,6 @@
         { speed: 38, linePause: 0 });
     }
     initCopyButtons();
+    initConsole();
   });
 })();
