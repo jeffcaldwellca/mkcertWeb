@@ -5,6 +5,25 @@
     box-sizing: border-box;
 }
 
+/* ===== SHARED DESIGN LANGUAGE — keep in sync with the other stylesheet.
+   Canonical source: docs/superpowers/specs/2026-06-21-unified-design-language-design.md ===== */
+:root {
+  --accent:          #2cf5b8;
+  --accent-soft:     #8cf5d4;
+  --accent-contrast: #04140f;
+  --accent-glow:     rgba(44, 245, 184, 0.40);
+  --glow:            0 0 8px var(--accent-glow);
+  --font-mono:       ui-monospace, 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+  --radius:          4px;
+  --radius-lg:       8px;
+  --border-width:    1px;
+  --muted:           #7d8590;
+  --success:         #4ade80;
+  --warning:         #fbbf24;
+  --error:           #f87171;
+}
+/* ===== END SHARED DESIGN LANGUAGE ===== */
+
 /* CSS Custom Properties for Theme System */
 :root {
     /* Dark Mode Colors (Default) */
@@ -14,10 +33,10 @@
     --card-bg-secondary: rgba(13, 17, 23, 0.6);
     --border-color: #30363d;
     --border-color-secondary: #4a525a;
-    --primary-color: #40e0d0;
+    --primary-color: var(--accent);
     --secondary-color: #8cc8ff;
     --accent-color: #ff6b6b;
-    --text-color: #40e0d0;
+    --text-color: var(--accent);
     --text-muted: rgba(255, 255, 255, 0.8);
     --text-dim: #7d8590;
     --text-disabled: #484f58;
@@ -27,14 +46,14 @@
     --error-color: #f87171;
     --warning-color: #fbbf24;
     --input-bg: rgba(22, 27, 34, 0.9);
-    --button-bg: rgba(64, 224, 208, 0.1);
-    --button-hover-bg: rgba(64, 224, 208, 0.2);
-    --glow-primary: rgba(64, 224, 208, 0.3);
+    --button-bg: rgba(44, 245, 184, 0.1);
+    --button-hover-bg: rgba(44, 245, 184, 0.2);
+    --glow-primary: var(--accent-glow);
     --glow-secondary: rgba(255, 107, 107, 0.3);
     --modal-bg: rgba(13, 17, 23, 0.95);
-    --backdrop-overlay: 
-        radial-gradient(circle at 20% 80%, rgba(64, 224, 208, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(255, 107, 107, 0.03) 0%, transparent 50%);
+    --backdrop-overlay:
+        radial-gradient(circle at 20% 80%, rgba(44, 245, 184, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(44, 245, 184, 0.02) 0%, transparent 50%);
 }
 
 /* Light Mode Colors */
@@ -45,7 +64,10 @@
     --card-bg-secondary: rgba(240, 244, 248, 0.9);
     --border-color: #d1d9e0;
     --border-color-secondary: #ced4da;
-    --primary-color: #198754;
+    --accent: #0a7c61;
+    --accent-contrast: #ffffff;
+    --accent-glow: rgba(10, 124, 97, 0.18);
+    --primary-color: #0a7c61;
     --secondary-color: #0d6efd;
     --accent-color: #dc3545;
     --text-color: #212529;
@@ -58,9 +80,9 @@
     --error-color: #dc3545;
     --warning-color: #fd7e14;
     --input-bg: rgba(255, 255, 255, 0.9);
-    --button-bg: rgba(25, 135, 84, 0.1);
-    --button-hover-bg: rgba(25, 135, 84, 0.2);
-    --glow-primary: rgba(25, 135, 84, 0.1);
+    --button-bg: rgba(10, 124, 97, 0.1);
+    --button-hover-bg: rgba(10, 124, 97, 0.2);
+    --glow-primary: rgba(10, 124, 97, 0.18);
     --glow-secondary: rgba(220, 53, 69, 0.1);
     --modal-bg: rgba(255, 255, 255, 0.95);
     --backdrop-overlay: 
@@ -436,7 +458,7 @@ section h2::before {
     font-weight: 600;
     margin-left: 0.5rem;
     text-shadow: none;
-    box-shadow: 0 0 8px rgba(64, 224, 208, 0.3);
+    box-shadow: 0 0 8px rgba(44, 245, 184, 0.3);
     animation: pulse-glow 2s ease-in-out;
 }
 
@@ -446,9 +468,9 @@ section h2::before {
 
 /* Animation for newly generated CA */
 @keyframes pulse-glow {
-    0% { box-shadow: 0 0 8px rgba(64, 224, 208, 0.3); }
-    50% { box-shadow: 0 0 20px rgba(64, 224, 208, 0.8); }
-    100% { box-shadow: 0 0 8px rgba(64, 224, 208, 0.3); }
+    0% { box-shadow: 0 0 8px rgba(44, 245, 184, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(44, 245, 184, 0.8); }
+    100% { box-shadow: 0 0 8px rgba(44, 245, 184, 0.3); }
 }
 
 /* Highlight effect for newly updated sections */
@@ -458,7 +480,7 @@ section h2::before {
 
 @keyframes section-highlight {
     0% { background: var(--card-bg); }
-    20% { background: rgba(64, 224, 208, 0.1); border: 1px solid rgba(64, 224, 208, 0.3); }
+    20% { background: rgba(44, 245, 184, 0.1); border: 1px solid rgba(44, 245, 184, 0.3); }
     100% { background: var(--card-bg); }
 }
 
@@ -998,10 +1020,10 @@ section h2::before {
 }
 
 [data-theme="dark"] .btn-refresh:hover {
-    background: rgba(64, 224, 208, 0.1);
+    background: rgba(44, 245, 184, 0.1);
     border-color: var(--primary-color);
     color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(64, 224, 208, 0.2);
+    box-shadow: 0 2px 8px rgba(44, 245, 184, 0.2);
 }
 
 [data-theme="light"] .btn-refresh {
@@ -1311,11 +1333,11 @@ section h2::before {
 }
 
 .format-badge.format-pem {
-    background: linear-gradient(135deg, rgba(64, 224, 208, 0.15), rgba(64, 224, 208, 0.25));
+    background: linear-gradient(135deg, rgba(44, 245, 184, 0.15), rgba(44, 245, 184, 0.25));
     color: var(--primary-color);
-    border: 1px solid rgba(64, 224, 208, 0.3);
-    text-shadow: 0 0 2px rgba(64, 224, 208, 0.3);
-    box-shadow: 0 0 4px rgba(64, 224, 208, 0.2);
+    border: 1px solid rgba(44, 245, 184, 0.3);
+    text-shadow: 0 0 2px rgba(44, 245, 184, 0.3);
+    box-shadow: 0 0 4px rgba(44, 245, 184, 0.2);
 }
 
 .format-badge.format-crt {
@@ -1913,10 +1935,10 @@ section h2::before {
 }
 
 .progress-steps .step.active {
-    background: rgba(64, 224, 208, 0.1);
+    background: rgba(44, 245, 184, 0.1);
     border-color: var(--primary-color);
     color: var(--primary-color);
-    box-shadow: 0 0 8px rgba(64, 224, 208, 0.2);
+    box-shadow: 0 0 8px rgba(44, 245, 184, 0.2);
 }
 
 .ca-generation-error {
