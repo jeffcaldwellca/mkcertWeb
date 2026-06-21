@@ -1,0 +1,8 @@
+Bundled fonts (self-hosted), used under the SIL Open Font License 1.1:
+
+- VT323 — Copyright The VT323 Project Authors.
+  https://github.com/google/fonts/tree/main/ofl/vt323
+- IBM Plex Mono — Copyright IBM Corp.
+  https://github.com/IBM/plex
+
+Full OFL text: https://openfontlicense.org/
