@@ -87,5 +87,10 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     runBoot();
+    var tagline = document.getElementById('hero-tagline');
+    if (tagline) {
+      window.MKCERTOS.typeLines(tagline, ['Local TLS, minus the pain.'],
+        { speed: 38, linePause: 0 });
+    }
   });
 })();

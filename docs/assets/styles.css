@@ -109,3 +109,35 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .boot-text::after { content: "▋"; animation: caret 1s step-end infinite; }
 @keyframes caret { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .boot-text::after { animation: none; } }
+
+/* ---------- Title bar ---------- */
+.titlebar {
+  position: sticky; top: 0; z-index: 8000;
+  background: rgba(7,11,7,0.92); border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(2px);
+}
+.titlebar-inner { display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--display); font-size: 22px; color: var(--phosphor); padding: 8px 20px; }
+.titlebar-status { color: var(--muted); font-size: 18px; }
+.caret { animation: caret 1s step-end infinite; }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+@media (max-width: 620px) { .titlebar-status { display: none; } }
+
+/* ---------- Hero ---------- */
+.hero { padding: 72px 0 64px; border-top: none; }
+.hero-title { font-size: clamp(48px, 10vw, 104px); line-height: 0.95; margin: 0; color: var(--phosphor); }
+.hero-tagline { font-family: var(--display); font-size: clamp(24px, 4vw, 38px); color: var(--phosphor-soft); min-height: 1.4em; margin: 10px 0 0; }
+.hero-tagline::after { content: "▋"; animation: caret 1s step-end infinite; }
+@media (prefers-reduced-motion: reduce) { .hero-tagline::after { animation: none; } }
+.hero-sub { max-width: 60ch; color: var(--text); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
+
+/* ---------- Terminal buttons ---------- */
+.btn {
+  display: inline-block; font-family: var(--display); font-size: 22px;
+  color: var(--phosphor); text-decoration: none; text-shadow: var(--glow);
+  border: 1px solid var(--phosphor); padding: 8px 16px; background: transparent;
+  transition: background .12s linear, color .12s linear;
+}
+.btn:hover, .btn:focus-visible { background: var(--phosphor); color: var(--bg); text-shadow: none; outline: none; }
+.btn-primary { box-shadow: var(--glow); }
