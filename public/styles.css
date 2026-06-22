@@ -2008,7 +2008,7 @@ section h2::before {
 .notification-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 0.8rem;
+    border-radius: var(--radius-lg);
     padding: 1.5rem;
     margin: 1rem 0;
     box-shadow: 0 4px 12px var(--shadow-color);
@@ -2034,7 +2034,7 @@ section h2::before {
 .notification-status {
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius);
     padding: 1rem;
     margin: 1rem 0;
     font-family: 'Courier New', monospace;
@@ -2071,7 +2071,7 @@ section h2::before {
 .expiring-cert-item {
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius);
     padding: 1rem;
     margin: 0.5rem 0;
     transition: all 0.3s ease;
@@ -2105,7 +2105,7 @@ section h2::before {
     font-weight: bold;
     font-size: 0.9rem;
     padding: 0.2rem 0.5rem;
-    border-radius: 0.3rem;
+    border-radius: var(--radius);
     background: var(--card-bg);
 }
 
@@ -2137,7 +2137,7 @@ section h2::before {
 .notification-help details {
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--radius);
     padding: 1rem;
 }
 
@@ -2186,7 +2186,7 @@ section h2::before {
     background: var(--input-bg);
     color: var(--primary-color);
     padding: 0.2rem 0.4rem;
-    border-radius: 0.3rem;
+    border-radius: var(--radius);
     font-family: 'Courier New', monospace;
     font-size: 0.85rem;
 }
