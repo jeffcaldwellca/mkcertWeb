@@ -170,7 +170,7 @@ header p {
     right: 0;
     background: var(--button-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 0.5rem 1rem;
     color: var(--primary-color);
     cursor: pointer;
@@ -196,7 +196,7 @@ header p {
 section {
     background: var(--secondary-bg);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 
@@ -227,7 +227,7 @@ section h2::before {
 .status-card, .generate-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 1.5rem;
     box-shadow: inset 0 1px 0 var(--glow-primary);
     transition: all 0.3s ease;
@@ -268,7 +268,7 @@ section h2::before {
 .rootca-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 1.5rem;
     box-shadow: inset 0 1px 0 rgba(0, 255, 65, 0.05);
 }
@@ -289,7 +289,7 @@ section h2::before {
     padding: 0.75rem;
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
 }
 
 .ca-detail {
@@ -308,7 +308,7 @@ section h2::before {
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
     padding: 1.5rem;
-    border-radius: 8px;
+    border-radius: var(--radius);
 }
 
 .rootca-actions h3 {
@@ -335,7 +335,7 @@ section h2::before {
     padding: 1rem;
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
 }
 
 .ca-usage-info h4 {
@@ -389,7 +389,7 @@ section h2::before {
 .warning-message {
     background: var(--card-bg-secondary);
     border: 2px solid var(--warning-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 1.5rem;
     margin-bottom: 2rem;
 }
@@ -426,7 +426,7 @@ section h2::before {
     text-align: left;
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 1.25rem;
 }
 
@@ -453,7 +453,7 @@ section h2::before {
     background: linear-gradient(135deg, var(--success-color), var(--primary-color));
     color: var(--dark-bg);
     padding: 0.25rem 0.5rem;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     font-size: 0.75rem;
     font-weight: 600;
     margin-left: 0.5rem;
@@ -504,7 +504,7 @@ section h2::before {
     padding: 1rem;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--text-color);
     font-family: inherit;
     font-size: 1rem;
@@ -537,7 +537,7 @@ section h2::before {
 .upload-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 1.5rem;
     box-shadow: inset 0 1px 0 var(--glow-primary);
     transition: all 0.3s ease;
@@ -545,7 +545,7 @@ section h2::before {
 
 .upload-dropzone {
     border: 2px dashed var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 2rem;
     text-align: center;
     background: var(--card-bg-secondary);
@@ -619,7 +619,7 @@ section h2::before {
     height: 20px;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: inset 0 1px 3px var(--shadow-color);
 }
@@ -652,7 +652,7 @@ section h2::before {
     padding: 1rem;
     background: rgba(74, 222, 128, 0.1);
     border: 1px solid var(--success-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--success-color);
     margin-bottom: 0.5rem;
 }
@@ -661,7 +661,7 @@ section h2::before {
     padding: 1rem;
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid var(--warning-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--warning-color);
     margin-bottom: 0.5rem;
 }
@@ -670,7 +670,7 @@ section h2::before {
     padding: 1rem;
     background: rgba(248, 113, 113, 0.1);
     border: 1px solid var(--error-color);
-    border-radius: 6px;
+    border-radius: var(--radius);
     color: var(--error-color);
     margin-bottom: 0.5rem;
 }
@@ -751,7 +751,7 @@ section h2::before {
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius);
     font-size: 1rem;
     font-weight: 600;
     text-decoration: none;
@@ -944,7 +944,7 @@ section h2::before {
     color: var(--secondary-color);
     padding: 8px 16px;
     font-size: 0.9rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     transition: all 0.3s ease;
 }
 
@@ -990,7 +990,7 @@ section h2::before {
     color: var(--primary-color);
     padding: 8px 16px;
     font-size: 0.9rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     transition: all 0.3s ease;
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
@@ -1133,7 +1133,7 @@ section h2::before {
 .certificate-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 1rem;
     transition: all 0.3s ease;
     box-shadow: inset 0 1px 0 rgba(0, 255, 65, 0.05);
@@ -1187,7 +1187,7 @@ section h2::before {
     right: 0;
     height: 3px;
     background: linear-gradient(90deg, var(--warning-color), #ff8800);
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .certificate-header {
@@ -1267,7 +1267,7 @@ section h2::before {
     right: 0;
     height: 3px;
     background: linear-gradient(90deg, var(--success-color), #22c55e);
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .root-ca-badge {
@@ -1291,7 +1291,7 @@ section h2::before {
 .root-ca-description {
     background: rgba(74, 222, 128, 0.05);
     border: 1px solid rgba(74, 222, 128, 0.2);
-    border-radius: 6px;
+    border-radius: var(--radius);
     padding: 1rem;
     margin: 0.75rem 0;
 }
@@ -1448,7 +1448,7 @@ section h2::before {
 
 .alert {
     padding: 1rem 1.5rem;
-    border-radius: 6px;
+    border-radius: var(--radius);
     margin-bottom: 1rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     animation: slideIn 0.3s ease;
@@ -1519,7 +1519,7 @@ section h2::before {
     border: 1px solid var(--border-color);
     margin: 10% auto;
     padding: 2rem;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     max-width: 500px;
     box-shadow: 
         0 8px 32px var(--shadow-color),
@@ -1635,7 +1635,7 @@ section h2::before {
     padding: 40px;
     background: var(--secondary-bg);
     border: 1px solid var(--border-color);
-    border-radius: 15px;
+    border-radius: var(--radius-lg);
     box-shadow: 
         0 8px 32px var(--shadow-color),
         inset 0 1px 0 var(--glow-primary);
@@ -1682,7 +1682,7 @@ section h2::before {
     padding: 15px;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     color: var(--text-color);
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
     font-size: 1rem;
@@ -1701,7 +1701,7 @@ section h2::before {
     background: var(--success-color);
     color: #000;
     border: 1px solid var(--success-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 1.1rem;
     font-weight: 700;
     cursor: pointer;
@@ -1755,7 +1755,7 @@ section h2::before {
     border: 1px solid rgba(255, 68, 68, 0.3);
     color: var(--error-color);
     padding: 15px;
-    border-radius: 8px;
+    border-radius: var(--radius);
     margin-bottom: 20px;
     text-align: center;
     box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
@@ -1826,7 +1826,7 @@ section h2::before {
     background: transparent;
     border: 2px solid var(--primary-color);
     color: var(--primary-color);
-    border-radius: 8px;
+    border-radius: var(--radius);
     font-size: 1.1rem;
     font-weight: 700;
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
@@ -1882,7 +1882,7 @@ section h2::before {
 .ca-generation-progress {
     padding: 2rem;
     text-align: center;
-    border-radius: 8px;
+    border-radius: var(--radius);
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     margin: 1rem 0;
@@ -1944,7 +1944,7 @@ section h2::before {
 .ca-generation-error {
     padding: 2rem;
     text-align: center;
-    border-radius: 8px;
+    border-radius: var(--radius);
     background: var(--card-bg);
     border: 1px solid var(--error-color);
     margin: 1rem 0;
