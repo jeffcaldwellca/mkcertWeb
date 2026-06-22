@@ -146,20 +146,21 @@ header h1 {
     text-shadow: 0 0 10px var(--glow-primary), 0 0 20px var(--glow-primary);
     font-weight: 700;
     letter-spacing: 0.05em;
+    text-transform: uppercase;
     transition: text-shadow 0.3s ease;
     color: var(--primary-color);
 }
 
 header h1::before {
     content: '> ';
-    color: var(--accent-color);
-    text-shadow: 0 0 5px var(--glow-secondary);
+    color: var(--primary-color);
+    text-shadow: 0 0 5px var(--glow-primary);
 }
 
 header p {
     font-size: 1.1rem;
     opacity: 0.8;
-    color: var(--secondary-color);
+    color: var(--text-dim);
     transition: color 0.3s ease;
 }
 
@@ -212,14 +213,16 @@ section h2 {
     padding-bottom: 0.5rem;
     border-bottom: 2px solid var(--border-color);
     font-size: 1.4rem;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     text-shadow: 0 0 5px var(--glow-primary);
     transition: all 0.3s ease;
 }
 
 section h2::before {
     content: '$ ';
-    color: var(--accent-color);
+    color: var(--primary-color);
     font-weight: bold;
 }
 
@@ -761,20 +764,20 @@ section h2::before {
 }
 
 .btn-primary {
-    background: var(--success-color);
-    color: #000;
+    background: var(--primary-color);
+    color: var(--accent-contrast);
     font-weight: 700;
     text-shadow: none;
     box-shadow: 0 0 10px var(--glow-primary);
-    border: 1px solid var(--success-color);
+    border: 1px solid var(--primary-color);
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px var(--glow-primary), 0 0 20px var(--glow-primary);
-    background: var(--success-color);
+    background: var(--primary-color);
     filter: brightness(0.9);
-    color: #000;
+    color: var(--accent-contrast);
 }
 
 .btn-secondary {
@@ -815,14 +818,14 @@ section h2::before {
 }
 
 [data-theme="dark"] .btn-primary {
-    background: var(--border-color);
-    color: var(--btn-text-color);
-    border: 1px solid var(--border-color-secondary);
+    background: var(--primary-color);
+    color: var(--accent-contrast);
+    border: 1px solid var(--primary-color);
 }
 
 [data-theme="dark"] .btn-primary:hover {
-    background: var(--border-color-secondary);
-    color: var(--btn-text-color);
+    background: var(--accent-soft);
+    color: var(--accent-contrast);
     filter: none;
 }
 
@@ -841,13 +844,13 @@ section h2::before {
 /* Light mode specific button overrides */
 [data-theme="light"] .btn-primary {
     background: white;
-    color: var(--success-color);
-    border: 2px solid var(--success-color);
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="light"] .btn-primary:hover {
-    background: var(--success-color);
+    background: var(--primary-color);
     color: white;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
@@ -1659,17 +1662,20 @@ section h2::before {
     color: var(--primary-color);
     margin-bottom: 10px;
     font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     text-shadow: 0 0 10px var(--glow-primary);
 }
 
 .login-header h1::before {
     content: '> ';
-    color: var(--accent-color);
-    text-shadow: 0 0 5px var(--glow-secondary);
+    color: var(--primary-color);
+    text-shadow: 0 0 5px var(--glow-primary);
 }
 
 .login-header p {
-    color: var(--secondary-color);
+    color: var(--text-dim);
     opacity: 0.8;
 }
 
@@ -1698,9 +1704,9 @@ section h2::before {
 .btn-login {
     width: 100%;
     padding: 15px;
-    background: var(--success-color);
-    color: #000;
-    border: 1px solid var(--success-color);
+    background: var(--primary-color);
+    color: var(--accent-contrast);
+    border: 1px solid var(--primary-color);
     border-radius: var(--radius);
     font-size: 1.1rem;
     font-weight: 700;
@@ -1713,9 +1719,9 @@ section h2::before {
 .btn-login:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px var(--glow-primary), 0 0 20px var(--glow-primary);
-    background: var(--success-color);
+    background: var(--primary-color);
     filter: brightness(0.9);
-    color: #000;
+    color: var(--accent-contrast);
 }
 
 .btn-login:active {
@@ -1724,26 +1730,26 @@ section h2::before {
 
 /* Login button theme overrides */
 [data-theme="dark"] .btn-login {
-    background: var(--border-color);
-    color: var(--btn-text-color);
-    border: 1px solid var(--border-color-secondary);
+    background: var(--primary-color);
+    color: var(--accent-contrast);
+    border: 1px solid var(--primary-color);
 }
 
 [data-theme="dark"] .btn-login:hover {
-    background: var(--border-color-secondary);
-    color: var(--btn-text-color);
+    background: var(--accent-soft);
+    color: var(--accent-contrast);
     filter: none;
 }
 
 [data-theme="light"] .btn-login {
     background: white;
-    color: var(--success-color);
-    border: 2px solid var(--success-color);
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="light"] .btn-login:hover {
-    background: var(--success-color);
+    background: var(--primary-color);
     color: white;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
@@ -1795,7 +1801,7 @@ section h2::before {
 }
 
 .home-link a {
-    color: var(--secondary-color);
+    color: var(--text-dim);
     text-decoration: none;
     transition: all 0.3s ease;
     font-size: 0.9rem;
