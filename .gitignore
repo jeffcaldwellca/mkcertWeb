@@ -121,3 +121,5 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 .docker/
+# Superpowers scratch (brainstorm mockups, SDD workspace)
+.superpowers/
