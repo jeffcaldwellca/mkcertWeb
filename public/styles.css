@@ -86,7 +86,7 @@
     --glow-secondary: rgba(220, 53, 69, 0.1);
     --modal-bg: rgba(255, 255, 255, 0.95);
     --backdrop-overlay: 
-        radial-gradient(circle at 20% 80%, rgba(25, 135, 84, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 20% 80%, rgba(10, 124, 97, 0.05) 0%, transparent 50%),
         radial-gradient(circle at 80% 20%, rgba(220, 53, 69, 0.05) 0%, transparent 50%);
 }
 
@@ -1029,14 +1029,14 @@ section h2::before {
 [data-theme="light"] .btn-refresh {
     background: transparent;
     border: 1px solid #ddd;
-    color: #198754;
+    color: var(--primary-color);
 }
 
 [data-theme="light"] .btn-refresh:hover {
-    background: rgba(25, 135, 84, 0.1);
-    border-color: #198754;
-    color: #198754;
-    box-shadow: 0 2px 8px rgba(25, 135, 84, 0.2);
+    background: var(--button-bg);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(10, 124, 97, 0.2);
 }
 
 .btn-danger:hover {
