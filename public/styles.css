@@ -85,9 +85,9 @@
     --glow-primary: rgba(10, 124, 97, 0.18);
     --glow-secondary: rgba(220, 53, 69, 0.1);
     --modal-bg: rgba(255, 255, 255, 0.95);
-    --backdrop-overlay: 
+    --backdrop-overlay:
         radial-gradient(circle at 20% 80%, rgba(10, 124, 97, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(220, 53, 69, 0.05) 0%, transparent 50%);
+        radial-gradient(circle at 80% 20%, rgba(10, 124, 97, 0.04) 0%, transparent 50%);
 }
 
 /* Light mode specific overrides */
@@ -688,7 +688,7 @@ section h2::before {
     padding: 0.5rem;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius);
     margin-bottom: 0.5rem;
     transition: all 0.3s ease;
 }
@@ -1223,7 +1223,7 @@ section h2::before {
     color: white;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-weight: 600;
     text-shadow: 0 0 3px rgba(255, 0, 65, 0.5);
 }
@@ -1233,7 +1233,7 @@ section h2::before {
     color: #000;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-weight: 600;
 }
 
@@ -1242,7 +1242,7 @@ section h2::before {
     color: white;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-weight: 600;
 }
 
@@ -1275,7 +1275,7 @@ section h2::before {
     color: white;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-weight: 600;
     text-shadow: 0 0 3px rgba(74, 222, 128, 0.5);
     animation: pulse-glow 2s ease-in-out infinite alternate;
@@ -1328,7 +1328,7 @@ section h2::before {
 .format-badge {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-weight: 600;
 }
 
@@ -1388,7 +1388,7 @@ section h2::before {
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
     background: var(--border-color);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius);
     font-size: 0.8rem;
     word-break: break-all;
     margin-top: 0.25rem;
@@ -1587,7 +1587,7 @@ section h2::before {
     .certificate-info > div {
         padding: 0.5rem;
         background: var(--input-bg);
-        border-radius: 4px;
+        border-radius: var(--radius);
         border: 1px solid var(--border-color-secondary);
     }
     
@@ -1928,7 +1928,7 @@ section h2::before {
     padding: 0.5rem 1rem;
     background: var(--card-bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius);
     color: var(--text-dim);
     font-size: 0.85rem;
     transition: all 0.3s ease;
