@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.2.0] - 2026-06-22
+
+A presentation-focused release: a new terminal-themed project landing page and a
+unified visual design language shared between that landing page and the web
+dashboard. No application, API, or security behavior changes.
+
+### Added
+
+- **Terminal-themed GitHub Pages landing site** (`docs/`): a single-page "retro
+  CRT terminal" project page with a typed boot sequence, scanline/flicker
+  effects, a feature grid, a framed screenshot panel, copy-to-clipboard quick
+  start, and an interactive console easter egg. Fully self-contained — no
+  external network calls — with `prefers-reduced-motion` and no-JavaScript
+  fallbacks. Published via GitHub Pages from `/docs` (see `docs/PAGES.md`).
+- `scripts/check-shared-tokens.sh` to verify the shared design tokens stay in
+  sync between the landing-page and dashboard stylesheets.
+
+### Changed
+
+- **Unified design language across the landing page and the dashboard.** Both
+  now share one accent (aqua-phosphor `#2cf5b8`; deep-teal `#0a7c61` in the
+  dashboard's light theme), the system-monospace type stack with uppercase mono
+  headings, a 4px/8px corner-radius scale, and glow reserved for primary actions.
+- Dashboard primary buttons (`.btn-primary`, `.btn-login`) recolored to the aqua
+  accent across both light and dark themes; success buttons and semantic status
+  colors are unchanged.
+- Login page restyled to match the unified identity.
+
+### Fixed
+
+- Active navigation tab was unreadable in dark mode (white text on the bright
+  aqua accent); it now uses a theme-aware contrast color (dark on aqua in dark
+  mode, white on teal in light mode).
+
+### Removed
+
+- Self-hosted web fonts (VT323, IBM Plex Mono) from the landing page in favor of
+  the shared system-monospace stack — eliminating all font downloads.
+
 ## [4.1.0] - 2026-06-11
 
 This release closes several vulnerabilities and bugs found in a follow-up code
