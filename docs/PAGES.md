@@ -3,7 +3,7 @@
 The landing site is plain static files in `docs/` (no build step):
 
 - `docs/index.html` — the page
-- `docs/assets/` — styles, scripts, self-hosted fonts, screenshot
+- `docs/assets/` — styles, scripts, screenshot
 - `docs/.nojekyll` — serve as-is (skip Jekyll)
 
 ## Enable / update
