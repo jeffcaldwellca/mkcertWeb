@@ -14,6 +14,7 @@ A secure, modern web interface for managing SSL certificates using the mkcert CL
 - **🔒 Flexible Authentication**: Basic auth and OpenID Connect SSO support
 - **📧 Email Notifications**: Automated SMTP alerts for expiring certificates
 - **📊 Certificate Monitoring**: Automatic monitoring with configurable warning periods
+- **📝 Certificate Notes**: Attach a free-text note to any certificate card to document what it's for (stored in `data/certificate-notes.json`)
 - **🎨 Modern UI**: Dark/light themes with responsive design
 - **🐳 Docker Ready**: Complete containerization with docker-compose
 
