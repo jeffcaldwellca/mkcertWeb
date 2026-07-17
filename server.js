@@ -12,7 +12,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
 const OpenIDConnectStrategy = require('passport-openidconnect');
-const helmet = require('helmet');
+const { securityHeaders } = require('./src/config/securityHeaders');
 
 // Single safe execution path — execFile, no shell. (executeCommand isn't
 // used directly in server.js anymore; the route modules import it themselves.)
@@ -114,25 +114,9 @@ if (allowedOrigins.length > 0) {
   }));
 }
 
-// Security headers via helmet. CSP allows the FontAwesome CDN and inline
-// styles/scripts the app currently uses; tighten by removing 'unsafe-inline'
-// after migrating the frontend off inline handlers.
-app.use(helmet({
-  contentSecurityPolicy: {
-    useDefaults: true,
-    directives: {
-      'default-src': ["'self'"],
-      'script-src':  ["'self'", "'unsafe-inline'"],
-      'style-src':   ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
-      'font-src':    ["'self'", 'https://cdnjs.cloudflare.com', 'data:'],
-      'img-src':     ["'self'", 'data:'],
-      'connect-src': ["'self'"],
-      'frame-ancestors': ["'none'"]
-    }
-  },
-  crossOriginEmbedderPolicy: false, // we serve PEM downloads; COEP would block
-  referrerPolicy: { policy: 'no-referrer' }
-}));
+// Security headers via helmet — options live in src/config/securityHeaders.js
+// so tests can assert the CSP without booting the server.
+app.use(securityHeaders());
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -169,8 +153,8 @@ const tokens = new Tokens();
 // CSRF verification middleware — applied to every state-changing request that
 // has an authenticated session. GET/HEAD/OPTIONS are exempt by definition.
 // We skip the login POST (no session yet) and the OIDC callback (state param
-// is the OAuth-layer defense). The frontend already sends the token in
-// X-CSRF-Token (public/script.js:141).
+// is the OAuth-layer defense). The frontend sends the token in the
+// X-CSRF-Token header (see apiRequest in public/script.js).
 const CSRF_EXEMPT_PATHS = new Set([
   '/api/auth/login',
   '/login',
