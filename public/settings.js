@@ -314,14 +314,14 @@
         `;
 
         alertsContainer.insertAdjacentHTML('beforeend', alertHTML);
-        const alertEl = document.getElementById(alertId);
+        // Hold the element reference rather than re-finding by id: two alerts
+        // created in the same millisecond share a Date.now()-based id, and
+        // getElementById would wire both close buttons to the first one.
+        const alertEl = alertsContainer.lastElementChild;
         alertEl.querySelector('.alert-close').addEventListener('click', () => alertEl.remove());
-        
+
         // Auto-remove after 5 seconds
-        setTimeout(() => {
-            const alert = document.getElementById(alertId);
-            if (alert) alert.remove();
-        }, 5000);
+        setTimeout(() => alertEl.remove(), 5000);
     }
 
     function getAlertIcon(type) {
