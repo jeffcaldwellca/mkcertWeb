@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.3.1] - 2026-07-17
+
+A dependency-security release clearing all seven open Dependabot alerts.
+No application code changes.
+
+### Security
+
+- **multer 2.1.1 → 2.2.0** — fixes two denial-of-service vectors in multipart
+  parsing: crash via deeply nested field names (GHSA-72gw-mp4g-v24j, high) and
+  disk exhaustion from incompletely cleaned-up aborted uploads
+  (GHSA-3p4h-7m6x-2hcm, moderate). These were the only alerts with real
+  exposure: `/api/upload` is reachable with a fetchable CSRF token when
+  authentication is disabled (the Docker default).
+- **nodemailer 8.0.7 → 9.0.3** — clears GHSA-p6gq-j5cr-w38f (high) plus three
+  moderate advisories. None were exploitable as used (the email service never
+  uses the `raw` option, `jsonTransport`, `List-*` headers, or OAuth2), but
+  the fix for the high only exists on the 9.x line. The API surface the app
+  uses (`createTransport`/`sendMail`/`verify`) is unchanged.
+- **form-data 4.0.5 → 4.0.6** (dev-only, via axios) — CRLF injection in
+  multipart names (GHSA-hmw2-7cc7-3qxx); test-suite exposure only.
+
+`npm audit` now reports 0 vulnerabilities across all dependency scopes.
+
 ## [4.3.0] - 2026-07-17
 
 Adds per-certificate notes (issue #41). No API or configuration changes are
