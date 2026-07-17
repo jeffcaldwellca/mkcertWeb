@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.2.1] - 2026-07-17
+
+A bugfix release resolving issue #42 ("Buttons not working") and two further
+bugs uncovered while verifying the fix. No new features; no API or
+configuration changes.
+
+### Fixed
+
+- **"Install CA in System" always failed with "Invalid CSRF token"** (#42).
+  The frontend `apiRequest` helper spread the caller's options *after* the
+  constructed headers object in both of its `fetch` calls, so the one caller
+  that passed a custom `headers` option (the Install CA handler) silently
+  discarded the `X-CSRF-Token` header — on the first attempt and on the
+  automatic retry. Options are now spread before the merged headers so the
+  token always survives.
+- **Every button wired with an inline `onclick="…"` attribute was dead** (#42):
+  Download Root CA, all certificate-card actions (download cert/key/bundle,
+  generate PFX, archive, restore, delete), alert close buttons, and all five
+  SCEP-page buttons. helmet 8's default CSP directive `script-src-attr 'none'`
+  blocks inline handler *attributes* even though `script-src` allows
+  `'unsafe-inline'`. All 14 inline handlers are migrated to
+  `addEventListener` — certificate cards through a single delegated listener
+  with `data-action` attributes — and the strict CSP is kept.
+- **"Delete Forever" on an archived certificate always returned 404.** The
+  archive endpoint moves files into the folder's `archive/` subdirectory, but
+  the DELETE route only looked in the folder itself. Latent until now because
+  the button was unclickable under the CSP bug above. The route now checks
+  both locations.
+- **Settings-page alert close buttons broke when two alerts appeared in the
+  same millisecond** (they share a `Date.now()`-based element id). Close
+  buttons are now wired to the alert element itself instead of an id lookup.
+
+### Added
+
+- Regression tests (`test/security-headers.test.js`): the served CSP must keep
+  `script-src-attr 'none'` plus the app's directives, and no frontend source
+  may contain an inline event-handler attribute. The helmet options moved to
+  `src/config/securityHeaders.js` so tests can mount them without booting the
+  server.
+- Tests for deleting archived and active certificates
+  (`test/archive-validation.test.js`).
+
 ## [4.2.0] - 2026-06-22
 
 A presentation-focused release: a new terminal-themed project landing page and a
