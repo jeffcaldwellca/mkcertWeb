@@ -6,10 +6,22 @@ const security = require('../security');
 const certificateUtils = require('../utils/certificates');
 const { apiResponse, handleError, asyncHandler, validateRequest } = require('../utils/responses');
 const { validateFileRequest, deleteFile } = require('../utils/fileValidation');
+const { createNotesStore } = require('../services/notesStore');
 
-const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
+const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore = createNotesStore()) => {
   const router = express.Router();
   const { cliRateLimiter, generalRateLimiter } = rateLimiters;
+
+  // Note-store key for a grouped certificate. Mirrors the folder identifiers
+  // the frontend uses for API calls (public/script.js displayCertificates).
+  const noteKeyForCert = (group) => {
+    let folder;
+    if (group.isInterfaceSSL) folder = 'interface-ssl';
+    else if (group.folder) folder = group.folder;
+    else if (group.name === 'mkcert-rootCA') folder = 'root-ca';
+    else folder = 'legacy';
+    return `${folder}/${group.name}`;
+  };
 
   // Get all available commands
   router.get('/api/commands', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
@@ -248,6 +260,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
     // base name so same-named certs in different folders don't collide.
     const groupedCertificates = certificateUtils.groupCertificates(certificates);
 
+    for (const group of groupedCertificates) {
+      const note = notesStore.get(noteKeyForCert(group));
+      if (note !== undefined) group.note = note;
+    }
+
     apiResponse.success(res, {
       certificates: groupedCertificates,
       total: groupedCertificates.length
@@ -307,7 +324,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
         // Companion file doesn't exist or couldn't be deleted, that's OK
       }
     }
-    
+
+    // Drop any note. This route deletes files in the certificates root, where
+    // the UI folder key is interface-ssl or legacy — remove both candidates.
+    const base = path.basename(filename).replace(/(-key)?\.(pem|crt|key|p12|pfx)$/i, '');
+    notesStore.remove(`interface-ssl/${base}`);
+    notesStore.remove(`legacy/${base}`);
+
     apiResponse.success(res, {}, 'Certificate deleted successfully');
   }));
 
@@ -573,10 +596,12 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       if (deletedFiles.length === 0) {
         return apiResponse.notFound(res, 'Certificate files not found');
       }
-      
-      apiResponse.success(res, { 
+
+      notesStore.remove(`${folder}/${certname}`);
+
+      apiResponse.success(res, {
         message: `Certificate ${certname} deleted successfully`,
-        deletedFiles 
+        deletedFiles
       });
     } catch (error) {
       console.error('Delete error:', error);
@@ -633,6 +658,35 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       console.error('Restore error:', error);
       apiResponse.serverError(res, `Failed to restore certificate: ${error.message}`);
     }
+  }));
+
+  // Save (or clear) the per-certificate note. Notes are UI metadata, so this
+  // is allowed even for read-only certificates and does not require the cert
+  // files to exist — orphaned entries are invisible and cleaned on delete.
+  router.put('/api/certificates/:folder/:certname/notes', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
+    const { folder, certname } = req.params;
+
+    const folderOk = folder === 'interface-ssl' || folder === 'legacy' || folder === 'root-ca'
+      || /^\d{4}-\d{2}-\d{2}$/.test(folder);
+    if (!folderOk) {
+      return apiResponse.badRequest(res, 'Invalid folder parameter');
+    }
+    try {
+      security.validateFilename(`${certname}.pem`);
+    } catch (error) {
+      return apiResponse.badRequest(res, 'Invalid certificate name');
+    }
+
+    const note = req.body ? req.body.note : undefined;
+    if (typeof note !== 'string') {
+      return apiResponse.badRequest(res, 'note must be a string');
+    }
+    if (note.length > 2000) {
+      return apiResponse.badRequest(res, 'note must be 2000 characters or fewer');
+    }
+
+    const saved = notesStore.set(`${folder}/${certname}`, note);
+    apiResponse.success(res, { note: saved });
   }));
 
   // Download certificate file
