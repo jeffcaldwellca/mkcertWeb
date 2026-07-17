@@ -164,10 +164,12 @@ async function apiRequest(endpoint, options = {}) {
             headers['X-CSRF-Token'] = csrfToken;
         }
         
+        // Spread options BEFORE headers so the constructed headers (which carry
+        // the CSRF token) can't be clobbered by a caller-supplied options.headers.
         const response = await fetch(API_BASE + endpoint, {
-            headers,
             credentials: 'include', // Important: include cookies for session
-            ...options
+            ...options,
+            headers
         });
         
         if (!response.ok) {
@@ -182,9 +184,9 @@ async function apiRequest(endpoint, options = {}) {
                 if (csrfToken) {
                     headers['X-CSRF-Token'] = csrfToken;
                     const retryResponse = await fetch(API_BASE + endpoint, {
-                        headers,
                         credentials: 'include',
-                        ...options
+                        ...options,
+                        headers
                     });
                     
                     if (!retryResponse.ok) {
@@ -978,9 +980,6 @@ async function handleInstallCA() {
     try {
         await apiRequest('/execute', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({
                 command: 'install-ca'
             })
