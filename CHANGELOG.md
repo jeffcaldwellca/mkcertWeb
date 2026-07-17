@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.3.0] - 2026-07-17
+
+Adds per-certificate notes (issue #41). No API or configuration changes are
+required to upgrade; a new optional endpoint and one new persisted file are
+introduced.
+
+### Added
+
+- **Certificate notes.** Every certificate card — generated, uploaded,
+  archived, interface-SSL, and the Root CA — can hold one free-text note
+  (up to 2,000 characters, plain text, line breaks preserved) to document
+  what the certificate is for. Notes are edited inline on the card and are
+  independent of the certificate files: they survive archive/restore, server
+  restarts, and container recreates, and are removed when the certificate is
+  permanently deleted.
+- New endpoint `PUT /api/certificates/:folder/:certname/notes` (auth +
+  CSRF protected, rate limited); `GET /api/certificates` now includes a
+  `note` field on annotated certificates.
+- Notes persist in `data/certificate-notes.json` (atomic writes; a malformed
+  file is treated as empty rather than breaking certificate listing). Docker
+  deployments already mount `data/` via the `mkcert_data` volume, so no
+  compose changes are needed.
+- Tests: notes store unit tests and notes API integration tests
+  (`test/notes-store.test.js`, `test/certificate-notes-route.test.js`).
+
 ## [4.2.1] - 2026-07-17
 
 A bugfix release resolving issue #42 ("Buttons not working") and two further
