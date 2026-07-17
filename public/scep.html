@@ -289,7 +289,7 @@
         <code id="get-ca-caps-url">Loading...</code>
       </div>
 
-      <button type="button" class="btn btn-secondary" onclick="loadSCEPConfig()" style="margin-top: 15px;">
+      <button type="button" id="refresh-scep-config-btn" class="btn btn-secondary" style="margin-top: 15px;">
         <i class="fas fa-sync-alt"></i> Refresh Configuration
       </button>
     </section>
@@ -334,7 +334,7 @@
           </select>
         </div>
         
-        <button type="button" class="btn btn-primary" onclick="generateChallenge()">
+        <button type="button" id="generate-challenge-btn" class="btn btn-primary">
           <i class="fas fa-key"></i> Generate Challenge Password
         </button>
       </div>
@@ -349,7 +349,7 @@
           <i class="fas fa-spinner fa-spin"></i> Loading challenges...
         </div>
       </div>
-      <button type="button" class="btn btn-secondary" onclick="loadChallenges()">
+      <button type="button" id="refresh-challenges-btn" class="btn btn-secondary">
         <i class="fas fa-sync-alt"></i> Refresh Challenges
       </button>
     </section>
@@ -395,7 +395,7 @@
           <small class="help-text">SCEP challenge password (optional if configured globally)</small>
         </div>
         
-        <button type="button" class="btn btn-success" onclick="generateSCEPCertificate()">
+        <button type="button" id="generate-scep-cert-btn" class="btn btn-success">
           <i class="fas fa-satellite-dish"></i> Generate SCEP Certificate
         </button>
       </div>
@@ -410,7 +410,7 @@
           <i class="fas fa-spinner fa-spin"></i> Loading SCEP certificates...
         </div>
       </div>
-      <button type="button" class="btn btn-secondary" onclick="loadSCEPCertificates()">
+      <button type="button" id="refresh-scep-certs-btn" class="btn btn-secondary">
         <i class="fas fa-sync-alt"></i> Refresh Certificates
       </button>
     </section>
@@ -574,6 +574,13 @@
       loadEnterpriseCAStatus();
       loadCertificateTemplates();
       setupTemplateHandling();
+
+      // Button wiring (CSP ships script-src-attr 'none', so no inline onclick)
+      document.getElementById('refresh-scep-config-btn')?.addEventListener('click', loadSCEPConfig);
+      document.getElementById('generate-challenge-btn')?.addEventListener('click', generateChallenge);
+      document.getElementById('refresh-challenges-btn')?.addEventListener('click', loadChallenges);
+      document.getElementById('generate-scep-cert-btn')?.addEventListener('click', generateSCEPCertificate);
+      document.getElementById('refresh-scep-certs-btn')?.addEventListener('click', loadSCEPCertificates);
     });
 
     // Setup template change handling

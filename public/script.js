@@ -5,9 +5,9 @@
 const API_BASE = window.location.origin + '/api';
 
 // XSS-safe escapers. Use escapeHtml for text inside element bodies and titles,
-// escapeAttr for HTML attribute values, and escapeJs for strings embedded in
-// inline JS handlers (which we should also stop using — long-term, prefer
-// addEventListener over onclick="…").
+// escapeAttr for HTML attribute values (including data-* payloads — the DOM
+// decodes entities, so handlers reading el.dataset get the raw value back).
+// No inline on*="" handlers: the CSP ships script-src-attr 'none'.
 function escapeHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s).replace(/[&<>"']/g, c => ({
@@ -15,17 +15,6 @@ function escapeHtml(s) {
   })[c]);
 }
 function escapeAttr(s) { return escapeHtml(s); }
-function escapeJs(s) {
-  if (s === null || s === undefined) return '';
-  // Escape for use inside single-quoted JS string in an onclick="" handler.
-  // Backslash first, then single quote, then HTML entities for the outer attr.
-  return String(s)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\r?\n/g, '\\n')
-    .replace(/</g, '\\u003c')
-    .replace(/&/g, '\\u0026');
-}
 
 // Authentication state
 let authEnabled = false;
@@ -239,7 +228,13 @@ function setupEventListeners() {
     if (themeToggle) {
         themeToggle.addEventListener('click', toggleTheme);
     }
-    
+
+    // Delegated handler for cert-card action buttons; survives every
+    // certificatesList.innerHTML re-render without re-wiring.
+    if (certificatesList) {
+        certificatesList.addEventListener('click', handleCertificateAction);
+    }
+
     // Upload event listeners
     setupUploadEventListeners();
     
@@ -250,6 +245,28 @@ function setupEventListeners() {
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
+    }
+}
+
+// Dispatch clicks on cert-card action buttons. Clicks usually land on the
+// <i> icon, hence closest(). archive/restore confirm() internally; delete
+// does not, so the guard lives here.
+function handleCertificateAction(e) {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn || !certificatesList.contains(btn)) return;
+    const { action, folder, name, file } = btn.dataset;
+    switch (action) {
+        case 'download-cert':   downloadCert(folder, file); break;
+        case 'download-key':    downloadKey(folder, file); break;
+        case 'download-bundle': downloadBundle(folder, name); break;
+        case 'test-pfx':        testPFX(folder, name); break;
+        case 'archive':         archiveCertificate(folder, name); break;
+        case 'restore':         restoreCertificate(folder, name); break;
+        case 'delete':
+            if (confirm('This will permanently delete the certificate. Are you sure?')) {
+                deleteCertificate(folder, name);
+            }
+            break;
     }
 }
 
@@ -382,7 +399,7 @@ async function loadRootCAInfo() {
             '<button id="install-ca-btn" class="btn btn-primary">' +
             '<i class="fas fa-shield-alt"></i> Install CA in System' +
             '</button>' +
-            '<button onclick="downloadRootCA()" class="btn btn-success">' +
+            '<button id="download-rootca-btn" class="btn btn-success">' +
             '<i class="fas fa-download"></i> Download Root CA' +
             '</button>' +
             '</div>' +
@@ -422,10 +439,14 @@ async function loadRootCAInfo() {
             console.log('loadRootCAInfo: rootca-info element not found');
         }
         
-        // Re-attach event listener for install CA button
+        // Re-attach event listeners for the CA buttons (rebuilt with innerHTML above)
         const newInstallBtn = document.getElementById('install-ca-btn');
         if (newInstallBtn) {
             newInstallBtn.addEventListener('click', handleInstallCA);
+        }
+        const downloadCaBtn = document.getElementById('download-rootca-btn');
+        if (downloadCaBtn) {
+            downloadCaBtn.addEventListener('click', downloadRootCA);
         }
         
     } catch (error) {
@@ -621,11 +642,11 @@ function displayCertificates(certificates) {
         const safeExpiry     = escapeHtml(expiryInfo);
         const safeCreated    = escapeHtml(`${createdDate} ${createdTime}`);
         const safeSize       = escapeHtml(formatFileSize(certFileSize));
-        // For JS string arguments inside onclick="…('value')", use escapeJs.
-        const jsFolder = escapeJs(folderParam);
-        const jsCert   = escapeJs(certFile || '');
-        const jsKey    = escapeJs(keyFile || '');
-        const jsName   = escapeJs(cert.name);
+        // Values carried on data-* attributes for the delegated click handler.
+        const attrFolder = escapeAttr(folderParam);
+        const attrCert   = escapeAttr(certFile || '');
+        const attrKey    = escapeAttr(keyFile || '');
+        const attrName   = escapeAttr(cert.name);
 
         return '<div class="certificate-card ' +
                (cert.isExpired ? 'certificate-expired' : '') + ' ' +
@@ -662,29 +683,29 @@ function displayCertificates(certificates) {
                 '<p><strong>Installation:</strong> Download and install this certificate to trust all mkcert-generated certificates on this system.</p>' +
                 '</div>' : '') +
                '<div class="certificate-actions">' +
-               '<button onclick="downloadCert(\'' + jsFolder + '\', \'' + jsCert + '\')" ' +
+               '<button data-action="download-cert" data-folder="' + attrFolder + '" data-file="' + attrCert + '" ' +
                'class="btn btn-success btn-small">' +
                '<i class="fas fa-download"></i> Download Cert</button>' +
                (keyFile ?
-                '<button onclick="downloadKey(\'' + jsFolder + '\', \'' + jsKey + '\')" ' +
+                '<button data-action="download-key" data-folder="' + attrFolder + '" data-file="' + attrKey + '" ' +
                 'class="btn btn-success btn-small">' +
                 '<i class="fas fa-key"></i> Download Key</button>' : '') +
-               '<button onclick="downloadBundle(\'' + jsFolder + '\', \'' + jsName + '\')" ' +
+               '<button data-action="download-bundle" data-folder="' + attrFolder + '" data-name="' + attrName + '" ' +
                'class="btn btn-primary btn-small">' +
                '<i class="fas fa-file-archive"></i> Download Bundle</button>' +
                (keyFile && !isRootCert ?
-                '<button onclick="testPFX(\'' + jsFolder + '\', \'' + jsName + '\')" ' +
+                '<button data-action="test-pfx" data-folder="' + attrFolder + '" data-name="' + attrName + '" ' +
                 'class="btn btn-windows btn-small" title="Generate password-protected PFX file">' +
                 '<i class="fas fa-shield-alt"></i> Generate PFX</button>' : '') +
                (!isRootCert && !isArchived ?
-                '<button onclick="archiveCertificate(\'' + jsFolder + '\', \'' + jsName + '\')" ' +
+                '<button data-action="archive" data-folder="' + attrFolder + '" data-name="' + attrName + '" ' +
                 'class="btn btn-warning btn-small" title="Archive this certificate">' +
                 '<i class="fas fa-archive"></i> Archive</button>' :
                 isArchived ?
-                '<button onclick="restoreCertificate(\'' + jsFolder + '\', \'' + jsName + '\')" ' +
+                '<button data-action="restore" data-folder="' + attrFolder + '" data-name="' + attrName + '" ' +
                 'class="btn btn-info btn-small" title="Restore certificate from archive">' +
                 '<i class="fas fa-undo"></i> Restore</button>' +
-                '<button onclick="if(confirm(\'This will permanently delete the certificate. Are you sure?\')) deleteCertificate(\'' + jsFolder + '\', \'' + jsName + '\')" ' +
+                '<button data-action="delete" data-folder="' + attrFolder + '" data-name="' + attrName + '" ' +
                 'class="btn btn-danger btn-small" title="Permanently delete from archive">' +
                 '<i class="fas fa-trash"></i> Delete Forever</button>' :
                 '<span class="btn btn-disabled btn-small" title="Root certificates are read-only">' +
@@ -1051,7 +1072,8 @@ function showAlertHtml(htmlMessage, type = 'info') {
     alertDiv.className = 'alert alert-' + type;
     alertDiv.id = 'alert-' + alertId;
     alertDiv.innerHTML = htmlMessage +
-        '<button onclick="hideAlert(' + alertId + ')" class="alert-close">&times;</button>';
+        '<button class="alert-close">&times;</button>';
+    alertDiv.querySelector('.alert-close').addEventListener('click', () => hideAlert(alertId));
 
     const container = document.querySelector('.alerts-container') || document.body;
     container.appendChild(alertDiv);

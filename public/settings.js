@@ -307,13 +307,15 @@
             <div id="${escapeHtml(alertId)}" class="alert alert-${escapeHtml(type)}">
                 <i class="fas fa-${escapeHtml(getAlertIcon(type))}"></i>
                 <span>${escapeHtml(message)}</span>
-                <button class="alert-close" onclick="document.getElementById('${escapeHtml(alertId)}').remove()">
+                <button class="alert-close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         `;
 
         alertsContainer.insertAdjacentHTML('beforeend', alertHTML);
+        const alertEl = document.getElementById(alertId);
+        alertEl.querySelector('.alert-close').addEventListener('click', () => alertEl.remove());
         
         // Auto-remove after 5 seconds
         setTimeout(() => {
