@@ -21,6 +21,11 @@ let authEnabled = false;
 let currentUser = null;
 let csrfToken = null;
 
+// Current note per certificate, keyed "<folderParam>/<name>". Populated on
+// each render from the API response; read back when opening the editor so we
+// never re-parse note text out of the DOM.
+const certNotes = new Map();
+
 // DOM Elements
 let certificatesList, generateForm, domainsInput, formatSelect;
 let installCaBtn, showCaBtn, hideModal, caModal;
@@ -255,6 +260,14 @@ function handleCertificateAction(e) {
     const btn = e.target.closest('button[data-action]');
     if (!btn || !certificatesList.contains(btn)) return;
     const { action, folder, name, file } = btn.dataset;
+    if (action === 'edit-note' || action === 'save-note' || action === 'cancel-note') {
+        const container = btn.closest('.certificate-notes');
+        if (!container) return;
+        if (action === 'edit-note') openNoteEditor(container);
+        else if (action === 'save-note') saveNote(container);
+        else closeNoteEditor(container);
+        return;
+    }
     switch (action) {
         case 'download-cert':   downloadCert(folder, file); break;
         case 'download-key':    downloadKey(folder, file); break;
@@ -267,6 +280,56 @@ function handleCertificateAction(e) {
                 deleteCertificate(folder, name);
             }
             break;
+    }
+}
+
+// --- Certificate notes (issue #41) ---
+
+function renderNoteContent(note) {
+    if (note) {
+        return '<div class="note-text">' + escapeHtml(note) + '</div>' +
+               '<button data-action="edit-note" class="btn btn-secondary btn-small" title="Edit note">' +
+               '<i class="fas fa-pen"></i> Edit Note</button>';
+    }
+    return '<button data-action="edit-note" class="btn btn-secondary btn-small note-add" title="Add a note">' +
+           '<i class="fas fa-sticky-note"></i> Add Note</button>';
+}
+
+function noteKeyOf(container) {
+    return container.dataset.folder + '/' + container.dataset.name;
+}
+
+function openNoteEditor(container) {
+    const current = certNotes.get(noteKeyOf(container)) || '';
+    container.innerHTML =
+        '<textarea class="note-editor" maxlength="2000" rows="3" placeholder="Notes about this certificate…"></textarea>' +
+        '<div class="note-editor-actions">' +
+        '<button data-action="save-note" class="btn btn-primary btn-small"><i class="fas fa-save"></i> Save</button>' +
+        '<button data-action="cancel-note" class="btn btn-secondary btn-small">Cancel</button>' +
+        '</div>';
+    const textarea = container.querySelector('.note-editor');
+    textarea.value = current; // set via DOM, not innerHTML — no escaping pitfalls
+    textarea.focus();
+}
+
+function closeNoteEditor(container) {
+    container.innerHTML = renderNoteContent(certNotes.get(noteKeyOf(container)) || '');
+}
+
+async function saveNote(container) {
+    const note = container.querySelector('.note-editor').value;
+    const folder = container.dataset.folder;
+    const name = container.dataset.name;
+    try {
+        const response = await apiRequest(
+            '/certificates/' + encodeURIComponent(folder) + '/' + encodeURIComponent(name) + '/notes',
+            { method: 'PUT', body: JSON.stringify({ note: note }) }
+        );
+        certNotes.set(folder + '/' + name, response.note || '');
+        closeNoteEditor(container);
+    } catch (error) {
+        // Keep the editor (and the typed text) so the user can retry.
+        showAlert('Failed to save note: ' + error.message, 'error');
     }
 }
 
@@ -648,6 +711,8 @@ function displayCertificates(certificates) {
         const attrKey    = escapeAttr(keyFile || '');
         const attrName   = escapeAttr(cert.name);
 
+        certNotes.set(folderParam + '/' + cert.name, cert.note || '');
+
         return '<div class="certificate-card ' +
                (cert.isExpired ? 'certificate-expired' : '') + ' ' +
                (isRootCert ? 'root-certificate' : '') + ' ' +
@@ -682,6 +747,9 @@ function displayCertificates(certificates) {
                 '<p>This is your mkcert Root CA certificate. Install this certificate in your system\'s trust store to enable local HTTPS development with automatically trusted certificates.</p>' +
                 '<p><strong>Installation:</strong> Download and install this certificate to trust all mkcert-generated certificates on this system.</p>' +
                 '</div>' : '') +
+               '<div class="certificate-notes" data-folder="' + attrFolder + '" data-name="' + attrName + '">' +
+               renderNoteContent(cert.note || '') +
+               '</div>' +
                '<div class="certificate-actions">' +
                '<button data-action="download-cert" data-folder="' + attrFolder + '" data-file="' + attrCert + '" ' +
                'class="btn btn-success btn-small">' +

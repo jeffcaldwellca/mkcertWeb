@@ -2258,3 +2258,40 @@ section h2::before {
         margin-left: 1rem;
     }
 }
+
+/* Certificate notes (issue #41) */
+.certificate-notes {
+    margin: 10px 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.certificate-notes .note-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin-bottom: 8px;
+    color: var(--text-dim);
+}
+
+.certificate-notes .note-editor {
+    width: 100%;
+    resize: vertical;
+    margin-bottom: 8px;
+    padding: 0.5rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.certificate-notes .note-editor:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.certificate-notes .note-editor-actions {
+    display: flex;
+    gap: 8px;
+}
