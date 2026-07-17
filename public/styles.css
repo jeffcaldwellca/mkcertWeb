@@ -2277,6 +2277,18 @@ section h2::before {
     width: 100%;
     resize: vertical;
     margin-bottom: 8px;
+    padding: 0.5rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.certificate-notes .note-editor:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 .certificate-notes .note-editor-actions {
