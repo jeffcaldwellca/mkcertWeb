@@ -538,31 +538,38 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth) => {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
     
-    // Use security-validated paths
-    let certFile, keyFile;
+    // Use security-validated paths. Archived certificates live in the
+    // folder's archive/ subdirectory (see the /archive endpoint above), and
+    // the UI offers "Delete Forever" only on archived cards — so check both.
+    let candidates;
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+      const archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
+      candidates = [sourceDir, archiveDir].map((dir) => ({
+        certFile: security.validateAndSanitizePath(`${certname}.pem`, dir).resolved,
+        keyFile: security.validateAndSanitizePath(`${certname}-key.pem`, dir).resolved
+      }));
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
     try {
       const fs = require('fs');
       let deletedFiles = [];
-      
-      // Delete certificate file if it exists
-      if (fs.existsSync(certFile)) {
-        fs.unlinkSync(certFile);
-        deletedFiles.push(`${certname}.pem`);
+
+      for (const { certFile, keyFile } of candidates) {
+        // Delete certificate file if it exists
+        if (fs.existsSync(certFile)) {
+          fs.unlinkSync(certFile);
+          deletedFiles.push(`${certname}.pem`);
+        }
+
+        // Delete key file if it exists
+        if (fs.existsSync(keyFile)) {
+          fs.unlinkSync(keyFile);
+          deletedFiles.push(`${certname}-key.pem`);
+        }
       }
-      
-      // Delete key file if it exists
-      if (fs.existsSync(keyFile)) {
-        fs.unlinkSync(keyFile);
-        deletedFiles.push(`${certname}-key.pem`);
-      }
-      
+
       if (deletedFiles.length === 0) {
         return apiResponse.notFound(res, 'Certificate files not found');
       }
