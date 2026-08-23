@@ -316,8 +316,16 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     }
     
     if (companionFile) {
-      const companionPath = path.join(process.cwd(), companionFile);
+      // Re-run containment on the derived name rather than trusting that it
+      // inherits safety from `filename` — keeps this path self-evidently safe.
+      let companionPath;
       try {
+        companionPath = security.validateAndSanitizePath(companionFile, process.cwd()).resolved;
+      } catch (_) {
+        companionPath = null;
+      }
+      try {
+        if (!companionPath) throw new Error('unsafe companion path');
         await fs.access(companionPath);
         await deleteFile(companionPath); // Don't pass res - we don't want to send error response for companion file
       } catch (err) {
