@@ -19,6 +19,8 @@ const { securityHeaders } = require('./src/config/securityHeaders');
 const { runTool } = require('./src/security');
 const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
 const { apiResponse } = require('./src/utils/responses');
+const { getAuthState, isAuthenticated } = require('./src/utils/authState');
+const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
 
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
@@ -97,6 +99,8 @@ const OIDC_CLIENT_ID   = config.oidc.clientId;
 const OIDC_CLIENT_SECRET = config.oidc.clientSecret;
 const OIDC_CALLBACK_URL  = config.oidc.callbackUrl || `http://localhost:${PORT}/auth/oidc/callback`;
 const OIDC_SCOPE         = config.oidc.scope || 'openid profile email';
+// Populated from discovery at boot; null if the provider doesn't support RP-initiated logout.
+let OIDC_END_SESSION_ENDPOINT = null;
 
 // Middleware
 // CORS: same-origin app. Allow cross-origin only if explicitly configured via
@@ -182,7 +186,8 @@ app.use(passport.session());
 // minimum needed to identify the user. We have no user store to rehydrate
 // from, so the deserialized object is exactly what we serialized.
 passport.serializeUser((user, done) => {
-  done(null, { id: user.id, email: user.email, name: user.name, provider: user.provider });
+  // idToken is kept server-side only (session store), for id_token_hint at logout.
+  done(null, { id: user.id, email: user.email, name: user.name, provider: user.provider, idToken: user.idToken });
 });
 
 passport.deserializeUser((user, done) => {
@@ -213,8 +218,15 @@ async function configureOIDC() {
     const doc = await discoverOIDC(OIDC_ISSUER);
     const supportsPKCE = Array.isArray(doc.code_challenge_methods_supported)
       && doc.code_challenge_methods_supported.includes('S256');
+    // The strategy compares the ID token's `iss` claim against this value
+    // with strict equality, so use the issuer the provider advertises rather
+    // than the (possibly trailing-slash-different) configured string.
+    const issuer = doc.issuer || OIDC_ISSUER;
+    if (doc.issuer && doc.issuer !== OIDC_ISSUER) {
+      console.warn(`  OIDC issuer normalised: configured "${OIDC_ISSUER}", provider reports "${doc.issuer}"`);
+    }
     passport.use('oidc', new OpenIDConnectStrategy({
-      issuer: OIDC_ISSUER,
+      issuer,
       authorizationURL: doc.authorization_endpoint,
       tokenURL:         doc.token_endpoint,
       userInfoURL:      doc.userinfo_endpoint,
@@ -225,16 +237,20 @@ async function configureOIDC() {
       // passport-openidconnect generates a `state` param by default and
       // validates it on callback (the OAuth 2.0 CSRF defense).
       pkce: supportsPKCE
-    }, (issuer, profile, done) => {
+    }, (issuer, profile, context, idToken, accessToken, refreshToken, done) => {
+      // 7-arg verify signature so we receive the raw ID token (needed for
+      // id_token_hint on RP-initiated logout).
       const user = {
         id: profile.id,
         email: profile.emails ? profile.emails[0].value : null,
         name: profile.displayName || profile.username,
-        provider: 'oidc'
+        provider: 'oidc',
+        idToken
       };
       return done(null, user);
     }));
-    console.log(`✓ OIDC configured via discovery (${OIDC_ISSUER})${supportsPKCE ? ' with PKCE' : ''}`);
+    OIDC_END_SESSION_ENDPOINT = doc.end_session_endpoint || null;
+    console.log(`✓ OIDC configured via discovery (${issuer})${supportsPKCE ? ' with PKCE' : ''}${OIDC_END_SESSION_ENDPOINT ? ', RP-initiated logout' : ''}`);
   } catch (err) {
     console.error(`⚠ OIDC discovery failed: ${err.message}`);
     console.error('  OIDC login will be unavailable. Basic auth (if enabled) still works.');
@@ -248,7 +264,7 @@ const requireAuth = (req, res, next) => {
   }
   
   // Check for basic auth session or OIDC authentication
-  if ((req.session && req.session.authenticated) || (req.user && req.isAuthenticated())) {
+  if (isAuthenticated(req)) {
     return next();
   } else {
     return res.status(401).json({ 
@@ -270,7 +286,7 @@ app.use(express.static('public', {
 if (ENABLE_AUTH) {
   // Login page route
   app.get('/login', (req, res) => {
-    if (req.session && req.session.authenticated) {
+    if (isAuthenticated(req)) {
       return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
@@ -312,28 +328,23 @@ if (ENABLE_AUTH) {
 
   // Logout API
   app.post('/api/auth/logout', (req, res) => {
+    // For SSO users, also end the session at the provider (RP-initiated
+    // logout) so "Login with SSO" doesn't silently sign them straight back in.
+    // Work this out before destroying the session, since req.user goes with it.
+    let redirectTo = '/login';
+    if (req.user && req.user.provider === 'oidc' && OIDC_END_SESSION_ENDPOINT) {
+      const postLogoutRedirectUri = new URL('/login', OIDC_CALLBACK_URL).toString();
+      redirectTo = buildEndSessionUrl(OIDC_END_SESSION_ENDPOINT, { idToken: req.user.idToken, postLogoutRedirectUri }) || '/login';
+    }
+    // Destroying the session removes both the basic-auth flags and the
+    // passport user in one step. (Calling req.logout() after destroy() used
+    // to make passport complain about missing session support.)
     req.session.destroy((err) => {
       if (err) {
-        return res.status(500).json({
-          success: false,
-          error: 'Could not log out'
-        });
+        return res.status(500).json({ success: false, error: 'Could not log out' });
       }
-      
-      // If using OIDC, also logout from passport
-      if (req.user) {
-        req.logout((logoutErr) => {
-          if (logoutErr) {
-            console.error('Passport logout error:', logoutErr);
-          }
-        });
-      }
-      
-      res.json({
-        success: true,
-        message: 'Logout successful',
-        redirectTo: '/login'
-      });
+      res.clearCookie('mkcertweb.sid');
+      res.json({ success: true, message: 'Logout successful', redirectTo });
     });
   });
 
@@ -345,24 +356,26 @@ if (ENABLE_AUTH) {
     );
 
     // OIDC callback
-    app.get('/auth/oidc/callback',
-      passport.authenticate('oidc', { failureRedirect: '/login?error=oidc_failed' }),
-      (req, res) => {
-        // Successful authentication, redirect to main page
-        res.redirect('/');
-      }
-    );
-  }
-
-  // API endpoint to check authentication methods available
-  app.get('/api/auth/methods', (req, res) => {
-    res.json({
-      basic: true,
-      oidc: {
-        enabled: !!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET)
-      }
+    // Custom callback so the strategy's failure reason (issuer mismatch,
+    // bad nonce, expired token, ...) reaches the server log instead of being
+    // swallowed by failureRedirect.
+    app.get('/auth/oidc/callback', (req, res, next) => {
+      passport.authenticate('oidc', (err, user, info) => {
+        if (err || !user) {
+          const reason = (err && err.message) || (info && info.message) || 'unknown reason';
+          console.error(`⚠ OIDC login failed: ${reason}`);
+          return res.redirect('/login?error=oidc_failed');
+        }
+        req.login(user, (loginErr) => {
+          if (loginErr) {
+            console.error(`⚠ OIDC session setup failed: ${loginErr.message}`);
+            return res.redirect('/login?error=oidc_failed');
+          }
+          res.redirect('/');
+        });
+      })(req, res, next);
     });
-  });
+  }
 
   // Traditional form-based login route
   app.post('/login', rateLimiters.authRateLimiter, async (req, res) => {
@@ -390,7 +403,7 @@ if (ENABLE_AUTH) {
   // Redirect root to login if not authenticated
   app.get('/', (req, res, next) => {
     // Check both session authentication and OIDC authentication
-    if ((!req.session || !req.session.authenticated) && (!req.user || !req.isAuthenticated())) {
+    if (!isAuthenticated(req)) {
       return res.redirect('/login');
     }
     // Serve the main index.html for authenticated users
@@ -437,11 +450,9 @@ app.get('/api/csrf-token', rateLimiters.generalRateLimiter, (req, res) => {
 
 app.get('/api/auth/status', rateLimiters.generalRateLimiter, (req, res) => {
   if (ENABLE_AUTH) {
-    res.json({
-      authenticated: !!(req.session && req.session.authenticated),
-      username: req.session ? req.session.username : null,
-      authEnabled: true
-    });
+    // Covers both basic-auth sessions and OIDC/passport logins (#43).
+    const { authenticated, username } = getAuthState(req);
+    res.json({ authenticated, username, authEnabled: true });
   } else {
     res.json({ authenticated: false, username: null, authEnabled: false });
   }
