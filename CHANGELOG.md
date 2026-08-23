@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.3.3] - 2026-08-23
+
+### Security
+
+- **Prototype pollution via upload filenames (CodeQL #169–171).** `/api/upload`
+  grouped files in a plain object keyed by the uploaded base name, so a file
+  named `__proto__.pem` wrote its multer file object onto `Object.prototype`
+  (`({}).cert`). Grouping now uses a `Map`. Regression test added.
+- Companion-file deletion in `DELETE /api/certificate/:filename` now re-runs
+  path containment on the derived `-key.pem`/`.pem` name instead of relying
+  on the primary filename's validation (CodeQL #104).
+
 ## [4.3.2] - 2026-08-23
 
 ### Fixed
