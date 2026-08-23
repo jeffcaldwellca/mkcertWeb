@@ -151,6 +151,7 @@ app.use(session({
 const rateLimiters = createRateLimiters(config);
 
 // CSRF Protection
+const csurf = require('csurf');
 const Tokens = require('csrf');
 const tokens = new Tokens();
 

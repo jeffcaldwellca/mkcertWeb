@@ -39,6 +39,7 @@
     "body-parser": "^1.20.6",
     "cors": "^2.8.5",
     "csrf": "^3.1.0",
+    "csurf": "^1.11.0",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
