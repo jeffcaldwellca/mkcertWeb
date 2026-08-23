@@ -135,6 +135,9 @@
                 case 'missing_credentials':
                     errorMessage = '<i class="fas fa-exclamation-circle"></i> Please enter both username and password.';
                     break;
+                case 'oidc_failed':
+                    errorMessage = '<i class="fas fa-exclamation-triangle"></i> Single sign-on failed. Check the server log for the reason, or sign in with a username and password.';
+                    break;
                 default:
                     errorMessage = '<i class="fas fa-exclamation-triangle"></i> An error occurred. Please try again.';
             }

@@ -1,5 +1,6 @@
 // Rate limiting middleware module
 const rateLimit = require('express-rate-limit');
+const { getAuthState } = require('../utils/authState');
 
 const createRateLimiters = (config) => {
   // CLI rate limiter for certificate operations
@@ -15,7 +16,7 @@ const createRateLimiters = (config) => {
     keyGenerator: (req) => {
       // Rate limit by IP address and user (if authenticated)
       const ip = req.ip || req.connection.remoteAddress;
-      const user = req.user?.username || req.session?.username || 'anonymous';
+      const user = getAuthState(req).username || 'anonymous';
       return `cli:${ip}:${user}`;
     }
   });
@@ -32,7 +33,7 @@ const createRateLimiters = (config) => {
     legacyHeaders: false,
     keyGenerator: (req) => {
       const ip = req.ip || req.connection.remoteAddress;
-      const user = req.user?.username || req.session?.username || 'anonymous';
+      const user = getAuthState(req).username || 'anonymous';
       return `api:${ip}:${user}`;
     }
   });

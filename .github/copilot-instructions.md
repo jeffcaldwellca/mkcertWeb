@@ -9,7 +9,7 @@ This is a secure Node.js/Express web interface for managing SSL certificates usi
 ### Modular Factory Pattern
 - All major components use factory functions that accept `config` parameter
 - Routes: `createCertificateRoutes(config, rateLimiters, requireAuth)`
-- Middleware: `createAuthMiddleware(config)`, `createRateLimiters(config)`
+- Middleware: `createRateLimiters(config)`; auth checks live in `server.js` (`requireAuth`) on top of `src/utils/authState.js`
 - This enables dependency injection and easier testing
 
 ### Security-First Command Execution
@@ -151,6 +151,6 @@ curl -X POST localhost:3000/api/execute \
 1. **New CLI Command**: Update `allowedPatterns` in `src/security/index.js`
 2. **New API Endpoint**: Use appropriate rate limiter and `asyncHandler()`
 3. **New Configuration**: Add to `src/config/index.js` with env var support
-4. **New Authentication Method**: Extend `src/middleware/auth.js` factory pattern
+4. **New Authentication Method**: Add the login route in `server.js` and teach `getAuthState()` in `src/utils/authState.js` to recognise it — that helper is the single source of truth for "is this request authenticated"
 
 Follow the established factory pattern and security-first approach for consistency.
