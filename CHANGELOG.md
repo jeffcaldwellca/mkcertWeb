@@ -4,6 +4,66 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.3.2] - 2026-08-23
+
+### Fixed
+
+- **OIDC/SSO login bounced straight back to the login page (#43).** After a
+  successful OIDC callback, passport stored the user in the session and `GET /`
+  served the app, but `/api/auth/status` only recognised username/password
+  sessions (`req.session.authenticated`), so the frontend's auth check saw
+  `authenticated: false` and redirected to `/login`. Auth state is now computed
+  by one helper (`src/utils/authState.js`) that understands both basic-auth
+  sessions and passport logins, and is used by `/api/auth/status`, `GET /`,
+  `GET /login`, and `requireAuth`. The OIDC display name (falling back to
+  email) is now shown as the logged-in user.
+
+- **OIDC failures are now logged.** The callback uses a custom passport
+  callback so the strategy's reason (issuer mismatch, bad nonce, expired
+  token, ...) is written to the server log instead of being swallowed by the
+  redirect to `/login?error=oidc_failed`. The login page also shows a
+  dedicated "single sign-on failed" message for that error.
+- **OIDC issuer taken from discovery.** `passport-openidconnect` compares the
+  ID token's `iss` claim with strict equality, so a trailing-slash difference
+  between the configured issuer and what the provider advertises (authentik
+  includes one; Keycloak/Entra don't) silently failed login. The strategy now
+  uses the discovery document's `issuer` and warns at boot when it differs
+  from the configured value.
+- Rate limiters now key per-user buckets for OIDC logins too (they looked for
+  `req.user.username`, which passport users don't have, so SSO users shared
+  the per-IP `anonymous` bucket).
+- Removed a duplicate, un-rate-limited `/api/auth/methods` route that shadowed
+  the rate-limited one whenever auth was enabled.
+
+### Added
+
+- **RP-initiated OIDC logout.** When the provider advertises an
+  `end_session_endpoint`, logging out of an SSO session now also redirects the
+  browser to the provider to end its session (with `id_token_hint` and a
+  `post_logout_redirect_uri` back to `/login`), so "Login with SSO" no longer
+  silently signs the user straight back in. Register `<origin>/login` as an
+  allowed post-logout redirect URI with your provider.
+
+### Security
+
+- Cleared all 10 open Dependabot alerts: removed the unused `axios`
+  devDependency (5 alerts), bumped `body-parser` to 1.20.6
+  (GHSA-v422-hmwv-36x6), and refreshed transitive `brace-expansion` to 2.1.4 /
+  5.0.9 (GHSA-rgw5-rvv9-x895, GHSA-3jxr-9vmj-r5cp, GHSA-mh99-v99m-4gvg).
+  `npm audit` reports 0 vulnerabilities.
+
+### Removed
+
+- Dead `src/routes/auth.js` and `src/middleware/auth.js` (never required by
+  `server.js`; they carried an older copy of the same auth logic and the same
+  OIDC status bug).
+
+### Changed
+
+- `/api/auth/logout` no longer calls `req.logout()` after destroying the
+  session — destroying the session already drops the passport user, and the
+  extra call only produced a spurious "session support" error in the log.
+
 ## [4.3.1] - 2026-07-17
 
 A dependency-security release clearing all seven open Dependabot alerts.
