@@ -91,8 +91,9 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       files: []
     };
 
-    // Group files by base name
-    const fileGroups = {};
+    // Group files by base name. A Map (not a plain object) so a file named
+    // e.g. "__proto__.pem" can't write through to Object.prototype.
+    const fileGroups = new Map();
     
     for (const file of req.files) {
       const fileName = file.originalname;
@@ -119,13 +120,13 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
         type = 'p12';
       }
 
-      if (!fileGroups[baseName]) {
-        fileGroups[baseName] = { cert: null, key: null, p12: null };
+      if (!fileGroups.has(baseName)) {
+        fileGroups.set(baseName, { cert: null, key: null, p12: null });
       }
-
-      if (type === 'cert') fileGroups[baseName].cert = file;
-      else if (type === 'key') fileGroups[baseName].key = file;
-      else if (type === 'p12') fileGroups[baseName].p12 = file;
+      const group = fileGroups.get(baseName);
+      if (type === 'cert') group.cert = file;
+      else if (type === 'key') group.key = file;
+      else if (type === 'p12') group.p12 = file;
 
       // Move file to uploaded folder
       const targetPath = path.join(absoluteUploadedFolder, fileName);
@@ -145,7 +146,7 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
     }
 
     // Identify complete and incomplete pairs
-    for (const [baseName, group] of Object.entries(fileGroups)) {
+    for (const [baseName, group] of fileGroups) {
       if (group.p12) {
         results.completePairs++;
       } else if (group.cert && group.key) {
