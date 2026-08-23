@@ -72,6 +72,9 @@ ENABLE_OIDC=false
 OIDC_ISSUER=https://your-provider.com
 OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-secret
+# Public URL of this app's callback; register it (and `<same origin>/login`
+# as a post-logout redirect URI) with your provider.
+OIDC_CALLBACK_URL=https://mkcert.example.com/auth/oidc/callback
 
 # Email Notifications
 EMAIL_NOTIFICATIONS_ENABLED=true

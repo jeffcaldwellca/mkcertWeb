@@ -557,7 +557,8 @@
       try {
         const response = await authedFetch('/api/auth/logout', { method: 'POST' });
         if (response.ok) {
-          window.location.href = '/login';
+          const data = await response.json().catch(() => ({}));
+          window.location.href = data.redirectTo || '/login';
         }
       } catch (error) {
         console.error('Logout error:', error);

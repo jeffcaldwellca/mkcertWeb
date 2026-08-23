@@ -93,7 +93,8 @@
                         // we still go through authedFetch for consistency.
                         const logoutResponse = await authedFetch('/api/auth/logout', { method: 'POST' });
                         if (logoutResponse.ok) {
-                            window.location.href = '/login';
+                            const data = await logoutResponse.json().catch(() => ({}));
+                            window.location.href = data.redirectTo || '/login';
                         }
                     });
                 }
