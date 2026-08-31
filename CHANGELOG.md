@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [4.3.4] - 2026-08-31
+
+### Fixed
+
+- **UI-saved settings lost on container recreation (#45).** The sample
+  `docker-compose.yml` persisted `/app/certificates`, `/app/data`, and the
+  mkcert root CA, but not `/app/config` — where settings saved from the web
+  UI (`config/settings.json`: webhook, email/ntfy notifications, theme, ...)
+  are stored. Pulling a new image therefore wiped them. The compose file now
+  mounts a `mkcert_config` volume at `/app/config`, and the manual
+  `docker run` example in `docs/DOCKER.md` includes the config and CA
+  volumes.
+
+### Documentation
+
+- Documented the certificate-expiry notification environment variables
+  (`WEBHOOK_ENABLED`, `WEBHOOK_URL`, `NTFY_*`,
+  `EMAIL_NOTIFICATIONS_ENABLED`, `CERT_MONITORING_*`) in the sample
+  `docker-compose.yml` and `docs/DOCKER.md` — they existed but were not
+  documented anywhere (#45).
+- Corrected `docs/SETTINGS.md`, which still described the pre-4.0.0
+  precedence order: explicitly-set environment variables override
+  `config/settings.json`, not the other way around.
+- Fixed the theme variable name in `docs/DOCKER.md` (`THEME_MODE`, not
+  `DEFAULT_THEME`).
+
 ## [4.3.3] - 2026-08-23
 
 ### Security
