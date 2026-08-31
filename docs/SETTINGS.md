@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Settings page provides a web-based interface for managing all mkcert Web UI configuration options. Settings configured through the UI are stored in `config/settings.json` and take precedence over environment variables defined in `.env`.
+The Settings page provides a web-based interface for managing all mkcert Web UI configuration options. Settings configured through the UI are stored in `config/settings.json` and take precedence over built-in defaults — but any environment variable that is *explicitly set* (in `.env`, docker-compose, or the host environment) overrides the saved setting, so deployment-level configuration is never silently ignored.
 
 ## Features
 
@@ -76,14 +76,18 @@ The Settings page provides a web-based interface for managing all mkcert Web UI 
 - Nested object structure mirrors the application configuration
 
 ### Override Priority
-1. **Highest**: Values from `config/settings.json` (UI settings)
-2. **Middle**: Environment variables from `.env` file
+1. **Highest**: Environment variables that are *explicitly set* (`.env`, docker-compose, host environment)
+2. **Middle**: Values from `config/settings.json` (UI settings)
 3. **Lowest**: Default values in `src/config/index.js`
+
+Only env vars that are actually present override saved settings — an unset
+env var never masks a UI-saved value. This ensures docker-compose / host
+environment configuration is never silently ignored.
 
 ### Configuration Loading
 The config loader (`src/config/index.js`) performs a deep merge:
 ```javascript
-finalConfig = deepMerge(envConfig, savedSettings)
+finalConfig = deepMerge(deepMerge(defaults, savedSettings), explicitEnvOverrides)
 ```
 
 ### API Endpoints
@@ -109,7 +113,8 @@ To migrate existing `.env` configuration to the Settings UI:
 3. Review the pre-populated values (loaded from `.env`)
 4. Make any desired changes
 5. Click "Save Settings"
-6. Settings are now stored in `config/settings.json` and will override `.env`
+6. Settings are now stored in `config/settings.json`; remove the corresponding
+   entries from `.env`, since explicitly-set env vars override saved settings
 
 ## Restart Requirements
 
@@ -138,6 +143,9 @@ Other settings (like email SMTP) are loaded dynamically by services and may not 
 - Check if `config/settings.json` exists
 - Restore from backup using import feature
 - Settings file may have been deleted or corrupted
+- **Docker**: make sure a volume is mounted at `/app/config` (see
+  `docker-compose.yml`) — without it, UI-saved settings are lost whenever
+  the container is recreated (e.g. after pulling a new image)
 
 ## Best Practices
 

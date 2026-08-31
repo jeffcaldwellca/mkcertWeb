@@ -27,8 +27,15 @@ docker run -d \
   -p 3000:3000 \
   -v mkcert_certificates:/app/certificates \
   -v mkcert_data:/app/data \
+  -v mkcert_config:/app/config \
+  -v mkcert_ca:/home/nodejs/.local/share/mkcert \
   mkcert-web-ui
 ```
+
+> **Persistence:** all four volumes matter. `/app/config` holds settings
+> saved from the web UI (webhook/notification config, theme, ...) and
+> `/home/nodejs/.local/share/mkcert` holds the root CA — without them,
+> both are lost every time the container is recreated.
 
 ## Configuration
 
@@ -39,7 +46,7 @@ cat > .env << EOF
 ENABLE_AUTH=true
 AUTH_USERNAME=myuser
 AUTH_PASSWORD=mysecurepassword
-DEFAULT_THEME=light
+THEME_MODE=light
 ENABLE_HTTPS=true
 SSL_DOMAIN=myapp.local
 EOF
@@ -63,11 +70,33 @@ ENABLE_AUTH=true AUTH_USERNAME=admin docker-compose up -d
 | `SSL_DOMAIN` | `localhost` | Domain for SSL certificate |
 | `FORCE_HTTPS` | `false` | Redirect HTTP to HTTPS |
 | `NODE_ENV` | `production` | Environment mode |
-| `DEFAULT_THEME` | `dark` | UI theme (dark/light) |
+| `THEME_MODE` | `dark` | UI theme (dark/light) |
 | `ENABLE_AUTH` | `false` | Enable authentication |
 | `AUTH_USERNAME` | `admin` | Username |
 | `AUTH_PASSWORD` | `admin` | Password |
 | `SESSION_SECRET` | auto-generated | Session secret |
+
+### Notification Variables
+
+Certificate-expiry notifications can be configured entirely via environment
+variables (or from the Settings UI — explicitly-set env vars win):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WEBHOOK_ENABLED` | `false` | Enable generic HTTP webhook notifications |
+| `WEBHOOK_URL` | — | Webhook target URL (custom headers: Settings UI only) |
+| `NTFY_ENABLED` | `false` | Enable ntfy push notifications |
+| `NTFY_URL` | `https://ntfy.sh` | ntfy server URL |
+| `NTFY_TOPIC` | — | ntfy topic |
+| `NTFY_TOKEN` | — | ntfy access token (or `NTFY_USERNAME`/`NTFY_PASSWORD`) |
+| `EMAIL_NOTIFICATIONS_ENABLED` | `false` | Enable email notifications |
+| `CERT_MONITORING_ENABLED` | `false` | Enable the expiry monitoring schedule |
+| `CERT_CHECK_INTERVAL` | `0 8 * * *` | Cron schedule for expiry checks |
+| `CERT_WARNING_DAYS` | `30` | Days before expiry to warn |
+| `CERT_CRITICAL_DAYS` | `7` | Days before expiry for critical alerts |
+
+See [EMAIL_MONITORING_GUIDE.md](EMAIL_MONITORING_GUIDE.md) for the full list
+of SMTP variables.
 
 ## Management
 
@@ -92,6 +121,9 @@ docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
 # Restore
 docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
   tar xzf /backup/certificates-backup.tar.gz -C /data
+
+# Same pattern for the other volumes: mkcert_data, mkcert_config
+# (UI-saved settings), and mkcert_ca (root CA)
 ```
 
 ## Production Deployment

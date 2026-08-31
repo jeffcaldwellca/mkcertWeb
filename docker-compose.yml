@@ -46,10 +46,38 @@ services:
       # - OIDC_CLIENT_SECRET=
       # - OIDC_CALLBACK_URL=
       # - OIDC_SCOPE=openid profile email
+
+      # Certificate Expiry Notifications
+      # Explicitly-set env vars override values saved from the Settings UI.
+      # Webhook (custom request headers are UI/settings.json only)
+      # - WEBHOOK_ENABLED=true
+      # - WEBHOOK_URL=https://example.com/hook
+      # ntfy push notifications
+      # - NTFY_ENABLED=true
+      # - NTFY_URL=https://ntfy.sh
+      # - NTFY_TOPIC=
+      # - NTFY_TOKEN=
+      # Email (see docs/EMAIL_MONITORING_GUIDE.md for the full list)
+      # - EMAIL_NOTIFICATIONS_ENABLED=true
+      # - SMTP_HOST=
+      # - SMTP_PORT=587
+      # - SMTP_USER=
+      # - SMTP_PASSWORD=
+      # - EMAIL_FROM=
+      # - EMAIL_TO=
+      # Expiry monitoring schedule
+      # - CERT_MONITORING_ENABLED=true
+      # - CERT_CHECK_INTERVAL=0 8 * * *
+      # - CERT_WARNING_DAYS=30
+      # - CERT_CRITICAL_DAYS=7
     volumes:
       # Issued certs + app data
       - mkcert_certificates:/app/certificates
       - mkcert_data:/app/data
+      # Settings saved from the web UI (config/settings.json — webhook,
+      # email/ntfy notifications, theme, ...). Without this volume those
+      # settings are lost every time the container is recreated (#45).
+      - mkcert_config:/app/config
       # Persist the per-container mkcert Root CA across container restarts.
       # As of v4.0.0 the image no longer ships a baked-in CA (every pulled
       # image used to share the same rootCA-key.pem — see CHANGELOG). The
@@ -68,6 +96,8 @@ volumes:
   mkcert_certificates:
     driver: local
   mkcert_data:
+    driver: local
+  mkcert_config:
     driver: local
   mkcert_ca:
     driver: local
