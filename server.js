@@ -40,7 +40,11 @@ const { NtfyService } = require('./src/services/ntfyService');
 const { WebhookService } = require('./src/services/webhookService');
 const { CertificateMonitoringService } = require('./src/services/certificateMonitoringService');
 const { createRateLimiters } = require('./src/middleware/rateLimiting');
+const { verifyCsrf, issueCsrfToken } = require('./src/middleware/csrf');
 
+// CSRF is enforced by our own middleware (src/middleware/csrf.js, applied with
+// app.use(verifyCsrf) below), which this rule doesn't recognise.
+// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage
 const app = express();
 // Use config.* for all runtime values — this respects settings.json AND env var overrides
 const PORT       = config.server.port;
@@ -149,34 +153,6 @@ app.use(session({
 // authRateLimiter to the login POST). Services that depend on config can be
 // created later — only the limiter map needs to be hoisted.
 const rateLimiters = createRateLimiters(config);
-
-// CSRF Protection
-const Tokens = require('csrf');
-const tokens = new Tokens();
-
-// CSRF verification middleware — applied to every state-changing request that
-// has an authenticated session. GET/HEAD/OPTIONS are exempt by definition.
-// We skip the login POST (no session yet) and the OIDC callback (state param
-// is the OAuth-layer defense). The frontend sends the token in the
-// X-CSRF-Token header (see apiRequest in public/script.js).
-const CSRF_EXEMPT_PATHS = new Set([
-  '/api/auth/login',
-  '/login',
-  '/api/auth/logout',     // logout is intentionally low-friction; protected by sameSite
-  '/auth/oidc',
-  '/auth/oidc/callback',
-  '/scep'                 // SCEP is a protocol endpoint, not a browser form
-]);
-function verifyCsrf(req, res, next) {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
-  if (CSRF_EXEMPT_PATHS.has(req.path)) return next();
-  const secret = req.session && req.session.csrfSecret;
-  const token  = req.get('x-csrf-token') || (req.body && req.body._csrf);
-  if (!secret || !token || !tokens.verify(secret, token)) {
-    return res.status(403).json({ success: false, error: 'Invalid CSRF token', code: 'CSRF_INVALID' });
-  }
-  next();
-}
 
 // Passport configuration
 app.use(passport.initialize());
@@ -442,10 +418,7 @@ app.use(verifyCsrf);
 // routers, because createSystemRoutes mounts a `/api/*` catch-all 404 that
 // would otherwise shadow them.
 app.get('/api/csrf-token', rateLimiters.generalRateLimiter, (req, res) => {
-  if (!req.session.csrfSecret) {
-    req.session.csrfSecret = tokens.secretSync();
-  }
-  res.json({ success: true, csrfToken: tokens.create(req.session.csrfSecret) });
+  res.json({ success: true, csrfToken: issueCsrfToken(req) });
 });
 
 app.get('/api/auth/status', rateLimiters.generalRateLimiter, (req, res) => {
