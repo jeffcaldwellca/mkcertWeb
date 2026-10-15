@@ -5,6 +5,9 @@ const path = require('path');
 const fs = require('fs-extra');
 const { runTool, executeCommand } = require('../security');
 const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
+// Read from package.json rather than npm_package_version: the Docker image
+// starts with `node server.js`, so npm never sets that variable.
+const { version: APP_VERSION } = require('../../package.json');
 
 const createSystemRoutes = (config, rateLimiters, requireAuth) => {
   const router = express.Router();
@@ -16,7 +19,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      version: process.env.npm_package_version || '1.0.0'
+      version: APP_VERSION
     });
   });
 
@@ -203,28 +206,49 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       }, 'Root CA already exists');
     }
 
+    // `mkcert -install` creates the CA files first, then adds the CA to the
+    // system trust store. The second step needs root/sudo, which the Docker
+    // image (non-root `nodejs` user) doesn't have, so it exits non-zero even
+    // though the CA was created. Treat the trust-store step as best-effort and
+    // decide success by whether the CA files exist.
+    let installResult = null;
+    let installError = null;
     try {
-      const installResult = await runTool('mkcert', ['-install']);
-      const created = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-      if (!created) {
-        return apiResponse.serverError(res, 'mkcert -install ran but CA files were not created');
-      }
-      try {
-        await fs.ensureDir(publicCertDir);
-        await fs.copy(caCertPath, publicCertPath);
-      } catch (e) {
-        console.error('Failed to copy new Root CA to public area:', e.message);
-      }
-      apiResponse.success(res, {
-        caRoot, caExists: true, action: 'generated',
-        output: installResult.stdout, publicCACertPath: publicCertPath
-      }, 'Root CA generated and installed successfully');
+      installResult = await runTool('mkcert', ['-install']);
     } catch (err) {
-      const message = err.error || err.message || 'Unknown error';
-      const detail  = err.stderr ? err.stderr.trim() : null;
-      console.error('Error generating Root CA:', message, detail || '');
-      apiResponse.serverError(res, detail ? `${message} — ${detail}` : message);
+      installError = err;
     }
+
+    const created = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
+    if (!created) {
+      if (installError) {
+        const message = installError.error || installError.message || 'Unknown error';
+        const detail  = installError.stderr ? installError.stderr.trim() : null;
+        console.error('Error generating Root CA:', message, detail || '');
+        return apiResponse.serverError(res, detail ? `${message} — ${detail}` : message);
+      }
+      return apiResponse.serverError(res, 'mkcert -install ran but CA files were not created');
+    }
+
+    try {
+      await fs.ensureDir(publicCertDir);
+      await fs.copy(caCertPath, publicCertPath);
+    } catch (e) {
+      console.error('Failed to copy new Root CA to public area:', e.message);
+    }
+
+    const trustStoreInstalled = !installError;
+    if (!trustStoreInstalled) {
+      console.warn('Root CA created, but adding it to the system trust store failed (expected without root, e.g. in Docker):',
+        (installError.stderr || installError.error || installError.message || '').trim());
+    }
+    apiResponse.success(res, {
+      caRoot, caExists: true, action: 'generated', trustStoreInstalled,
+      output: installResult ? installResult.stdout : (installError.stderr || ''),
+      publicCACertPath: publicCertPath
+    }, trustStoreInstalled
+      ? 'Root CA generated and installed successfully'
+      : 'Root CA generated. It was not added to this server\'s system trust store (requires root, e.g. not available in Docker) — download the CA certificate and install it on your client devices.');
   }));
 
   // POST /api/uninstall-ca — removes the root CA from the system trust store.
@@ -280,7 +304,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
 
     apiResponse.success(res, {
       name: 'mkcert Web UI API',
-      version: process.env.npm_package_version || '1.0.0',
+      version: APP_VERSION,
       description: 'REST API for mkcert certificate management',
       endpoints: endpoints
     });
