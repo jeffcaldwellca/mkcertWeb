@@ -261,7 +261,7 @@ app.use(express.static('public', {
 // Authentication routes
 if (ENABLE_AUTH) {
   // Login page route
-  app.get('/login', (req, res) => {
+  app.get('/login', rateLimiters.generalRateLimiter, (req, res) => {
     if (isAuthenticated(req)) {
       return res.redirect('/');
     }
@@ -303,7 +303,7 @@ if (ENABLE_AUTH) {
   });
 
   // Logout API
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', rateLimiters.generalRateLimiter, (req, res) => {
     // For SSO users, also end the session at the provider (RP-initiated
     // logout) so "Login with SSO" doesn't silently sign them straight back in.
     // Work this out before destroying the session, since req.user goes with it.
@@ -327,7 +327,7 @@ if (ENABLE_AUTH) {
   // OIDC Authentication Routes
   if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
     // Initiate OIDC login
-    app.get('/auth/oidc',
+    app.get('/auth/oidc', rateLimiters.generalRateLimiter,
       passport.authenticate('oidc')
     );
 
@@ -335,7 +335,7 @@ if (ENABLE_AUTH) {
     // Custom callback so the strategy's failure reason (issuer mismatch,
     // bad nonce, expired token, ...) reaches the server log instead of being
     // swallowed by failureRedirect.
-    app.get('/auth/oidc/callback', (req, res, next) => {
+    app.get('/auth/oidc/callback', rateLimiters.generalRateLimiter, (req, res, next) => {
       passport.authenticate('oidc', (err, user, info) => {
         if (err || !user) {
           const reason = (err && err.message) || (info && info.message) || 'unknown reason';
@@ -377,7 +377,7 @@ if (ENABLE_AUTH) {
   });
 
   // Redirect root to login if not authenticated
-  app.get('/', (req, res, next) => {
+  app.get('/', rateLimiters.generalRateLimiter, (req, res, next) => {
     // Check both session authentication and OIDC authentication
     if (!isAuthenticated(req)) {
       return res.redirect('/login');
@@ -387,17 +387,17 @@ if (ENABLE_AUTH) {
   });
 } else {
   // When authentication is disabled, serve index.html directly
-  app.get('/', (req, res) => {
+  app.get('/', rateLimiters.generalRateLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
   
   // Redirect login page to main page when auth is disabled
-  app.get('/login', (req, res) => {
+  app.get('/login', rateLimiters.generalRateLimiter, (req, res) => {
     res.redirect('/');
   });
   
   // Handle POST /login when auth is disabled (redirect to main page)
-  app.post('/login', (req, res) => {
+  app.post('/login', rateLimiters.generalRateLimiter, (req, res) => {
     res.redirect('/');
   });
 }
