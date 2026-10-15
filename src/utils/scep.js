@@ -63,6 +63,12 @@ const processSCEPCertificateRequest = async (requestData) => {
     console.log(`📋 Template: ${template}`);
     if (upn) console.log(`📋 UPN: ${upn}`);
     
+    // commonName becomes a directory name below. Routes validate it already;
+    // re-check here so no caller can reach path.join with a traversal value.
+    if (!isValidDomainName(commonName)) {
+      throw new Error('Invalid common name');
+    }
+
     // Validate UPN if provided (important for M365 integration)
     if (upn && !enterpriseCA.validateUPN(upn)) {
       throw new Error(`Invalid UPN format: ${upn}`);
@@ -75,8 +81,11 @@ const processSCEPCertificateRequest = async (requestData) => {
     }
     
     // Create certificate directory
-    const scepCertDir = path.join(process.cwd(), 'certificates', 'scep');
-    const certDir = path.join(scepCertDir, commonName);
+    const scepCertDir = path.resolve(process.cwd(), 'certificates', 'scep');
+    const certDir = path.resolve(scepCertDir, commonName);
+    if (!certDir.startsWith(scepCertDir + path.sep)) {
+      throw new Error('Invalid common name');
+    }
     
     // Ensure directory exists
     try {
@@ -194,7 +203,11 @@ const getSCEPCertificateDetails = async (commonName) => {
       throw new Error('Invalid common name');
     }
 
-    const certDir = path.join(process.cwd(), 'certificates', 'scep', commonName);
+    const scepCertDir = path.resolve(process.cwd(), 'certificates', 'scep');
+    const certDir = path.resolve(scepCertDir, commonName);
+    if (!certDir.startsWith(scepCertDir + path.sep)) {
+      throw new Error('Invalid common name');
+    }
     const certFile = path.join(certDir, `${commonName}.pem`);
     const keyFile = path.join(certDir, `${commonName}-key.pem`);
 

@@ -97,7 +97,9 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
 
   // SCEP Certificate Request endpoint
   // RFC 8894 §3.2: PKCS#7 SignedData over PKCS#7 EnvelopedData over PKCS#10.
-  router.post('/scep', rawSCEPBody, upload.single('message'), cliRateLimiter, asyncHandler(async (req, res) => {
+  // The rate limiter runs before the body parsers so an unauthenticated client
+  // can't make us buffer up to 10MB per request once it's over the limit.
+  router.post('/scep', cliRateLimiter, rawSCEPBody, upload.single('message'), asyncHandler(async (req, res) => {
     const { operation } = req.query;
     if (operation !== 'PKIOperation') {
       return apiResponse.badRequest(res, 'Unsupported SCEP operation');

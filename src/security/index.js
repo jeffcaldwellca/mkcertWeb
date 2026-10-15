@@ -252,26 +252,28 @@ const validateFilename = (filename) => {
   // Remove any null bytes
   const cleanFilename = filename.replace(/\0/g, '');
 
-  // Check for dangerous patterns in filenames
+  // Length check first so the patterns below never run on unbounded input
+  if (cleanFilename.length > 255) {
+    throw new Error('Invalid filename: too long');
+  }
+
+  // Check for dangerous patterns in filenames. The trailing-character checks
+  // match a single char rather than /\s+$/ or /\.+$/ — same result, but no
+  // polynomial backtracking on long runs of spaces/dots.
   const dangerousFilenamePatterns = [
     /\.\.\./,           // Multiple dots
     /^\.\.?$/,          // . or .. filename
     /[<>"|*?\\\/]/,     // Invalid filename characters and path separators
     /\0/,               // Null bytes
     /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, // Windows reserved names
-    /\s+$/,             // Trailing spaces
-    /\.+$/              // Trailing dots
+    /\s$/,              // Trailing whitespace
+    /\.$/               // Trailing dot
   ];
 
   for (const pattern of dangerousFilenamePatterns) {
     if (pattern.test(cleanFilename)) {
       throw new Error(`Invalid filename: contains unsafe pattern '${cleanFilename}'`);
     }
-  }
-
-  // Additional length check
-  if (cleanFilename.length > 255) {
-    throw new Error('Invalid filename: too long');
   }
 
   return cleanFilename;
