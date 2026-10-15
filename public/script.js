@@ -984,7 +984,7 @@ async function handleGenerateCA() {
                 let successMessage = 
                     '<strong>Root CA Generated Successfully!</strong><br>' +
                     'Your new Root Certificate Authority is now ready to generate SSL certificates.<br>' +
-                    '<em>CA Root Path:</em> ' + (result.caRoot || 'Default location');
+                    '<em>CA Root Path:</em> ' + escapeHtml(result.caRoot || 'Default location');
                 
                 if (result.caCopiedToPublic) {
                     successMessage += '<br><strong>✓ CA Certificate copied to public download area</strong><br>' +
@@ -995,7 +995,8 @@ async function handleGenerateCA() {
                     successMessage += '<br><em>Valid Until:</em> ' + new Date(result.caInfo.expiry).toLocaleDateString();
                 }
                 
-                showAlert(successMessage, 'success');
+                // Markup is built here; the only server value (caRoot) is escaped above
+                showAlertHtml(successMessage, 'success');
                 
                 // Scroll to the Root CA section to show the new information
                 const rootCASection = document.getElementById('rootca-section');
