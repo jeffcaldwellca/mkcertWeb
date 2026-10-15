@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+### Security
+
+- **Docker image hardening (#46).** A Trivy scan of the 4.3.4 image reported
+  ~370 findings, mostly from the image rather than the app:
+  - mkcert is now built from the v1.4.4 source with Go 1.27 and current
+    `golang.org/x/{crypto,net,text}` instead of using the 2022 release
+    binary (Go 1.18). This accounted for all critical findings.
+  - Base image moved from `node:20-alpine` (end-of-life 2026-04-30) to
+    `node:24-alpine`, with `apk upgrade` for Alpine security fixes.
+  - npm, npx, corepack and yarn are removed from the runtime image; the
+    container now starts with `node server.js`.
+  - CI scans every build with Trivy (fails on fixable critical findings) and
+    rebuilds weekly so base-image patches reach `:latest`.
+- **Dependency updates:** nodemailer 10.1.1, multer 2.4.0, proxy-addr 2.0.8
+  (IP spoofing via IPv4-mapped IPv6 with `trust proxy`), qs 6.16.1,
+  brace-expansion 2.1.7.
+- **Code fixes:** ReDoS in filename validation; `POST /scep` rate-limits
+  before parsing the request body; SCEP certificate paths are validated
+  against traversal; page and OIDC routes are rate-limited.
+
+### Changed
+
+- Node.js 22 or newer is required to run outside Docker (nodemailer 10
+  needs Node 20+, and Node 20 is end-of-life).
+
 ## [4.3.4] - 2026-08-31
 
 ### Fixed

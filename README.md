@@ -43,7 +43,7 @@ docker-compose up -d
 ### Local Installation
 
 ```bash
-# Prerequisites: Node.js 16+, mkcert, OpenSSL
+# Prerequisites: Node.js 22+ (24 LTS recommended), mkcert, OpenSSL
 npm install
 mkcert -install    # First time only
 npm start
