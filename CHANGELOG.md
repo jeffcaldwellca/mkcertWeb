@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+### Fixed
+
+- **"Generate Root CA" reported failure in Docker.** `POST /api/generate-ca`
+  ran `mkcert -install`, which creates the CA and then adds it to the system
+  trust store. The second step needs root, which the container's `nodejs`
+  user doesn't have, so the request returned 500 even though the CA had been
+  created (and the CA certificate was never copied to `certificates/` for
+  download). The trust-store step is now best-effort: the endpoint succeeds
+  when the CA files exist, copies the CA for download, and returns
+  `trustStoreInstalled: false` with a message explaining it.
+- **Wrong version in `/api/health` and `/api` under Docker (4.4.0
+  regression).** The version came from `npm_package_version`, which isn't set
+  now that the image starts with `node server.js`, so it showed `1.0.0`. It's
+  now read from `package.json`.
+
 ## [4.4.0] - 2026-10-14
 
 ### Security
