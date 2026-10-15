@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+### Fixed
+
+- **"Generate Root CA" success message.** The UI shows "CA Certificate copied
+  to public download area" when the response has `caCopiedToPublic`, but the
+  API never sent it, and the detailed success alert was passed through the
+  HTML-escaping `showAlert`, so its formatting showed as literal `<strong>` /
+  `<br>` tags. `POST /api/generate-ca` now returns `caCopiedToPublic` (whether
+  the CA certificate is in `certificates/` afterwards), and the alert renders
+  as HTML with the CA path escaped.
+
 ## [4.4.1] - 2026-10-14
 
 ### Fixed

@@ -193,16 +193,27 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     const publicCertDir  = path.join(process.cwd(), 'certificates');
     const publicCertPath = path.join(publicCertDir, 'mkcert-rootCA.pem');
 
-    const alreadyExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
-    if (alreadyExists) {
+    // Copy the CA certificate into certificates/ so the UI can offer it for
+    // download. Returns whether it's there afterwards — the frontend shows a
+    // "copied to public download area" note based on caCopiedToPublic.
+    const copyCaToPublic = async ({ overwrite }) => {
       try {
         await fs.ensureDir(publicCertDir);
-        if (!(await fs.pathExists(publicCertPath))) await fs.copy(caCertPath, publicCertPath);
+        if (overwrite || !(await fs.pathExists(publicCertPath))) {
+          await fs.copy(caCertPath, publicCertPath);
+        }
+        return true;
       } catch (e) {
-        console.error('Failed to copy existing Root CA to public area:', e.message);
+        console.error('Failed to copy Root CA to public area:', e.message);
+        return false;
       }
+    };
+
+    const alreadyExists = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
+    if (alreadyExists) {
+      const caCopiedToPublic = await copyCaToPublic({ overwrite: false });
       return apiResponse.success(res, {
-        caRoot, caExists: true, action: 'none', publicCACertPath: publicCertPath
+        caRoot, caExists: true, action: 'none', caCopiedToPublic, publicCACertPath: publicCertPath
       }, 'Root CA already exists');
     }
 
@@ -230,12 +241,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       return apiResponse.serverError(res, 'mkcert -install ran but CA files were not created');
     }
 
-    try {
-      await fs.ensureDir(publicCertDir);
-      await fs.copy(caCertPath, publicCertPath);
-    } catch (e) {
-      console.error('Failed to copy new Root CA to public area:', e.message);
-    }
+    const caCopiedToPublic = await copyCaToPublic({ overwrite: true });
 
     const trustStoreInstalled = !installError;
     if (!trustStoreInstalled) {
@@ -243,7 +249,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
         (installError.stderr || installError.error || installError.message || '').trim());
     }
     apiResponse.success(res, {
-      caRoot, caExists: true, action: 'generated', trustStoreInstalled,
+      caRoot, caExists: true, action: 'generated', trustStoreInstalled, caCopiedToPublic,
       output: installResult ? installResult.stdout : (installError.stderr || ''),
       publicCACertPath: publicCertPath
     }, trustStoreInstalled

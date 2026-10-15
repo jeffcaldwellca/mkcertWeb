@@ -81,6 +81,7 @@ test('generate-ca succeeds when mkcert creates the CA but cannot update the syst
   assert.strictEqual(body.action, 'generated');
   assert.strictEqual(body.trustStoreInstalled, false);
   assert.match(body.message, /trust store/i);
+  assert.strictEqual(body.caCopiedToPublic, true);
   assert.ok(fs.existsSync(path.join(workDir, 'certificates', 'mkcert-rootCA.pem')),
     'CA certificate should be copied to the public certificates directory');
 });
@@ -100,7 +101,36 @@ test('generate-ca reports trustStoreInstalled when mkcert -install fully succeed
 
   assert.strictEqual(status, 200, JSON.stringify(body));
   assert.strictEqual(body.trustStoreInstalled, true);
+  assert.strictEqual(body.caCopiedToPublic, true);
   assert.ok(fs.existsSync(path.join(workDir, 'certificates', 'mkcert-rootCA.pem')));
+});
+
+// The frontend shows "copied to public download area" only when
+// caCopiedToPublic is true, so it must reflect whether the copy happened.
+const caExistsRunTool = async (tool, args) => {
+  if (args[0] === '-help') return { stdout: '', stderr: '' };
+  if (args[0] === '-CAROOT') return { stdout: `${caRoot}\n`, stderr: '' };
+  throw new Error(`unexpected mkcert ${args.join(' ')}`);
+};
+
+test('generate-ca reports caCopiedToPublic when the CA already exists', async () => {
+  writeCaFiles();
+  const { status, body } = await postGenerateCa(loadRoutesWithRunTool(caExistsRunTool));
+
+  assert.strictEqual(status, 200, JSON.stringify(body));
+  assert.strictEqual(body.action, 'none');
+  assert.strictEqual(body.caCopiedToPublic, true);
+  assert.ok(fs.existsSync(path.join(workDir, 'certificates', 'mkcert-rootCA.pem')));
+});
+
+test('generate-ca reports caCopiedToPublic false when the copy fails', async () => {
+  writeCaFiles();
+  // A regular file where the certificates directory should be makes ensureDir fail.
+  fs.writeFileSync(path.join(workDir, 'certificates'), 'not a directory');
+  const { status, body } = await postGenerateCa(loadRoutesWithRunTool(caExistsRunTool));
+
+  assert.strictEqual(status, 200, JSON.stringify(body));
+  assert.strictEqual(body.caCopiedToPublic, false);
 });
 
 test('generate-ca still fails when mkcert -install errors without creating the CA', async () => {
