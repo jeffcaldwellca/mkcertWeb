@@ -131,6 +131,7 @@ TAGS=(
 if [[ "$DRY_RUN" -eq 1 ]]; then
   info "Building (DRY RUN — no push) for $PLATFORMS"
   docker buildx build \
+    --pull \
     --platform "$PLATFORMS" \
     "${TAGS[@]}" \
     .
@@ -138,6 +139,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 else
   info "Building and pushing for $PLATFORMS"
   docker buildx build \
+    --pull \
     --platform "$PLATFORMS" \
     "${TAGS[@]}" \
     --push \
