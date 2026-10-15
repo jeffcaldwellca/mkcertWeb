@@ -2,31 +2,56 @@
 # Runs on the BUILD host's native architecture so that npm ci never runs under
 # QEMU emulation (which causes exit code 132 / SIGILL on cross-platform buildx
 # runs).  node_modules are then copied into the final target-platform image.
-FROM --platform=$BUILDPLATFORM node:20-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:24-alpine AS deps
 
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force \
     && tar -czf /tmp/deps.tar.gz node_modules
 
-# ── Final image ───────────────────────────────────────────────────────────────
-# Use Node.js 20 LTS Alpine for smaller image size
-FROM node:20-alpine
+# ── mkcert stage ──────────────────────────────────────────────────────────────
+# mkcert hasn't published a release since v1.4.4 (2022), and that prebuilt
+# binary was compiled with Go 1.18 and 2022-era golang.org/x modules — over a
+# hundred scanner findings, including the critical ones in issue #46. Rebuild
+# the same tagged source with a current Go toolchain and bumped x/ modules.
+# Cross-compiled on the build host (pure Go, CGO off), so no QEMU here either.
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS mkcert
 
-# Pin mkcert to a known good release. mkcert hasn't published since 2022, so
-# v1.4.4 is the only released version anyway, but pinning makes the build
-# reproducible if a v1.5.0 lands.
 ARG MKCERT_VERSION=v1.4.4
+ARG TARGETOS
+ARG TARGETARCH
+ENV GOTOOLCHAIN=local CGO_ENABLED=0
 
-# Install mkcert and other required tools
-RUN apk add --no-cache \
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone --depth 1 --branch "${MKCERT_VERSION}" https://github.com/FiloSottile/mkcert.git . \
+    && go get golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.61.0 golang.org/x/text@v0.43.0 \
+    && go mod tidy \
+    && GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
+       go build -trimpath -ldflags "-s -w -X main.Version=${MKCERT_VERSION}" -o /out/mkcert .
+
+# ── Final image ───────────────────────────────────────────────────────────────
+# Node.js 24 LTS (Node 20 reached end-of-life on 2026-04-30)
+FROM node:24-alpine
+
+# - apk upgrade pulls Alpine security fixes (e.g. openssl/libssl3) newer than
+#   the base image snapshot.
+# - wget stays: docker-compose.yml's healthcheck uses GNU wget flags that
+#   busybox wget doesn't support.
+# - npm/npx/corepack/yarn are removed: the app never needs them at runtime,
+#   and npm's bundled deps (tar, cross-spawn, glob, sigstore, ...) were a
+#   large share of the scanner findings.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
     ca-certificates \
     openssl \
     wget \
-    && ARCH=$(uname -m) \
-    && if [ "$ARCH" = "x86_64" ]; then MKCERT_ARCH="amd64"; elif [ "$ARCH" = "aarch64" ]; then MKCERT_ARCH="arm64"; else echo "Unsupported architecture: $ARCH" && exit 1; fi \
-    && wget -O /usr/local/bin/mkcert "https://github.com/FiloSottile/mkcert/releases/download/${MKCERT_VERSION}/mkcert-${MKCERT_VERSION}-linux-${MKCERT_ARCH}" \
-    && chmod +x /usr/local/bin/mkcert
+    && rm -rf /usr/local/lib/node_modules \
+              /usr/local/bin/npm /usr/local/bin/npx \
+              /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+              /opt/yarn-*
+
+COPY --from=mkcert /out/mkcert /usr/local/bin/mkcert
 
 # Create app directory
 WORKDIR /app
@@ -91,5 +116,5 @@ ENV AUTH_USERNAME=admin
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application (node directly — npm isn't in the image)
+CMD ["node", "server.js"]

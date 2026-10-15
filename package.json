@@ -32,6 +32,9 @@
     "enrollment"
   ],
   "author": "",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "archiver": "^7.0.1",
     "asn1js": "^3.0.6",
