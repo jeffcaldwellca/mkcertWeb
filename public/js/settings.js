@@ -330,13 +330,26 @@
     form.addEventListener('input', updateDirty);
     form.addEventListener('change', updateDirty);
     form.addEventListener('submit', (e) => { e.preventDefault(); saveSettings(); });
-    // A field in a hidden section can't show its validation bubble: reveal it first.
+    // A hidden field (other section, or filtered out) can't show its validation
+    // bubble. On the first invalid field of each save attempt, clear the filter,
+    // reveal that field's section and focus it. Later invalid events are ignored.
+    let invalidHandled = false;
+    $('save-btn').addEventListener('click', () => { invalidHandled = false; });
+    form.addEventListener('submit', () => { invalidHandled = false; });
     form.addEventListener('invalid', (e) => {
+      if (invalidHandled) return;
+      invalidHandled = true;
+      if (state.filter) {
+        $('settings-filter').value = '';
+        state.filter = '';
+        applyFilter();
+      }
       const id = sectionOfName(e.target.name);
       if (id && id !== state.section) {
         history.replaceState(null, '', '#section=' + id);
         selectSection(id);
       }
+      e.target.focus();
     }, true);
 
     $('discard-btn').addEventListener('click', () => { populateForm(state.saved); updateDirty(); });
