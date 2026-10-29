@@ -1,689 +1,314 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - mkcert Web UI</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .settings-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .settings-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--border-color);
-            flex-wrap: wrap;
-        }
-        
-        .settings-tab {
-            padding: 12px 20px;
-            cursor: pointer;
-            background: transparent;
-            border: none;
-            border-bottom: 3px solid transparent;
-            color: var(--text-color);
-            font-size: 14px;
-            font-weight: 500;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-            transition: all 0.3s;
-        }
-        
-        .settings-tab:hover {
-            color: var(--primary-color);
-        }
-        
-        .settings-tab.active {
-            color: var(--primary-color);
-            border-bottom-color: var(--primary-color);
-        }
-        
-        .settings-tab i {
-            margin-right: 8px;
-        }
-        
-        .settings-panel {
-            display: none;
-            animation: fadeIn 0.3s;
-        }
-        
-        .settings-panel.active {
-            display: block;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .settings-section {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .settings-section h3 {
-            margin-top: 0;
-            margin-bottom: 20px;
-            color: var(--primary-color);
-            font-size: 18px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .settings-form-group {
-            margin-bottom: 20px;
-        }
-        
-        .settings-form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--text-color);
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-        }
-        
-        .settings-form-group input,
-        .settings-form-group select,
-        .settings-form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--input-bg);
-            color: var(--text-color);
-            font-size: 14px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-            transition: border-color 0.3s;
-        }
-        
-        .settings-form-group input:focus,
-        .settings-form-group select:focus,
-        .settings-form-group textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-        
-        .settings-form-group small {
-            display: block;
-            margin-top: 5px;
-            color: var(--text-dim);
-            font-size: 12px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-        }
-        
-        .settings-checkbox {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .settings-checkbox input[type="checkbox"] {
-            width: auto;
-            cursor: pointer;
-        }
-        
-        .settings-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border-color);
-        }
-        
-        .settings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .success-banner {
-            background: rgba(74, 222, 128, 0.1);
-            color: var(--success-color);
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border: 1px solid var(--success-color);
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-            display: none;
-        }
-        
-        .success-banner.show {
-            display: block;
-            animation: slideDown 0.3s;
-        }
-        
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .info-box {
-            background: var(--card-bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .info-box p {
-            margin: 0;
-            color: var(--text-color);
-            font-size: 14px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-        }
-        
-        .info-box i {
-            color: var(--primary-color);
-            margin-right: 8px;
-        }
-        
-        /* Modal styles */
-        .config-modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            animation: fadeIn 0.3s;
-        }
-        
-        .config-modal.show {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .config-modal-content {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 30px;
-            max-width: 800px;
-            max-height: 80vh;
-            width: 90%;
-            overflow: auto;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.3s;
-        }
-        
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .config-modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        .config-modal-header h2 {
-            margin: 0;
-            color: var(--primary-color);
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-        }
-        
-        .config-modal-close {
-            background: transparent;
-            border: none;
-            font-size: 24px;
-            color: var(--text-color);
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            transition: all 0.3s;
-        }
-        
-        .config-modal-close:hover {
-            background: var(--border-color);
-            color: var(--primary-color);
-        }
-        
-        .config-display {
-            background: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 20px;
-            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            overflow-x: auto;
-            color: var(--text-color);
-        }
-        
-        .config-display pre {
-            margin: 0;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        
-        .config-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>settings · mkcert Web UI</title>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-    <div class="container settings-container">
-        <header>
-            <button class="theme-toggle" id="theme-toggle">
-                <i class="fas fa-sun"></i> Light Mode
-            </button>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h1><i class="fas fa-cog"></i> Settings</h1>
-                    <p>Configure mkcert Web UI</p>
-                </div>
-                <div id="auth-controls" style="display: none;">
-                    <span id="username-display" style="margin-right: 15px; color: var(--secondary-color);"></span>
-                    <button id="logout-btn" class="btn btn-logout">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </button>
-                </div>
-            </div>
-        </header>
+<div class="app">
+  <header id="shell"></header>
 
-        <!-- Navigation -->
-        <nav style="background: var(--secondary-bg); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
-            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                <a href="/" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-                    <i class="fas fa-home"></i> Certificate Manager
-                </a>
-                <a href="/scep.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-                    <i class="fas fa-satellite-dish"></i> SCEP Service
-                </a>
-                <a href="/settings.html" style="text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: var(--accent-contrast);">
-                    <i class="fas fa-cog"></i> Settings
-                </a>
-            </div>
-        </nav>
+  <main class="panes">
+    <nav class="pane-list" aria-label="Settings sections">
+      <div class="pane-section">
+        <label class="filterbar">
+          <span aria-hidden="true">/</span>
+          <span class="sr-only">Find a setting</span>
+          <input type="search" id="settings-filter" placeholder="find setting…" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <div id="section-nav"></div>
+      <p class="empty" id="filter-empty" hidden>no settings match</p>
+    </nav>
 
-        <div id="success-banner" class="success-banner">
-            <i class="fas fa-check-circle"></i> Settings saved successfully!
+    <section class="pane-detail" aria-label="Settings">
+      <div class="detail-head">
+        <div class="meta-row" id="crumb">settings</div>
+        <div class="row spread">
+          <h1 class="page-title"><span class="prompt">$</span> <span id="section-title">server</span></h1>
         </div>
+      </div>
 
-        <div class="info-box">
-            <p><i class="fas fa-info-circle"></i> Settings configured here will override values from your .env file and persist across server restarts.</p>
-        </div>
+      <div class="pane-section" id="load-error-wrap" hidden><div class="banner banner--err" id="load-error" role="alert"></div></div>
 
-        <!-- Settings Tabs -->
-        <div class="settings-tabs">
-            <button class="settings-tab active" data-panel="server">
-                <i class="fas fa-server"></i> Server
-            </button>
-            <button class="settings-tab" data-panel="auth">
-                <i class="fas fa-lock"></i> Authentication
-            </button>
-            <button class="settings-tab" data-panel="ratelimit">
-                <i class="fas fa-shield-alt"></i> Rate Limiting
-            </button>
-            <button class="settings-tab" data-panel="email">
-                <i class="fas fa-envelope"></i> Email
-            </button>
-            <button class="settings-tab" data-panel="ntfy">
-                <i class="fas fa-bell"></i> NTFY
-            </button>
-            <button class="settings-tab" data-panel="webhook">
-                <i class="fas fa-globe"></i> Webhook
-            </button>
-            <button class="settings-tab" data-panel="monitoring">
-                <i class="fas fa-bell"></i> Monitoring
-            </button>
-            <button class="settings-tab" data-panel="theme">
-                <i class="fas fa-palette"></i> Theme
-            </button>
-        </div>
-
-        <!-- Settings Form -->
-        <form id="settings-form">
-            <!-- Server Settings Panel -->
-            <div class="settings-panel active" id="panel-server">
-                <div class="settings-section">
-                    <h3><i class="fas fa-server"></i> Server Configuration</h3>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="server-port">HTTP Port</label>
-                            <input type="number" id="server-port" name="server.port" min="1" max="65535" value="3000">
-                            <small>Port for HTTP server (default: 3000)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="server-https-port">HTTPS Port</label>
-                            <input type="number" id="server-https-port" name="server.httpsPort" min="1" max="65535" value="3443">
-                            <small>Port for HTTPS server (default: 3443)</small>
-                        </div>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="server-host">Host</label>
-                            <input type="text" id="server-host" name="server.host" value="localhost">
-                            <small>Server hostname (default: localhost)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="server-ssl-domain">SSL Domain</label>
-                            <input type="text" id="server-ssl-domain" name="server.sslDomain" value="localhost">
-                            <small>Domain name for SSL certificate</small>
-                        </div>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group settings-checkbox">
-                            <input type="checkbox" id="server-enable-https" name="server.enableHttps">
-                            <label for="server-enable-https">Enable HTTPS Server</label>
-                        </div>
-                        <div class="settings-form-group settings-checkbox">
-                            <input type="checkbox" id="server-force-https" name="server.forceHttps">
-                            <label for="server-force-https">Force HTTPS (Redirect HTTP to HTTPS)</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-folder"></i> Paths Configuration</h3>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="paths-certificates">Certificates Directory</label>
-                            <input type="text" id="paths-certificates" name="paths.certificates" value="certificates">
-                            <small>Directory for certificate storage (default: certificates)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="paths-uploaded">Uploaded Certificates Directory</label>
-                            <input type="text" id="paths-uploaded" name="paths.uploaded" value="certificates/uploaded">
-                            <small>Directory for uploaded certificates</small>
-                        </div>
-                    </div>
-                </div>
+      <form id="settings-form" class="settings-form">
+      <div class="detail-body" data-section="server" id="section-server" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">server configuration</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="server-port">HTTP Port <span class="field-key">server.port</span></label>
+              <input class="input" id="server-port" name="server.port" aria-describedby="server-port-help" type="number" min="1" max="65535" value="3000">
+              <span class="field-key" id="server-port-help">Port for HTTP server (default: 3000)</span>
             </div>
-
-            <!-- Authentication Settings Panel -->
-            <div class="settings-panel" id="panel-auth">
-                <div class="settings-section">
-                    <h3><i class="fas fa-user-shield"></i> Basic Authentication</h3>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="auth-enabled" name="auth.enabled">
-                        <label for="auth-enabled">Enable Basic Authentication</label>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="auth-username">Username</label>
-                            <input type="text" id="auth-username" name="auth.username" value="admin">
-                            <small>Username for authentication</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="auth-password">Password</label>
-                            <input type="password" id="auth-password" name="auth.password" value="admin">
-                            <small>Password for authentication</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="auth-session-secret">Session Secret</label>
-                        <input type="text" id="auth-session-secret" name="auth.sessionSecret" value="">
-                        <small>Secret key for session encryption (change in production!)</small>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-id-card"></i> OpenID Connect (OIDC) SSO</h3>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="oidc-enabled" name="oidc.enabled">
-                        <label for="oidc-enabled">Enable OIDC SSO Authentication</label>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="oidc-issuer">OIDC Issuer URL</label>
-                        <input type="url" id="oidc-issuer" name="oidc.issuer" placeholder="https://login.microsoftonline.com/tenant-id/v2.0">
-                        <small>Your OIDC provider's issuer URL</small>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="oidc-client-id">Client ID</label>
-                            <input type="text" id="oidc-client-id" name="oidc.clientId" placeholder="">
-                            <small>OIDC application client ID</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="oidc-client-secret">Client Secret</label>
-                            <input type="password" id="oidc-client-secret" name="oidc.clientSecret" placeholder="">
-                            <small>OIDC application client secret</small>
-                        </div>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="oidc-callback-url">Callback URL</label>
-                            <input type="url" id="oidc-callback-url" name="oidc.callbackUrl" value="http://localhost:3000/auth/oidc/callback">
-                            <small>Callback URL registered in your OIDC provider</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="oidc-scope">Scopes</label>
-                            <input type="text" id="oidc-scope" name="oidc.scope" value="openid profile email">
-                            <small>Space-separated list of scopes</small>
-                        </div>
-                    </div>
-                </div>
+            <div class="field">
+              <label for="server-https-port">HTTPS Port <span class="field-key">server.httpsPort</span></label>
+              <input class="input" id="server-https-port" name="server.httpsPort" aria-describedby="server-https-port-help" type="number" min="1" max="65535" value="3443">
+              <span class="field-key" id="server-https-port-help">Port for HTTPS server (default: 3443)</span>
             </div>
-
-            <!-- Rate Limiting Settings Panel -->
-            <div class="settings-panel" id="panel-ratelimit">
-                <div class="settings-section">
-                    <h3><i class="fas fa-terminal"></i> CLI Rate Limiting</h3>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="ratelimit-cli-window">Time Window (milliseconds)</label>
-                            <input type="number" id="ratelimit-cli-window" name="rateLimit.cli.window" value="900000" min="1000">
-                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="ratelimit-cli-max">Max Requests</label>
-                            <input type="number" id="ratelimit-cli-max" name="rateLimit.cli.max" value="10" min="1">
-                            <small>Maximum CLI operations per window (default: 10)</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-plug"></i> API Rate Limiting</h3>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="ratelimit-api-window">Time Window (milliseconds)</label>
-                            <input type="number" id="ratelimit-api-window" name="rateLimit.api.window" value="900000" min="1000">
-                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="ratelimit-api-max">Max Requests</label>
-                            <input type="number" id="ratelimit-api-max" name="rateLimit.api.max" value="100" min="1">
-                            <small>Maximum API requests per window (default: 100)</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-sign-in-alt"></i> Auth Rate Limiting</h3>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="ratelimit-auth-window">Time Window (milliseconds)</label>
-                            <input type="number" id="ratelimit-auth-window" name="rateLimit.auth.window" value="900000" min="1000">
-                            <small>Rate limit window in ms (default: 900000 = 15 minutes)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="ratelimit-auth-max">Max Requests</label>
-                            <input type="number" id="ratelimit-auth-max" name="rateLimit.auth.max" value="5" min="1">
-                            <small>Maximum login attempts per window (default: 5)</small>
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="server-host">Host <span class="field-key">server.host</span></label>
+              <input class="input" id="server-host" name="server.host" aria-describedby="server-host-help" type="text" value="localhost">
+              <span class="field-key" id="server-host-help">Server hostname (default: localhost)</span>
             </div>
-
-            <!-- Email Settings Panel -->
-            <div class="settings-panel" id="panel-email">
-                <div class="settings-section">
-                    <h3><i class="fas fa-envelope"></i> Email Notifications</h3>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="email-enabled" name="email.enabled">
-                        <label for="email-enabled">Enable Email Notifications</label>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="email-smtp-host">SMTP Host</label>
-                            <input type="text" id="email-smtp-host" name="email.smtp.host" placeholder="smtp.gmail.com">
-                            <small>SMTP server hostname</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="email-smtp-port">SMTP Port</label>
-                            <input type="number" id="email-smtp-port" name="email.smtp.port" value="587" min="1" max="65535">
-                            <small>SMTP port (587 for TLS, 465 for SSL)</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="email-smtp-secure" name="email.smtp.secure">
-                        <label for="email-smtp-secure">Use SSL Connection (port 465)</label>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="email-smtp-user">SMTP Username</label>
-                            <input type="text" id="email-smtp-user" name="email.smtp.auth.user" placeholder="your-email@gmail.com">
-                            <small>SMTP authentication username</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="email-smtp-pass">SMTP Password</label>
-                            <input type="password" id="email-smtp-pass" name="email.smtp.auth.pass" placeholder="">
-                            <small>SMTP authentication password</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="email-smtp-tls-reject" name="email.smtp.tls.rejectUnauthorized" checked>
-                        <label for="email-smtp-tls-reject">Reject Unauthorized TLS (recommended)</label>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="email-from">From Email Address</label>
-                            <input type="email" id="email-from" name="email.from" value="mkcert-web-ui@localhost">
-                            <small>Sender email address</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="email-to">To Email Addresses</label>
-                            <input type="text" id="email-to" name="email.to" placeholder="admin@company.com,ops@company.com">
-                            <small>Comma-separated list of recipients</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="email-subject">Email Subject</label>
-                        <input type="text" id="email-subject" name="email.subject" value="Certificate Expiry Alert - mkcert Web UI">
-                        <small>Subject line for notification emails</small>
-                    </div>
-                </div>
+            <div class="field">
+              <label for="server-ssl-domain">SSL Domain <span class="field-key">server.sslDomain</span></label>
+              <input class="input" id="server-ssl-domain" name="server.sslDomain" aria-describedby="server-ssl-domain-help" type="text" value="localhost">
+              <span class="field-key" id="server-ssl-domain-help">Domain name for SSL certificate</span>
             </div>
-
-            <!-- NTFY Settings Panel -->
-            <div class="settings-panel" id="panel-ntfy">
-                <div class="settings-section">
-                    <h3><i class="fas fa-bell"></i> NTFY Push Notifications</h3>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="ntfy-enabled" name="ntfy.enabled">
-                        <label for="ntfy-enabled">Enable NTFY Notifications</label>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="ntfy-url">NTFY Server URL</label>
-                            <input type="url" id="ntfy-url" name="ntfy.url" placeholder="https://ntfy.sh" value="https://ntfy.sh">
-                            <small>Base URL of the NTFY server (default: https://ntfy.sh)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="ntfy-topic">Topic</label>
-                            <input type="text" id="ntfy-topic" name="ntfy.topic" placeholder="my-cert-alerts">
-                            <small>NTFY topic name to publish notifications to</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="ntfy-priority">Default Priority</label>
-                        <select id="ntfy-priority" name="ntfy.priority">
-                            <option value="min">Min</option>
-                            <option value="low">Low</option>
-                            <option value="default" selected>Default</option>
-                            <option value="high">High</option>
-                            <option value="urgent">Urgent</option>
-                        </select>
-                        <small>Notification priority for warning-level alerts (critical alerts always use urgent)</small>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-key"></i> NTFY Authentication</h3>
-                    <p style="margin-bottom: 15px; color: var(--text-dim); font-size: 0.9em;">
-                        Leave blank for public topics. Use a token <strong>or</strong> username/password — not both.
-                    </p>
-                    <div class="settings-form-group">
-                        <label for="ntfy-token">Access Token</label>
-                        <input type="password" id="ntfy-token" name="ntfy.token" placeholder="">
-                        <small>Bearer token for token-authenticated topics (takes priority over username/password)</small>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="ntfy-username">Username</label>
-                            <input type="text" id="ntfy-username" name="ntfy.username" placeholder="">
-                            <small>Username for basic auth (self-hosted)</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="ntfy-password">Password</label>
-                            <input type="password" id="ntfy-password" name="ntfy.password" placeholder="">
-                            <small>Password for basic auth (self-hosted)</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-vial"></i> Test NTFY</h3>
-                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
-                        Save settings first, then send a test notification to verify the configuration.
-                    </p>
-                    <button type="button" id="test-ntfy-btn" class="btn btn-outline">
-                        <i class="fas fa-paper-plane"></i> Send Test Notification
-                    </button>
-                    <div id="ntfy-test-result" style="margin-top: 12px; display: none;"></div>
-                </div>
+          </div>
+          <label class="switch-row" for="server-enable-https"><input class="switch" type="checkbox" id="server-enable-https" name="server.enableHttps"><span class="grow">Enable HTTPS Server</span><span class="field-key">server.enableHttps</span></label>
+          <label class="switch-row" for="server-force-https"><input class="switch" type="checkbox" id="server-force-https" name="server.forceHttps"><span class="grow">Force HTTPS (Redirect HTTP to HTTPS)</span><span class="field-key">server.forceHttps</span></label>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">paths configuration</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="paths-certificates">Certificates Directory <span class="field-key">paths.certificates</span></label>
+              <input class="input" id="paths-certificates" name="paths.certificates" aria-describedby="paths-certificates-help" type="text" value="certificates">
+              <span class="field-key" id="paths-certificates-help">Directory for certificate storage (default: certificates)</span>
             </div>
-
-            <!-- Webhook Settings Panel -->
-            <div class="settings-panel" id="panel-webhook">
-                <div class="settings-section">
-                    <h3><i class="fas fa-globe"></i> HTTP Webhook Notifications</h3>
-                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
-                        POST a JSON payload to any HTTP/HTTPS endpoint on certificate expiry events.
-                        Works with Discord, Slack incoming webhooks, n8n, Zapier, Home Assistant, and custom services.
-                    </p>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="webhook-enabled" name="webhook.enabled">
-                        <label for="webhook-enabled">Enable Webhook Notifications</label>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="webhook-url">Webhook URL</label>
-                        <input type="url" id="webhook-url" name="webhook.url" placeholder="https://example.tld/hooks/abc?token=xyz">
-                        <small>Full URL to POST the JSON notification payload to</small>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-info-circle"></i> Payload Format</h3>
-                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 10px;">
-                        The following JSON is sent on each alert:
-                    </p>
-                    <pre style="background: var(--code-bg, #1e1e1e); color: var(--code-color, #d4d4d4); padding: 15px; border-radius: 6px; font-size: 0.85em; overflow-x: auto;">{
+            <div class="field">
+              <label for="paths-uploaded">Uploaded Certificates Directory <span class="field-key">paths.uploaded</span></label>
+              <input class="input" id="paths-uploaded" name="paths.uploaded" aria-describedby="paths-uploaded-help" type="text" value="certificates/uploaded">
+              <span class="field-key" id="paths-uploaded-help">Directory for uploaded certificates</span>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="auth" id="section-auth" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">basic authentication</legend>
+          <label class="switch-row" for="auth-enabled"><input class="switch" type="checkbox" id="auth-enabled" name="auth.enabled"><span class="grow">Enable Basic Authentication</span><span class="field-key">auth.enabled</span></label>
+          <div class="field-grid">
+            <div class="field">
+              <label for="auth-username">Username <span class="field-key">auth.username</span></label>
+              <input class="input" id="auth-username" name="auth.username" aria-describedby="auth-username-help" type="text" value="admin">
+              <span class="field-key" id="auth-username-help">Username for authentication</span>
+            </div>
+            <div class="field">
+              <label for="auth-password">Password <span class="field-key">auth.password</span></label>
+              <input class="input" id="auth-password" name="auth.password" aria-describedby="auth-password-help" type="password" value="admin">
+              <span class="field-key" id="auth-password-help">Password for authentication</span>
+            </div>
+          </div>
+            <div class="field">
+              <label for="auth-session-secret">Session Secret <span class="field-key">auth.sessionSecret</span></label>
+              <input class="input" id="auth-session-secret" name="auth.sessionSecret" aria-describedby="auth-session-secret-help" type="text" value="">
+              <span class="field-key" id="auth-session-secret-help">Secret key for session encryption (change in production!)</span>
+            </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">openid connect (oidc) sso</legend>
+          <label class="switch-row" for="oidc-enabled"><input class="switch" type="checkbox" id="oidc-enabled" name="oidc.enabled"><span class="grow">Enable OIDC SSO Authentication</span><span class="field-key">oidc.enabled</span></label>
+            <div class="field">
+              <label for="oidc-issuer">OIDC Issuer URL <span class="field-key">oidc.issuer</span></label>
+              <input class="input" id="oidc-issuer" name="oidc.issuer" aria-describedby="oidc-issuer-help" type="url" placeholder="https://login.microsoftonline.com/tenant-id/v2.0">
+              <span class="field-key" id="oidc-issuer-help">Your OIDC provider's issuer URL</span>
+            </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="oidc-client-id">Client ID <span class="field-key">oidc.clientId</span></label>
+              <input class="input" id="oidc-client-id" name="oidc.clientId" aria-describedby="oidc-client-id-help" type="text" placeholder="">
+              <span class="field-key" id="oidc-client-id-help">OIDC application client ID</span>
+            </div>
+            <div class="field">
+              <label for="oidc-client-secret">Client Secret <span class="field-key">oidc.clientSecret</span></label>
+              <input class="input" id="oidc-client-secret" name="oidc.clientSecret" aria-describedby="oidc-client-secret-help" type="password" placeholder="">
+              <span class="field-key" id="oidc-client-secret-help">OIDC application client secret</span>
+            </div>
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="oidc-callback-url">Callback URL <span class="field-key">oidc.callbackUrl</span></label>
+              <input class="input" id="oidc-callback-url" name="oidc.callbackUrl" aria-describedby="oidc-callback-url-help" type="url" value="http://localhost:3000/auth/oidc/callback">
+              <span class="field-key" id="oidc-callback-url-help">Callback URL registered in your OIDC provider</span>
+            </div>
+            <div class="field">
+              <label for="oidc-scope">Scopes <span class="field-key">oidc.scope</span></label>
+              <input class="input" id="oidc-scope" name="oidc.scope" aria-describedby="oidc-scope-help" type="text" value="openid profile email">
+              <span class="field-key" id="oidc-scope-help">Space-separated list of scopes</span>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="ratelimit" id="section-ratelimit" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">cli rate limiting</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="ratelimit-cli-window">Time Window (milliseconds) <span class="field-key">rateLimit.cli.window</span></label>
+              <input class="input" id="ratelimit-cli-window" name="rateLimit.cli.window" aria-describedby="ratelimit-cli-window-help" type="number" min="1000" value="900000">
+              <span class="field-key" id="ratelimit-cli-window-help">Rate limit window in ms (default: 900000 = 15 minutes)</span>
+            </div>
+            <div class="field">
+              <label for="ratelimit-cli-max">Max Requests <span class="field-key">rateLimit.cli.max</span></label>
+              <input class="input" id="ratelimit-cli-max" name="rateLimit.cli.max" aria-describedby="ratelimit-cli-max-help" type="number" min="1" value="10">
+              <span class="field-key" id="ratelimit-cli-max-help">Maximum CLI operations per window (default: 10)</span>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">api rate limiting</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="ratelimit-api-window">Time Window (milliseconds) <span class="field-key">rateLimit.api.window</span></label>
+              <input class="input" id="ratelimit-api-window" name="rateLimit.api.window" aria-describedby="ratelimit-api-window-help" type="number" min="1000" value="900000">
+              <span class="field-key" id="ratelimit-api-window-help">Rate limit window in ms (default: 900000 = 15 minutes)</span>
+            </div>
+            <div class="field">
+              <label for="ratelimit-api-max">Max Requests <span class="field-key">rateLimit.api.max</span></label>
+              <input class="input" id="ratelimit-api-max" name="rateLimit.api.max" aria-describedby="ratelimit-api-max-help" type="number" min="1" value="100">
+              <span class="field-key" id="ratelimit-api-max-help">Maximum API requests per window (default: 100)</span>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">auth rate limiting</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="ratelimit-auth-window">Time Window (milliseconds) <span class="field-key">rateLimit.auth.window</span></label>
+              <input class="input" id="ratelimit-auth-window" name="rateLimit.auth.window" aria-describedby="ratelimit-auth-window-help" type="number" min="1000" value="900000">
+              <span class="field-key" id="ratelimit-auth-window-help">Rate limit window in ms (default: 900000 = 15 minutes)</span>
+            </div>
+            <div class="field">
+              <label for="ratelimit-auth-max">Max Requests <span class="field-key">rateLimit.auth.max</span></label>
+              <input class="input" id="ratelimit-auth-max" name="rateLimit.auth.max" aria-describedby="ratelimit-auth-max-help" type="number" min="1" value="5">
+              <span class="field-key" id="ratelimit-auth-max-help">Maximum login attempts per window (default: 5)</span>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="email" id="section-email" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">email notifications</legend>
+          <label class="switch-row" for="email-enabled"><input class="switch" type="checkbox" id="email-enabled" name="email.enabled"><span class="grow">Enable Email Notifications</span><span class="field-key">email.enabled</span></label>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">smtp server</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="email-smtp-host">SMTP Host <span class="field-key">email.smtp.host</span></label>
+              <input class="input" id="email-smtp-host" name="email.smtp.host" aria-describedby="email-smtp-host-help" type="text" placeholder="smtp.gmail.com">
+              <span class="field-key" id="email-smtp-host-help">SMTP server hostname</span>
+            </div>
+            <div class="field">
+              <label for="email-smtp-port">SMTP Port <span class="field-key">email.smtp.port</span></label>
+              <input class="input" id="email-smtp-port" name="email.smtp.port" aria-describedby="email-smtp-port-help" type="number" min="1" max="65535" value="587">
+              <span class="field-key" id="email-smtp-port-help">SMTP port (587 for TLS, 465 for SSL)</span>
+            </div>
+          </div>
+          <label class="switch-row" for="email-smtp-secure"><input class="switch" type="checkbox" id="email-smtp-secure" name="email.smtp.secure"><span class="grow">Use SSL Connection (port 465)</span><span class="field-key">email.smtp.secure</span></label>
+          <div class="field-grid">
+            <div class="field">
+              <label for="email-smtp-user">SMTP Username <span class="field-key">email.smtp.auth.user</span></label>
+              <input class="input" id="email-smtp-user" name="email.smtp.auth.user" aria-describedby="email-smtp-user-help" type="text" placeholder="your-email@gmail.com">
+              <span class="field-key" id="email-smtp-user-help">SMTP authentication username</span>
+            </div>
+            <div class="field">
+              <label for="email-smtp-pass">SMTP Password <span class="field-key">email.smtp.auth.pass</span></label>
+              <input class="input" id="email-smtp-pass" name="email.smtp.auth.pass" aria-describedby="email-smtp-pass-help" type="password" placeholder="">
+              <span class="field-key" id="email-smtp-pass-help">SMTP authentication password</span>
+            </div>
+          </div>
+          <label class="switch-row" for="email-smtp-tls-reject"><input class="switch" type="checkbox" id="email-smtp-tls-reject" name="email.smtp.tls.rejectUnauthorized" checked><span class="grow">Reject Unauthorized TLS (recommended)</span><span class="field-key">email.smtp.tls.rejectUnauthorized</span></label>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">message</legend>
+          <div class="field-grid">
+            <div class="field">
+              <label for="email-from">From Email Address <span class="field-key">email.from</span></label>
+              <input class="input" id="email-from" name="email.from" aria-describedby="email-from-help" type="email" value="mkcert-web-ui@localhost">
+              <span class="field-key" id="email-from-help">Sender email address</span>
+            </div>
+            <div class="field">
+              <label for="email-to">To Email Addresses <span class="field-key">email.to</span></label>
+              <input class="input" id="email-to" name="email.to" aria-describedby="email-to-help" type="text" placeholder="admin@company.com,ops@company.com">
+              <span class="field-key" id="email-to-help">Comma-separated list of recipients</span>
+            </div>
+          </div>
+            <div class="field">
+              <label for="email-subject">Email Subject <span class="field-key">email.subject</span></label>
+              <input class="input" id="email-subject" name="email.subject" aria-describedby="email-subject-help" type="text" value="Certificate Expiry Alert - mkcert Web UI">
+              <span class="field-key" id="email-subject-help">Subject line for notification emails</span>
+            </div>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="ntfy" id="section-ntfy" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">ntfy push notifications</legend>
+          <label class="switch-row" for="ntfy-enabled"><input class="switch" type="checkbox" id="ntfy-enabled" name="ntfy.enabled"><span class="grow">Enable NTFY Notifications</span><span class="field-key">ntfy.enabled</span></label>
+          <div class="field-grid">
+            <div class="field">
+              <label for="ntfy-url">NTFY Server URL <span class="field-key">ntfy.url</span></label>
+              <input class="input" id="ntfy-url" name="ntfy.url" aria-describedby="ntfy-url-help" type="url" placeholder="https://ntfy.sh" value="https://ntfy.sh">
+              <span class="field-key" id="ntfy-url-help">Base URL of the NTFY server (default: https://ntfy.sh)</span>
+            </div>
+            <div class="field">
+              <label for="ntfy-topic">Topic <span class="field-key">ntfy.topic</span></label>
+              <input class="input" id="ntfy-topic" name="ntfy.topic" aria-describedby="ntfy-topic-help" type="text" placeholder="my-cert-alerts">
+              <span class="field-key" id="ntfy-topic-help">NTFY topic name to publish notifications to</span>
+            </div>
+          </div>
+            <div class="field">
+              <label for="ntfy-priority">Default Priority <span class="field-key">ntfy.priority</span></label>
+              <select class="select" id="ntfy-priority" name="ntfy.priority" aria-describedby="ntfy-priority-help">
+                <option value="min">Min</option>
+                <option value="low">Low</option>
+                <option value="default" selected>Default</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+              <span class="field-key" id="ntfy-priority-help">Notification priority for warning-level alerts (critical alerts always use urgent)</span>
+            </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">ntfy authentication</legend>
+          <p class="text-muted note-text">Leave blank for public topics. Use a token <strong>or</strong> username/password, not both.</p>
+            <div class="field">
+              <label for="ntfy-token">Access Token <span class="field-key">ntfy.token</span></label>
+              <input class="input" id="ntfy-token" name="ntfy.token" aria-describedby="ntfy-token-help" type="password" placeholder="">
+              <span class="field-key" id="ntfy-token-help">Bearer token for token-authenticated topics (takes priority over username/password)</span>
+            </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="ntfy-username">Username <span class="field-key">ntfy.username</span></label>
+              <input class="input" id="ntfy-username" name="ntfy.username" aria-describedby="ntfy-username-help" type="text" placeholder="">
+              <span class="field-key" id="ntfy-username-help">Username for basic auth (self-hosted)</span>
+            </div>
+            <div class="field">
+              <label for="ntfy-password">Password <span class="field-key">ntfy.password</span></label>
+              <input class="input" id="ntfy-password" name="ntfy.password" aria-describedby="ntfy-password-help" type="password" placeholder="">
+              <span class="field-key" id="ntfy-password-help">Password for basic auth (self-hosted)</span>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">test ntfy</legend>
+          <p class="text-muted note-text">Save settings first, then send a test notification to verify the configuration.</p>
+          <div class="row"><button type="button" id="test-ntfy-btn" class="btn">send test notification</button></div>
+          <pre class="codeblock codeblock--wrap" id="ntfy-test-result" role="status" hidden></pre>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="webhook" id="section-webhook" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">http webhook notifications</legend>
+          <p class="text-muted note-text">POST a JSON payload to any HTTP/HTTPS endpoint on certificate expiry events. Works with Discord, Slack incoming webhooks, n8n, Zapier, Home Assistant, and custom services.</p>
+          <label class="switch-row" for="webhook-enabled"><input class="switch" type="checkbox" id="webhook-enabled" name="webhook.enabled"><span class="grow">Enable Webhook Notifications</span><span class="field-key">webhook.enabled</span></label>
+            <div class="field">
+              <label for="webhook-url">Webhook URL <span class="field-key">webhook.url</span></label>
+              <input class="input" id="webhook-url" name="webhook.url" aria-describedby="webhook-url-help" type="url" placeholder="https://example.tld/hooks/abc?token=xyz">
+              <span class="field-key" id="webhook-url-help">Full URL to POST the JSON notification payload to</span>
+            </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">payload format</legend>
+          <p class="text-muted note-text">The following JSON is sent on each alert:</p>
+          <pre class="codeblock">{
   "title": "Warning: 2 certificate(s) expiring soon",
   "message": "2 certificate(s) are approaching expiry. 1 warning.",
   "severity": "warning",
@@ -699,136 +324,109 @@
   ],
   "summary": { "total": 2, "critical": 0, "warning": 2 }
 }</pre>
-                </div>
-
-                <div class="settings-section">
-                    <h3><i class="fas fa-vial"></i> Test Webhook</h3>
-                    <p style="color: var(--text-dim); font-size: 0.9em; margin-bottom: 15px;">
-                        Save settings first, then send a test payload to verify the endpoint is reachable.
-                    </p>
-                    <button type="button" id="test-webhook-btn" class="btn btn-outline">
-                        <i class="fas fa-paper-plane"></i> Send Test Payload
-                    </button>
-                    <div id="webhook-test-result" style="margin-top: 12px; display: none;"></div>
-                </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="section-label">test webhook</legend>
+          <p class="text-muted note-text">Save settings first, then send a test payload to verify the endpoint is reachable.</p>
+          <div class="row"><button type="button" id="test-webhook-btn" class="btn">send test payload</button></div>
+          <pre class="codeblock codeblock--wrap" id="webhook-test-result" role="status" hidden></pre>
+        </fieldset>
+      </div>
+      <div class="detail-body" data-section="monitoring" id="section-monitoring" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">certificate monitoring</legend>
+          <label class="switch-row" for="monitoring-enabled"><input class="switch" type="checkbox" id="monitoring-enabled" name="monitoring.enabled"><span class="grow">Enable Automatic Certificate Monitoring</span><span class="field-key">monitoring.enabled</span></label>
+            <div class="field">
+              <label for="monitoring-check-interval">Check Interval (Cron Expression) <span class="field-key">monitoring.checkInterval</span></label>
+              <input class="input" id="monitoring-check-interval" name="monitoring.checkInterval" aria-describedby="monitoring-check-interval-help" type="text" value="0 8 * * *">
+              <span class="field-key" id="monitoring-check-interval-help">Cron expression for check frequency (default: 0 8 * * * = daily at 8 AM)</span>
             </div>
-
-            <!-- Monitoring Settings Panel -->
-            <div class="settings-panel" id="panel-monitoring">
-                <div class="settings-section">
-                    <h3><i class="fas fa-bell"></i> Certificate Monitoring</h3>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="monitoring-enabled" name="monitoring.enabled">
-                        <label for="monitoring-enabled">Enable Automatic Certificate Monitoring</label>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="monitoring-check-interval">Check Interval (Cron Expression)</label>
-                        <input type="text" id="monitoring-check-interval" name="monitoring.checkInterval" value="0 8 * * *">
-                        <small>Cron expression for check frequency (default: 0 8 * * * = daily at 8 AM)</small>
-                    </div>
-                    <div class="settings-grid">
-                        <div class="settings-form-group">
-                            <label for="monitoring-warning-days">Warning Threshold (days)</label>
-                            <input type="number" id="monitoring-warning-days" name="monitoring.warningDays" value="30" min="1">
-                            <small>Days before expiry to send warning notifications</small>
-                        </div>
-                        <div class="settings-form-group">
-                            <label for="monitoring-critical-days">Critical Threshold (days)</label>
-                            <input type="number" id="monitoring-critical-days" name="monitoring.criticalDays" value="7" min="1">
-                            <small>Days before expiry to send critical notifications</small>
-                        </div>
-                    </div>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="monitoring-include-uploaded" name="monitoring.includeUploaded" checked>
-                        <label for="monitoring-include-uploaded">Monitor Uploaded Certificates</label>
-                    </div>
-                </div>
-
-                <div class="info-box">
-                    <p><strong>Cron Expression Examples:</strong></p>
-                    <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-                        <li><code>0 8 * * *</code> - Daily at 8:00 AM</li>
-                        <li><code>0 */6 * * *</code> - Every 6 hours</li>
-                        <li><code>0 8 * * 1</code> - Every Monday at 8:00 AM</li>
-                        <li><code>0 0 * * *</code> - Daily at midnight</li>
-                    </ul>
-                </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="monitoring-warning-days">Warning Threshold (days) <span class="field-key">monitoring.warningDays</span></label>
+              <input class="input" id="monitoring-warning-days" name="monitoring.warningDays" aria-describedby="monitoring-warning-days-help" type="number" min="1" value="30">
+              <span class="field-key" id="monitoring-warning-days-help">Days before expiry to send warning notifications</span>
             </div>
-
-            <!-- Theme Settings Panel -->
-            <div class="settings-panel" id="panel-theme">
-                <div class="settings-section">
-                    <h3><i class="fas fa-palette"></i> Theme Configuration</h3>
-                    <div class="settings-form-group">
-                        <label for="theme-mode">Default Theme Mode</label>
-                        <select id="theme-mode" name="theme.mode">
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                        </select>
-                        <small>Default theme when users first visit the site</small>
-                    </div>
-                    <div class="settings-form-group settings-checkbox">
-                        <input type="checkbox" id="theme-dark-mode" name="theme.darkMode">
-                        <label for="theme-dark-mode">Enable Dark Mode by Default</label>
-                    </div>
-                    <div class="settings-form-group">
-                        <label for="theme-primary-color">Primary Color</label>
-                        <input type="color" id="theme-primary-color" name="theme.primaryColor" value="#007bff">
-                        <small>Primary accent color for the interface</small>
-                    </div>
-                </div>
+            <div class="field">
+              <label for="monitoring-critical-days">Critical Threshold (days) <span class="field-key">monitoring.criticalDays</span></label>
+              <input class="input" id="monitoring-critical-days" name="monitoring.criticalDays" aria-describedby="monitoring-critical-days-help" type="number" min="1" value="7">
+              <span class="field-key" id="monitoring-critical-days-help">Days before expiry to send critical notifications</span>
             </div>
-
-            <!-- Action Buttons -->
-            <div class="settings-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Save Settings
-                </button>
-                <button type="button" id="reset-btn" class="btn btn-secondary">
-                    <i class="fas fa-undo"></i> Reset to Defaults
-                </button>
-                <button type="button" id="reload-btn" class="btn btn-outline">
-                    <i class="fas fa-sync-alt"></i> Reload from Server
-                </button>
-                <button type="button" id="view-config-btn" class="btn btn-outline">
-                    <i class="fas fa-eye"></i> View Running Config
-                </button>
-            </div>
-        </form>
-
-        <!-- Alerts -->
-        <div id="alerts-container"></div>
-    </div>
-
-    <!-- Configuration Modal -->
-    <div id="config-modal" class="config-modal">
-        <div class="config-modal-content">
-            <div class="config-modal-header">
-                <h2><i class="fas fa-cog"></i> Current Running Configuration</h2>
-                <button class="config-modal-close" id="config-modal-close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="config-modal-body">
-                <p style="margin-bottom: 15px; color: var(--text-dim); font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;">
-                    This displays the actual configuration currently running on the server. 
-                    Changes require a server restart to take effect.
-                </p>
-                <div class="config-display">
-                    <pre id="config-content">Loading...</pre>
-                </div>
-                <div class="config-actions">
-                    <button type="button" id="copy-config-btn" class="btn btn-secondary">
-                        <i class="fas fa-copy"></i> Copy to Clipboard
-                    </button>
-                    <button type="button" id="download-config-btn" class="btn btn-outline">
-                        <i class="fas fa-download"></i> Download JSON
-                    </button>
-                </div>
-            </div>
+          </div>
+          <label class="switch-row" for="monitoring-include-uploaded"><input class="switch" type="checkbox" id="monitoring-include-uploaded" name="monitoring.includeUploaded" checked><span class="grow">Monitor Uploaded Certificates</span><span class="field-key">monitoring.includeUploaded</span></label>
+        </fieldset>
+        <div class="card" data-keep>
+          <h2 class="section-label">cron expression examples</h2>
+          <dl class="kv kv--cron">
+            <dt><code>0 8 * * *</code></dt><dd>Daily at 8:00 AM</dd>
+            <dt><code>0 */6 * * *</code></dt><dd>Every 6 hours</dd>
+            <dt><code>0 8 * * 1</code></dt><dd>Every Monday at 8:00 AM</dd>
+            <dt><code>0 0 * * *</code></dt><dd>Daily at midnight</dd>
+          </dl>
         </div>
-    </div>
+      </div>
+      <div class="detail-body" data-section="theme" id="section-theme" hidden>
+        <fieldset class="fieldset">
+          <legend class="section-label">theme configuration</legend>
+            <div class="field">
+              <label for="theme-mode">Default Theme Mode <span class="field-key">theme.mode</span></label>
+              <select class="select" id="theme-mode" name="theme.mode" aria-describedby="theme-mode-help">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <span class="field-key" id="theme-mode-help">Default theme when users first visit the site</span>
+            </div>
+          <label class="switch-row" for="theme-dark-mode"><input class="switch" type="checkbox" id="theme-dark-mode" name="theme.darkMode"><span class="grow">Enable Dark Mode by Default</span><span class="field-key">theme.darkMode</span></label>
+            <div class="field">
+              <label for="theme-primary-color">Primary Color <span class="field-key">theme.primaryColor</span></label>
+              <input class="input" id="theme-primary-color" name="theme.primaryColor" aria-describedby="theme-primary-color-help" type="color" value="#007bff">
+              <span class="field-key" id="theme-primary-color-help">Primary accent color for the interface</span>
+            </div>
+        </fieldset>
+      </div>
 
-    <script src="settings.js"></script>
+        <div class="sticky-footer">
+          <span class="row" id="dirty-status" role="status"><span class="dot dot--off" id="dirty-dot"></span><span><span id="dirty-count">0</span> unsaved changes</span></span>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="discard-btn" disabled>discard</button>
+          <button type="submit" class="btn btn--primary" id="save-btn">save changes</button>
+          <button type="button" class="btn btn--danger" id="reset-btn">reset to defaults</button>
+          <button type="button" class="btn" id="reload-btn">reload</button>
+          <button type="button" class="btn" id="view-config-btn">view running config</button>
+          <p class="field-key footer-note">changes apply after a server restart</p>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+
+<dialog id="config-modal" class="dialog dialog--wide" aria-labelledby="config-modal-title">
+  <form method="dialog">
+    <h2 id="config-modal-title">current running configuration</h2>
+    <p class="text-muted note-text">This is the configuration the server is running right now. Changes require a server restart to take effect.</p>
+    <pre class="codeblock codeblock--wrap codeblock--scroll" id="config-content" tabindex="0">loading…</pre>
+    <div class="row">
+      <button type="button" id="copy-config-btn" class="btn">copy</button>
+      <button type="button" id="download-config-btn" class="btn">download json</button>
+      <span class="grow"></span>
+      <button type="submit" id="config-modal-close" class="btn btn--primary" value="close">close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-message">
+  <form method="dialog">
+    <p id="confirm-message"></p>
+    <div class="row">
+      <button class="btn btn--danger" type="submit" value="confirm" id="confirm-ok">confirm</button>
+      <button class="btn" type="submit" value="cancel">cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/settings-model.js"></script>
+<script src="js/settings.js"></script>
 </body>
 </html>
