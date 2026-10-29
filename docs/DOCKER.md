@@ -117,12 +117,12 @@ home directory.
 - `ENABLE_HTTPS=true` makes the app also listen on 3443 with an mkcert
   certificate for `SSL_DOMAIN`, created in `/app/ssl` at startup and signed by
   the container's CA. Add `FORCE_HTTPS=true` to redirect plain-HTTP requests
-  there (301). Requests from inside the container (the health check) and
-  `/scep` are not redirected, and nothing is redirected if the HTTPS server
-  failed to start.
+  there (301). `/api/health` (the health check) and `/scep` are not
+  redirected, and nothing is redirected if the HTTPS server failed to start.
 - Behind a reverse proxy, terminate TLS at the proxy and forward to port 3000.
-  The app trusts `X-Forwarded-*` from loopback, link-local and private
-  addresses.
+  The app trusts `X-Forwarded-*` (including `X-Forwarded-Proto`, which
+  `FORCE_HTTPS` checks) only from loopback, link-local and private addresses.
+  Note that this includes every client on a private LAN, not only your proxy.
 - The Content-Security-Policy includes `upgrade-insecure-requests`, so browsers
   load the page's scripts and styles over HTTPS. Reaching the UI over plain HTTP
   from another machine (for example `http://192.168.1.20:3000`) can leave the
@@ -148,7 +148,7 @@ docker run --rm -v mkcertweb_mkcert_certificates:/data -v "$PWD":/backup alpine 
 The `mkcert_ca` volume contains the CA private key. Store its backups as
 securely as the key itself.
 
-The health check requests `/` every 30 seconds.
+The health check requests `/api/health` every 30 seconds (no login needed).
 
 ## Production checklist
 

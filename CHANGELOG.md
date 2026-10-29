@@ -83,6 +83,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - The unused `asn1js` dependency is removed.
 - Pages link the favicons and web manifest; `/favicon.ico` redirects to
   `/assets/favicon.ico`.
+- The Docker `HEALTHCHECK` and the docker-compose healthcheck probe
+  `/api/health` instead of `/` (it needs no login and is never redirected by
+  `FORCE_HTTPS`). Custom health checks that probe `/` should switch too.
 - Documentation rewritten and checked against the code: new `docs/API.md`,
   `CONTRIBUTING.md` and `deploy/README.md`; `.env.example` lists every
   variable, commented out.
@@ -125,9 +128,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `FORCE_HTTPS=true` redirected almost nothing: the redirect was registered
   after the static files and every route, so only unknown paths reached it.
   It now runs first, so pages, assets and API calls over plain HTTP get a 301
-  to the HTTPS port. Loopback clients (the Docker health check) and the SCEP
-  endpoint are not redirected, and nothing is redirected until the HTTPS
-  server is listening.
+  to the HTTPS port. Only `/api/health` and `/scep` are exempt, and nothing is
+  redirected until the HTTPS server is listening. "Already HTTPS" means a TLS
+  connection, or `X-Forwarded-Proto: https` from a trusted proxy (`trust
+  proxy`); the header from any other client is ignored.
 
 ### Security
 

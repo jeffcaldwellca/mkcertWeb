@@ -129,7 +129,8 @@ app.use(securityHeaders());
 // FORCE_HTTPS: redirect plain-HTTP requests before any static file or route
 // can answer them. It only redirects once the HTTPS server is listening (so a
 // failed HTTPS start doesn't send everyone to a dead port), and never for
-// loopback clients (the Docker health check) or the SCEP endpoint.
+// /api/health (the Docker health check) or /scep. X-Forwarded-Proto counts
+// only from trusted proxies (see 'trust proxy' below).
 let httpsListening = false;
 if (ENABLE_HTTPS && FORCE_HTTPS) {
   app.use(createHttpsRedirect({ httpsPort: HTTPS_PORT, isActive: () => httpsListening }));
