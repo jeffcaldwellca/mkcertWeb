@@ -13,7 +13,7 @@ test('empty input is a no-op (no error line)', () => {
 
 test('version prints the OS version', () => {
   assert.deepStrictEqual(runCommand('version'),
-    { lines: ['MKCERT-OS v4.1.0'], clear: false, navigate: null });
+    { lines: ['MKCERT-OS v5.0.0'], clear: false, navigate: null });
 });
 
 test('help lists known commands', () => {
@@ -52,7 +52,7 @@ test('vault returns flavor text and no navigation', () => {
 
 test('input is case-insensitive and ignores extra args', () => {
   assert.deepStrictEqual(runCommand('VERSION --now'),
-    { lines: ['MKCERT-OS v4.1.0'], clear: false, navigate: null });
+    { lines: ['MKCERT-OS v5.0.0'], clear: false, navigate: null });
 });
 
 test('unknown command reports not found with the typed token', () => {

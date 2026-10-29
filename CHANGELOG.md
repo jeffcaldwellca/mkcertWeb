@@ -4,6 +4,134 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [5.0.0] - 2026-10-29
+
+### Highlights
+
+- **Split-pane dashboard.** Every page has a top bar (page tabs, mkcert / CA /
+  openssl status, user, theme) with a list pane on the left and a detail pane
+  on the right. The certificates page groups certificates as needs attention,
+  healthy, read-only and archived, has a quick-generate command bar and a
+  filter, and shows overview, files and notes tabs for the selected
+  certificate. The selection is kept in the URL.
+- **Root CA and notifications pages.** The root CA (details, download, install
+  guide, generate) and the notification channels (email, ntfy, webhook,
+  monitoring, with their test actions and the expiring list) moved off the
+  certificates page onto their own pages.
+- **Settings page** with a section list, a setting search, the config key on
+  every field, unsaved-change tracking (`edited` sections, `discard`, a
+  leave-page warning) and the running configuration.
+- **SCEP page rebuilt:** service URLs with copy buttons, enterprise CA status,
+  templates, and challenges / issued / manual enroll / mdm setup tabs. A new
+  challenge password is shown once.
+- **Light and dark themes** on every page, including login, and a layout that
+  works down to phone width.
+
+### Breaking
+
+- **Removed endpoints** (they now return 404): `GET /api/files`,
+  `GET /api/file/:filename/content`, `GET /download/:filename`,
+  `GET /api/certificate/:filename`, `DELETE /api/certificate/:filename` and
+  `GET /api/commands`. Use `/api/download/{cert,key,bundle}/:folder/…` and
+  `/api/certificates/:folder/:certname`.
+- **`GET /api` index format.** `endpoints.<group>` keys are now
+  `"METHOD /path"` with a description as the value (was `"/path": "METHOD - …"`,
+  which also lost one of two routes sharing a path). The index lists every API
+  route.
+- **Same-name archived and active certificates are never overwritten:**
+  - `DELETE /api/certificates/:folder/:certname` deletes exactly one copy:
+    `?archived=true` the archived one, `?archived=false` the active one, no
+    parameter the active one if present, else the archived one. It used to
+    delete both. The response adds `scope`.
+  - `POST …/restore` returns 409 `TWIN_EXISTS` when an active copy exists,
+    instead of overwriting it; `?swap=true` exchanges the two copies.
+  - `POST …/archive` returns 409 `TWIN_EXISTS` when an archived copy exists,
+    instead of overwriting it.
+- `?archived` and `?swap` accept only `true` or `false`; anything else is a 400.
+- A certificate name that decodes to a path (e.g. a double-encoded
+  `archive%252F<name>`) is rejected with 400.
+- Uploaded and SCEP-issued certificates are view-only in the UI (no download,
+  PFX, archive or notes buttons); the server's per-certificate routes never
+  accepted their folders.
+- **systemd unit** moved to `deploy/mkcert-web-ui.service` and now keeps the
+  root CA in `/var/lib/mkcert-web-ui/ca`. When upgrading, copy `rootCA.pem`
+  and `rootCA-key.pem` from the service user's old mkcert directory there
+  first, or mkcert creates a new CA (see `deploy/README.md`).
+
+### Changed
+
+- Accessibility: focus returns to a sensible place after every re-render;
+  status dots and channel states carry text, not only colour; toasts are
+  announced through live regions (errors stay until dismissed); sub-tabs work
+  with the arrow keys.
+- Content-Security-Policy: `script-src` and `style-src` are `'self'` only, with
+  no `unsafe-inline` and no CDN origin. No page has inline scripts, styles or
+  event handlers, and guard tests keep it that way.
+- Font Awesome is gone; icons are text glyphs. No page loads anything from
+  another origin.
+- The root-ca page's install button calls `POST /api/install-ca`, which always
+  runs `mkcert -install`. The old path reported success without installing
+  when the CA files already existed.
+- Least-privilege systemd unit: the code tree is read-only to the service,
+  writes are limited to `certificates/`, `config/`, `data/` and `ssl/`, and the
+  CA lives in the unit's state directory.
+- Uploads are staged in a private directory under the OS temp dir instead of
+  the working directory.
+- `data/` (certificate notes) is git-ignored.
+- The unused `asn1js` dependency is removed.
+- Pages link the favicons and web manifest; `/favicon.ico` redirects to
+  `/assets/favicon.ico`.
+- Documentation rewritten and checked against the code: new `docs/API.md`,
+  `CONTRIBUTING.md` and `deploy/README.md`; `.env.example` lists every
+  variable, commented out.
+
+### Fixed
+
+- Data loss with same-name certificates: deleting an archived certificate also
+  deleted the active certificate and key of the same name; restoring
+  overwrote the active copy; archiving overwrote an older archived copy.
+- `POST …/archive` returns 404 when the active files are already gone (it
+  reported success), so the UI reloads a stale list.
+- An interrupted swap can't be made worse: restore returns 409
+  `SWAP_INCOMPLETE` while a `.swap-*` leftover exists, failed swaps roll back,
+  and the listing hides the leftovers.
+- An upload with an invalid file name no longer leaves the request hanging.
+- The certificate list tolerates files or folders deleted during a scan, and
+  a missing `certificates/` folder gives an empty list instead of a 500.
+- Settings: saving with an invalid field in another section (or hidden by the
+  search) now shows and focuses that field.
+- Settings: "copy" in the running-config dialog works on plain HTTP (it
+  selects the text when the clipboard API is unavailable).
+- The UI no longer offers actions the server always rejects: buttons for
+  uploaded and SCEP certificates, and download/bundle/PFX for archived ones.
+- Command bars and card grids no longer overflow narrow screens.
+
+### Removed
+
+- The old UI files `public/script.js`, `public/styles.css` and
+  `public/settings.js`, and Font Awesome.
+- The release-note files `docs/RELEASE-v3.1.0.md`, `RELEASE-v4.0.0.md` and
+  `RELEASE-v4.1.0.md` (this changelog has the history), `docs/PAGES.md`
+  (folded into `CONTRIBUTING.md`) and the internal `docs/superpowers/` notes.
+- `setup-demo.sh`, `scripts/check-shared-tokens.sh` (a test covers it) and
+  `.github/copilot-instructions.md`.
+- Dead server code: `src/utils/fileValidation.js` and unused helpers.
+
+### Known issues
+
+- Exporting a PFX **with a password** fails with 500; a PFX without a password
+  works.
+- Archive and restore move only `<name>.pem` and `<name>-key.pem`, so `crt` and
+  `p12` certificates can't be archived.
+- SCEP manual enrollment with extra names or a UPN (including every
+  `M365User` certificate) saves `<cn>+<n>.pem`, which the issued list doesn't
+  show.
+- Downloads and PFX export never look in `archive/`; the UI hides those
+  buttons for archived certificates.
+- helmet's default `upgrade-insecure-requests` CSP directive can leave the page
+  unstyled when it's opened over plain HTTP from another machine on the LAN.
+  Use HTTPS or a TLS-terminating proxy.
+
 ## [4.4.3] - 2026-10-29
 
 ### Fixed
