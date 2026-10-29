@@ -183,8 +183,20 @@ function controllerOf(rel) {
   return 'js/' + (base === 'index' ? 'certificates' : base) + '.js';
 }
 
+// Every page links the same icons and web manifest from public/assets/.
+const HEAD_LINKS = [
+  '<link rel="icon" href="/assets/favicon.ico">',
+  '<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">',
+  '<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">',
+  '<link rel="manifest" href="/assets/site.webmanifest">'
+];
+
 function pageProblems(rel, html) {
   const problems = [];
+  const head = (/<head>([\s\S]*?)<\/head>/.exec(html) || [])[1] || '';
+  for (const link of HEAD_LINKS) {
+    if (!head.includes(link)) problems.push('missing ' + link + ' in <head>');
+  }
   const scripts = scriptsOf(html);
   const isLogin = path.posix.basename(rel) === 'login.html';
   const controller = controllerOf(rel);
@@ -201,9 +213,15 @@ function pageProblems(rel, html) {
 }
 
 test('pageProblems flags broken page skeletons', () => {
-  const good = '<header id="shell"></header><main></main>' +
+  const head = '<head>' + HEAD_LINKS.join('') + '</head>';
+  const good = head + '<header id="shell"></header><main></main>' +
     '<script src="js/core.js"></script><script src="js/shell.js"></script><script src="js/scep.js"></script>';
   assert.deepStrictEqual(pageProblems('public/scep.html', good), []);
+  for (const link of HEAD_LINKS) {
+    assert.ok(pageProblems('public/scep.html', good.replace(link, '')).length > 0, 'without ' + link);
+  }
+  // Links outside <head> don't count.
+  assert.ok(pageProblems('public/scep.html', '<head></head>' + HEAD_LINKS.join('') + good.slice(head.length)).length > 0);
   for (const bad of [
     good.replace('<script src="js/core.js"></script>', ''),
     good.replace('<script src="js/shell.js"></script>', ''),
@@ -215,7 +233,7 @@ test('pageProblems flags broken page skeletons', () => {
   assert.ok(pageProblems('public/login.html',
     '<main></main><script src="js/core.js"></script><script src="js/shell.js"></script><script src="js/login.js"></script>').length > 0);
   assert.deepStrictEqual(pageProblems('public/login.html',
-    '<main></main><script src="js/core.js"></script><script src="js/login.js"></script>'), []);
+    head + '<main></main><script src="js/core.js"></script><script src="js/login.js"></script>'), []);
 });
 
 test('every page loads core.js (then shell.js, except login) before its controller', () => {
@@ -232,5 +250,23 @@ test('delete, archive and restore reload the list and toast on a stale-list 404'
     assert.match(body,
       /if \(model\.isStaleListError\(err\)\) \{\s*await load\(\);\s*toast\(model\.staleListMessage\(certName\), 'err'\);/,
       `${name} must reload and toast on 404`);
+  }
+});
+
+test('/favicon.ico redirects to the icon in public/assets', () => {
+  const src = read('server.js');
+  const m = /app\.get\('\/favicon\.ico',[^)]*\)\s*=>\s*\{\s*res\.redirect\(301, '([^']+)'\);/.exec(src);
+  assert.ok(m, 'server.js must redirect /favicon.ico');
+  assert.ok(fs.existsSync(path.join(ROOT, 'public', m[1])), m[1] + ' must exist under public/');
+});
+
+test('the web manifest names the app and points at existing icons', () => {
+  const manifest = JSON.parse(read('public/assets/site.webmanifest'));
+  assert.strictEqual(manifest.name, 'mkcert Web UI');
+  assert.strictEqual(manifest.short_name, 'mkcert');
+  assert.ok(manifest.icons.length >= 2);
+  for (const icon of manifest.icons) {
+    assert.match(icon.src, /^\/assets\//);
+    assert.ok(fs.existsSync(path.join(ROOT, 'public', icon.src)), icon.src);
   }
 });

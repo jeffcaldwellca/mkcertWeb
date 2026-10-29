@@ -457,9 +457,10 @@ app.use('/api/settings', createSettingsRoutes(config, rateLimiters, requireAuth)
 // Mount system routes
 app.use(createSystemRoutes(config, rateLimiters, requireAuth));
 
-// Favicon handler (return 204 No Content if not found)
+// Browsers ask for /favicon.ico before (or without) reading the page's
+// <link rel="icon">; the icon lives in public/assets/.
 app.get('/favicon.ico', (req, res) => {
-  res.status(204).end();
+  res.redirect(301, '/assets/favicon.ico');
 });
 
 // Certificate storage directory — kept for boot-time visibility/logging.
