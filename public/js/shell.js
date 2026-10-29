@@ -39,7 +39,7 @@
     return '<a class="brand" href="/"><span class="prompt">&gt;</span> mkcert<span class="sub">_web</span></a>' +
       '<nav class="nav-tabs" aria-label="Primary">' + tabs + '</nav>' +
       '<div class="status-dots">' + dots + user +
-      '<button class="btn btn--ghost" type="button" data-shell="theme" aria-label="Toggle theme">' + nextThemeLabel() + '</button>' +
+      themeButton() +
       '</div>';
   }
 
@@ -48,11 +48,33 @@
     return document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   }
 
+  // The accessible name contains the visible text (WCAG 2.5.3).
+  function themeAria(next) { return 'theme: switch to ' + next; }
+
+  function themeButton() {
+    const next = nextThemeLabel();
+    return '<button class="btn btn--ghost" type="button" data-shell="theme" aria-label="' + themeAria(next) + '">' + next + '</button>';
+  }
+
+  // Which shell control has focus, so a redraw can put it back.
+  function focusKey(el) {
+    const a = document.activeElement;
+    if (!a || !el.contains(a)) return null;
+    if (a.dataset && a.dataset.shell) return '[data-shell="' + a.dataset.shell + '"]';
+    const href = a.getAttribute && a.getAttribute('href');
+    return href ? 'a[href="' + href + '"]' : null;
+  }
+
   async function mountShell(active) {
     const el = document.getElementById('shell');
     const api = core.createApiClient({});
     const state = { api, auth: null, status: null };
-    const draw = () => { el.innerHTML = renderShell({ active, status: state.status, auth: state.auth }); };
+    const draw = () => {
+      const key = focusKey(el);
+      el.innerHTML = renderShell({ active, status: state.status, auth: state.auth });
+      const again = key && el.querySelector(key);
+      if (again) again.focus();
+    };
     el.classList.add('topbar');
     draw();
 
@@ -61,7 +83,10 @@
       if (!btn) return;
       if (btn.dataset.shell === 'theme') {
         core.toggleTheme();
-        draw();
+        // Update in place so the focused button survives.
+        const next = nextThemeLabel();
+        btn.textContent = next;
+        btn.setAttribute('aria-label', themeAria(next));
       } else if (btn.dataset.shell === 'logout') {
         try {
           const body = await api.post('/auth/logout');

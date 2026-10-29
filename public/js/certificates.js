@@ -215,7 +215,7 @@
     detailEl.innerHTML =
       '<div class="detail-head">' +
         '<div class="row">' +
-          '<h1 class="page-title"><span class="prompt">$</span> ' + esc(cert.name) + '</h1>' +
+          '<h1 class="page-title" tabindex="-1"><span class="prompt">$</span> ' + esc(cert.name) + '</h1>' +
           actions.join('') +
         '</div>' +
         '<div class="meta-row">' + meta.join('') + '</div>' +
@@ -461,10 +461,22 @@
 
   // Archive/restore change a cert's key (certKey marks archived certs), so
   // follow the moved cert instead of letting the stale hash fall back.
+  // Render now so the later hashchange finds the same selection and leaves
+  // the detail (and focus) alone.
   function selectMoved(folder, certName, archived) {
     const moved = state.certs.find((c) => c.name === certName && !!c.isArchived === archived &&
       model.locationOf(c).folderParam === folder);
-    if (moved) location.hash = model.formatHash(model.certKey(moved));
+    if (!moved) return;
+    location.hash = model.formatHash(model.certKey(moved));
+    render();
+  }
+
+  // After an action rebuilds the panes, put focus somewhere meaningful:
+  // the detail heading, else the selected list item, else the filter.
+  function focusAfterChange() {
+    const h1 = !detailEl.hidden && state.selected && detailEl.querySelector('h1[tabindex="-1"]');
+    const current = groupsEl.querySelector('a.list-item[aria-current="true"]');
+    (h1 || current || filterEl).focus();
   }
 
   async function deleteCertificate(folder, certName) {
@@ -475,6 +487,7 @@
       await state.api.del('/certificates/' + enc(folder) + '/' + enc(certName));
       toast('certificate "' + certName + '" deleted permanently', 'ok');
       await load();
+      focusAfterChange();
     } catch (err) {
       if (/read-only/i.test(err.message)) toast('root certificates are read-only and cannot be deleted', 'err');
       else toast('failed to delete certificate: ' + err.message, 'err');
@@ -493,6 +506,7 @@
       toast('certificate "' + certName + '" archived', 'ok');
       await load();
       selectMoved(folder, certName, true);
+      focusAfterChange();
     } catch (err) {
       toast('failed to archive certificate: ' + err.message, 'err');
     }
@@ -506,6 +520,7 @@
       toast('certificate "' + certName + '" restored', 'ok');
       await load();
       selectMoved(folder, certName, false);
+      focusAfterChange();
     } catch (err) {
       toast('failed to restore certificate: ' + err.message, 'err');
     }

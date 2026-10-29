@@ -102,7 +102,7 @@
     const r = state.result;
     if (!r) { resultEl.innerHTML = ''; return; }
     const lines = [r.title ? '<strong>' + esc(r.title) + '</strong>' : ''].concat((r.lines || []).map(esc));
-    resultEl.innerHTML = '<div class="banner banner--' + esc(r.tone) + '">' +
+    resultEl.innerHTML = '<div class="banner banner--' + esc(r.tone) + '" tabindex="-1">' +
       lines.filter(Boolean).join('<br>') + '</div>';
   }
 
@@ -155,7 +155,16 @@
     btn.textContent = busy ? busyText : idleText;
   }
 
+  // Disabling (or hiding) the clicked button drops focus. Put it back on the
+  // button, or on the result banner when the button is gone.
+  function restoreFocus(btn) {
+    const banner = resultEl.querySelector('.banner');
+    if (!btn.hidden) btn.focus();
+    else if (banner) banner.focus();
+  }
+
   async function handleGenerateCA() {
+    const hadFocus = document.activeElement === generateBtn;
     setBusy(generateBtn, true, 'generating…', 'generate');
     state.result = { tone: 'warn', title: 'generating root CA…', lines: ['This may take a few moments.'] };
     renderResult();
@@ -178,10 +187,12 @@
       toast('failed to generate CA: ' + err.message, 'err');
     } finally {
       setBusy(generateBtn, false, '', 'generate');
+      if (hadFocus) restoreFocus(generateBtn);
     }
   }
 
   async function handleInstallCA() {
+    const hadFocus = document.activeElement === installBtn;
     setBusy(installBtn, true, 'installing…', 'install');
     try {
       const result = await state.api.post('/install-ca');
@@ -195,6 +206,7 @@
       toast('failed to install CA: ' + err.message, 'err');
     } finally {
       setBusy(installBtn, false, '', 'install');
+      if (hadFocus) restoreFocus(installBtn);
     }
   }
 

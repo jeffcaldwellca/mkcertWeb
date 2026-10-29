@@ -153,16 +153,26 @@
       '</div>';
   }
 
+  // While a request runs, buttons are aria-disabled (not disabled) so the
+  // focused one keeps focus; runAction ignores clicks while busy. Focus is put
+  // back on the same action after the rebuild, or on the first usable one.
   function renderActions() {
     const ch = state.selected;
     const st = channelState(ch);
+    const active = document.activeElement;
+    const focused = active && actionsEl.contains(active) ? active.dataset.action : null;
     actionsEl.innerHTML = ACTIONS[ch].filter((a) => actionVisible(a, st))
       .map((a) => {
         const busy = state.busy === ch + ':' + a.id;
-        const off = state.busy !== null || !actionAllowed(a, st);
+        const attr = !actionAllowed(a, st) ? ' disabled' : (state.busy !== null ? ' aria-disabled="true"' : '');
         return '<button type="button" class="btn' + (a.primary ? ' btn--primary' : '') + '" data-action="' + esc(a.id) + '"' +
-          (off ? ' disabled' : '') + '>' + esc(busy ? a.busy : a.label) + '</button>';
+          attr + '>' + esc(busy ? a.busy : a.label) + '</button>';
       }).join('');
+    if (focused) {
+      const again = actionsEl.querySelector('[data-action="' + focused + '"]:not([disabled])') ||
+        actionsEl.querySelector('button:not([disabled])');
+      if (again) again.focus();
+    }
   }
 
   function renderExtra() {
