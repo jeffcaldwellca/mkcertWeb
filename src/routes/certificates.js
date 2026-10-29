@@ -652,7 +652,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         });
       } catch (error) {
         if (error.rollbackFailures) {
-          console.error('Restore swap rollback incomplete:', error.rollbackFailures);
+          // serverError logs the error, rollbackFailures included.
           return apiResponse.serverError(res,
             `Failed to swap certificate ${certname} and could not fully roll back; check its archive folder for .swap-* files`, error);
         }

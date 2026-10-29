@@ -1,5 +1,6 @@
 // HTTP response utilities to eliminate code duplication
 const crypto = require('crypto');
+const http = require('http');
 const os = require('os');
 const path = require('path');
 const util = require('util');
@@ -141,6 +142,37 @@ const apiResponse = {
   }
 };
 
+// A fixed message for a client error raised by middleware (body-parser,
+// send). Never the error's own message: body-parser's can quote the body.
+function clientErrorMessage(err, status) {
+  if (typeof err.type === 'string' && /^(entity|charset|encoding|request|stream)\./.test(err.type)) {
+    return status === 413 ? 'Request body too large' : 'Invalid request body';
+  }
+  return http.STATUS_CODES[status] || 'Bad request';
+}
+
+/**
+ * Central error-handling middleware (server.js mounts it last).
+ * - An exposed 4xx (http-errors convention: body-parser's bad JSON or
+ *   oversized body, a missing file in res.download) keeps its status with a
+ *   fixed message; the log gets one line without the body.
+ * - Anything else is serverError: fixed message + ref, full error logged.
+ */
+// eslint-disable-next-line no-unused-vars
+function errorHandler(err, req, res, next) {
+  if (res.headersSent) {
+    console.error(err && err.stack ? err.stack : err);
+    return next(err);
+  }
+  const status = err && (err.status || err.statusCode);
+  if (err && err.expose === true && Number.isInteger(status) && status >= 400 && status < 500) {
+    const where = `${req.method} ${String(req.originalUrl || req.url || '').split('?')[0]}`;
+    console.warn(`[${status}] ${where}: ${err.type || err.code || 'client error'}`);
+    return res.status(status).json({ success: false, error: clientErrorMessage(err, status) });
+  }
+  return apiResponse.serverError(res, 'Internal server error', err);
+}
+
 /**
  * Async route wrapper that catches errors automatically
  */
@@ -188,6 +220,7 @@ const validateRequest = (validators) => {
 module.exports = {
   apiResponse,
   publicReason,
+  errorHandler,
   asyncHandler,
   validateRequest
 };

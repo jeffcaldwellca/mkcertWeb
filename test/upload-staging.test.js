@@ -116,3 +116,25 @@ test('a file that cannot be saved is reported without the fs error text', async 
     console.error = origErr;
   }
 });
+
+async function rawUpload(contentType, body) {
+  return fetch(`${app.url}/api/upload`, { method: 'POST', headers: { 'Content-Type': contentType }, body });
+}
+
+test('a malformed multipart body is a 400 "Malformed upload", not a 500', async () => {
+  const origErr = console.error;
+  console.error = () => {};
+  try {
+    const truncated = await rawUpload('multipart/form-data; boundary=XYZ',
+      '--XYZ\r\nContent-Disposition: form-data; name="certificates"; filename="a.pem"\r\n\r\npartial');
+    assert.strictEqual(truncated.status, 400);
+    assert.deepStrictEqual(await truncated.json(), { success: false, error: 'Malformed upload' });
+
+    const noBoundary = await rawUpload('multipart/form-data', 'whatever');
+    assert.strictEqual(noBoundary.status, 400);
+    assert.deepStrictEqual(await noBoundary.json(), { success: false, error: 'Malformed upload' });
+  } finally {
+    console.error = origErr;
+  }
+  assert.deepStrictEqual(stagingDirs(), []);
+});

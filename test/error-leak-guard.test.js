@@ -155,6 +155,28 @@ test('no 5xx response in src/routes or server.js carries error details', () => {
   }
 });
 
+function guardedSources() {
+  const routesDir = path.join(ROOT, 'src/routes');
+  return [
+    ...fs.readdirSync(routesDir).filter((n) => n.endsWith('.js')).map((n) => `src/routes/${n}`),
+    'server.js',
+  ].map((rel) => ({ rel, src: stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8')) }));
+}
+
+test('every JSON/text 5xx goes through serverError, so it carries a ref', () => {
+  for (const { rel, src } of guardedSources()) {
+    const hits = [...src.matchAll(/\bstatus\s*\(\s*5\d\d\s*\)\s*\.\s*(?:json|send)\s*\(/g)].map((m) => m[0]);
+    assert.deepStrictEqual(hits, [], `${rel}: hand-written 5xx body; use apiResponse.serverError`);
+  }
+});
+
+test('serverError logs the error itself: no separate console.error right before it', () => {
+  for (const { rel, src } of guardedSources()) {
+    const hits = [...src.matchAll(/console\.error\([^;]*\);\s*(?:return\s+)?apiResponse\.serverError\([^;]*;/g)].map((m) => m[0]);
+    assert.deepStrictEqual(hits, [], `${rel}: pass the error to serverError instead of logging it separately`);
+  }
+});
+
 // ---- serverError -----------------------------------------------------------
 
 function mockRes(req) {
@@ -167,13 +189,17 @@ function mockRes(req) {
   };
 }
 
+// Captures console.error, .warn and .log (everything a handler might log).
 function captureConsoleError(fn) {
   const logged = [];
-  const orig = console.error;
-  console.error = (...a) => logged.push(a.map((x) => (x instanceof Error ? x.stack : typeof x === 'object' ? JSON.stringify(x) : String(x))).join(' '));
+  const util = require('util');
+  const orig = { error: console.error, warn: console.warn, log: console.log };
+  for (const k of Object.keys(orig)) {
+    console[k] = (...a) => logged.push(a.map((x) => (typeof x === 'string' ? x : util.inspect(x, { depth: 5 }))).join(' '));
+  }
   return Promise.resolve()
     .then(fn)
-    .finally(() => { console.error = orig; })
+    .finally(() => { Object.assign(console, orig); })
     .then((result) => ({ result, logged }));
 }
 
@@ -370,6 +396,97 @@ test('email verify/test: a refused SMTP connection returns reason ECONNREFUSED a
   } finally {
     await app.close();
   }
+});
+
+test('settings: a failing route logs the full error under the response ref', async () => {
+  const createSettingsRoutes = require('../src/routes/settings');
+  const config = { auth: { enabled: true } };
+  Object.defineProperty(config, 'email', { enumerable: true, get() { throw new Error('boom reading /secret/settings/path'); } });
+  const app = await startApp((a) => a.use('/api/settings', createSettingsRoutes(config, rateLimiters, pass)));
+  try {
+    const { result: res, logged } = await captureConsoleError(async () => {
+      const r = await fetch(`${app.url}/api/settings/running`);
+      return { status: r.status, text: await r.text() };
+    });
+    assert.strictEqual(res.status, 500, res.text);
+    const body = JSON.parse(res.text);
+    assert.strictEqual(body.error, 'Failed to get running configuration');
+    assert.match(body.ref, /^[0-9a-f]{8}$/);
+    assert.ok(!res.text.includes('/secret'), res.text);
+    const withRef = logged.filter((l) => l.includes(body.ref));
+    assert.ok(withRef.some((l) => l.includes('boom reading /secret/settings/path')), logged.join('\n'));
+    assert.ok(!logged.some((l) => l.includes('boom') && !l.includes(body.ref)), 'no second, ref-less log line');
+  } finally {
+    await app.close();
+  }
+});
+
+// ---- Central error handler --------------------------------------------------
+
+async function withErrorHandlerApp(fn) {
+  const { errorHandler } = freshResponses();
+  // startApp already mounts express.json() (100kb limit).
+  const app = await startApp((a) => {
+    a.post('/echo', (req, res) => res.json({ success: true }));
+    a.get('/boom', (req, res, next) => next(new Error(`EACCES: open '${process.cwd()}/x'`)));
+    a.get('/not-found-file', (req, res, next) => next(Object.assign(new Error('ENOENT: /abs/file'), { status: 404, statusCode: 404, expose: true })));
+    a.use(errorHandler);
+  });
+  try { return await fn(app); } finally { await app.close(); }
+}
+
+test('errorHandler: malformed JSON is a 400 with a fixed message, and the raw body is not logged', async () => {
+  await withErrorHandlerApp(async (app) => {
+    const { result: res, logged } = await captureConsoleError(async () => {
+      const r = await fetch(`${app.url}/echo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"password":"hunter2-secret",' });
+      return { status: r.status, body: await r.json() };
+    });
+    assert.strictEqual(res.status, 400);
+    assert.deepStrictEqual(res.body, { success: false, error: 'Invalid request body' });
+    assert.ok(!logged.join('\n').includes('hunter2'), 'raw body must not be logged');
+  });
+});
+
+test('errorHandler: an oversized body is a 413', async () => {
+  await withErrorHandlerApp(async (app) => {
+    const { result: res } = await captureConsoleError(async () => {
+      const r = await fetch(`${app.url}/echo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x: 'a'.repeat(200 * 1024) }) });
+      return { status: r.status, body: await r.json() };
+    });
+    assert.strictEqual(res.status, 413);
+    assert.deepStrictEqual(res.body, { success: false, error: 'Request body too large' });
+  });
+});
+
+test('errorHandler: another exposed 4xx keeps its status with a generic message', async () => {
+  await withErrorHandlerApp(async (app) => {
+    const { result: res } = await captureConsoleError(async () => {
+      const r = await fetch(`${app.url}/not-found-file`);
+      return { status: r.status, text: await r.text() };
+    });
+    assert.strictEqual(res.status, 404);
+    assert.deepStrictEqual(JSON.parse(res.text), { success: false, error: 'Not Found' });
+  });
+});
+
+test('errorHandler: anything else is a 500 with a ref, and the log has the full error', async () => {
+  await withErrorHandlerApp(async (app) => {
+    const { result: res, logged } = await captureConsoleError(async () => {
+      const r = await fetch(`${app.url}/boom`);
+      return { status: r.status, text: await r.text() };
+    });
+    assert.strictEqual(res.status, 500);
+    const body = JSON.parse(res.text);
+    assert.strictEqual(body.error, 'Internal server error');
+    assert.match(body.ref, /^[0-9a-f]{8}$/);
+    assert.ok(!res.text.includes('/'), res.text);
+    assert.ok(logged.some((l) => l.includes(body.ref) && l.includes('EACCES')), logged.join('\n'));
+  });
+});
+
+test('server.js uses the shared errorHandler', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  assert.match(src, /app\.use\(errorHandler\)/);
 });
 
 // ---- CA routes, with runTool stubbed (never run mkcert -install) -----------

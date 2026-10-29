@@ -11,6 +11,11 @@ const { apiResponse, asyncHandler } = require('../utils/responses');
 // Prefix of the per-request directory multer stages uploads in.
 const UPLOAD_STAGING_PREFIX = 'mkcertweb-upload-staging-';
 
+// busboy's errors for a body that isn't valid multipart (truncated, no
+// boundary, bad headers). They are the client's fault: 400, not 500.
+const MALFORMED_UPLOAD = /^(Unexpected end of (form|file)|Malformed (part header|content type|urlencoded form)|Multipart: Boundary not found|Missing Content-Type|Unsupported content type)/;
+const isMalformedUpload = (err) => !!err && !err.syscall && typeof err.message === 'string' && MALFORMED_UPLOAD.test(err.message);
+
 // Remove the request's staging directory (and anything left in it).
 const removeStaging = async (req) => {
   if (!req.uploadStagingDir) return;
@@ -193,6 +198,10 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       }
     }
     
+    if (isMalformedUpload(error)) {
+      console.warn(`Malformed upload rejected: ${error.message}`);
+      return apiResponse.badRequest(res, 'Malformed upload');
+    }
     // Multer's own errors and our validation errors (expose) are written for
     // the user; anything else (fs, staging) may name server paths.
     if (error instanceof multer.MulterError || error.expose === true) {

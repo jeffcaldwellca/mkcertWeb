@@ -168,12 +168,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   include absolute paths, the CA directory and the home directory, to anyone
   who could call the route (everyone when `ENABLE_AUTH` is off).
   `NODE_ENV=development` also put the raw message and stack in every 500.
-  Every 500 now returns a fixed message and a `ref`; the full error is logged
-  under that `ref`. Notification tests and CA install/uninstall/generate add a
-  short sanitised `reason` (e.g. `ECONNREFUSED`). Toasts show the reason and
-  the ref. Unexpected upload failures are now a 500 (they were a 400 with the
+  Every JSON 500 now returns a fixed message and a `ref`; the full error is
+  logged under that `ref`. Notification tests and CA install/uninstall/
+  generate add a short sanitised `reason` (e.g. `ECONNREFUSED`). Toasts show
+  the reason and the ref. Unexpected upload failures are now a 500 (they were a 400 with the
   fs error), and a file that can't be saved is reported without the fs error.
-  A guard test keeps error details out of 5xx bodies.
+  Malformed requests are 4xx again: bad JSON is `400 Invalid request body`
+  (it was a 500), an oversized body is a 413, and a broken multipart upload
+  is `400 Malformed upload`; none of them log the raw body. A guard test
+  keeps error details out of 5xx bodies and every JSON 500 on `serverError`.
 - **`GET /api/status` disclosed server internals without a login.** The
   route is public (the top bar shows the mkcert / CA / openssl dots before
   login), even with `ENABLE_AUTH=true`, and it returned the CA directory, the

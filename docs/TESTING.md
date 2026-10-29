@@ -28,7 +28,8 @@ Run `npm test` before every commit.
 | Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect (301/308, startup log), `TRUST_PROXY` parsing | `auth-state`, `oidc-logout`, `https-redirect`, `trust-proxy` |
 | SCEP: GetCACaps, enrollment authorisation, CSR name checks, enterprise CA calls and identity checks | `scep-*`, `enterprise-ca-*` |
 | Monitoring, notes store, response helpers, health version | `monitoring-*`, `notes-store`, `responses`, `health-version` |
-| 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, upload) | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |
+| 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, settings, upload); 4xx for bad JSON, oversized and malformed multipart bodies | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |
+| No server internals in success bodies: public `/api/status` (no paths, pid, memory, versions), `/api/system`, execute generate, the certificate list, generate-ca | `response-internals`, `generate-ca-route` |
 | Landing page console | `console-commands` |
 
 **Frontend modules.** The UMD modules in `public/js/` load in Node, so their
@@ -58,7 +59,11 @@ checks that keep the frontend inside the rules in
 `res.status(5xx).json|send(…)` in `src/routes/*.js` or `server.js` builds its
 body from an error object (`err.message`, `.stderr`, `.stack`, `${err}`, …);
 the optional `reason` must come from `publicReason(err)`. It has a self-test
-with positive and negative samples.
+with positive and negative samples. Two more checks in the same file: every
+JSON 5xx goes through `serverError` (so it has a `ref`), and no
+`console.error` sits right before a `serverError` call (pass the error
+instead). `frontend-guards.test.js` also keeps page controllers from building
+error text out of `body.error` (use `core.formatApiError`).
 
 **Env-file guard** (`env-file-comments.test.js`): no variable line in
 `.env.example` or `examples/*.env` (commented out or not) has an inline

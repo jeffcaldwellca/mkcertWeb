@@ -18,8 +18,10 @@ checks that the index matches the routes in the source.
 Errors use `{ "success": false, "error": "<message>" }`. Some errors add a
 machine-readable `code` (`CSRF_INVALID`, `TWIN_EXISTS`, `SWAP_INCOMPLETE`).
 
-A `500` carries a fixed message and a reference ID, never the underlying error
-(no paths, stderr, command lines or stack traces, whatever `NODE_ENV` is):
+Every JSON `500` carries a fixed message and a reference ID, never the
+underlying error (no paths, stderr, command lines or stack traces, whatever
+`NODE_ENV` is). The SCEP protocol endpoint `/scep` answers a server error with
+an empty 500, as SCEP clients expect.
 
 ```json
 { "success": false, "error": "Failed to archive certificate", "ref": "3f9c1a0e" }

@@ -18,7 +18,7 @@ const { securityHeaders } = require('./src/config/securityHeaders');
 // used directly in server.js anymore; the route modules import it themselves.)
 const { runTool } = require('./src/security');
 const { createHttpsRedirect } = require('./src/utils/httpsRedirect');
-const { apiResponse } = require('./src/utils/responses');
+const { apiResponse, errorHandler } = require('./src/utils/responses');
 const { getAuthState, isAuthenticated, createRequireAuth } = require('./src/utils/authState');
 const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
 
@@ -280,7 +280,7 @@ if (ENABLE_AUTH) {
       // Rotate the session ID on successful login (session fixation defense)
       req.session.regenerate((err) => {
         if (err) {
-          return res.status(500).json({ success: false, error: 'Login failed' });
+          return apiResponse.serverError(res, 'Login failed', err);
         }
         req.session.authenticated = true;
         req.session.username = username;
@@ -309,7 +309,7 @@ if (ENABLE_AUTH) {
     // to make passport complain about missing session support.)
     req.session.destroy((err) => {
       if (err) {
-        return res.status(500).json({ success: false, error: 'Could not log out' });
+        return apiResponse.serverError(res, 'Could not log out', err);
       }
       res.clearCookie('mkcertweb.sid');
       res.json({ success: true, message: 'Logout successful', redirectTo });
@@ -465,16 +465,10 @@ const CERT_DIR = path.join(__dirname, 'certificates');
 fs.ensureDirSync(CERT_DIR);
 
 // Centralized error-handling middleware. asyncHandler forwards all async
-// route errors here so error formatting lives in one place.
-// serverError logs the full error under a reference ID; the body carries
-// only a fixed message and that ID.
-app.use((err, req, res, next) => {
-  if (res.headersSent) {
-    console.error(err.stack || err);
-    return next(err);
-  }
-  apiResponse.serverError(res, 'Internal server error', err);
-});
+// route errors here so error formatting lives in one place: exposed 4xx
+// (bad JSON, oversized body) keep their status with a fixed message;
+// everything else is a 500 with a ref, full error in the log.
+app.use(errorHandler);
 
 // Auto-generate SSL certificates for HTTPS
 async function generateSSLCertificate() {
