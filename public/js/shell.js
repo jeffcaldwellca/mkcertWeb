@@ -23,8 +23,10 @@
     return 'dot--off';
   }
 
-  function dotWord(value) {
-    if (value === true) return 'installed';
+  // The CA dot reflects caExists (the files are in CAROOT), not whether the CA
+  // is in a trust store, so it says "present" like the root-ca page.
+  function dotWord(value, label) {
+    if (value === true) return label === 'CA' ? 'present' : 'installed';
     if (value === false) return 'missing';
     return 'unknown';
   }
@@ -38,7 +40,7 @@
     // Colour alone doesn't carry state: each dot has hidden text and a title.
     const dots = [['mkcert', s.mkcertInstalled], ['CA', s.caExists], ['openssl', s.opensslAvailable]]
       .map(([label, v]) => {
-        const word = dotWord(status ? v : null);
+        const word = dotWord(status ? v : null, label);
         return '<span title="' + label + ': ' + word + '"><span class="dot ' + dot(status ? v : null) + '" aria-hidden="true"></span>' +
           label + '<span class="sr-only">: ' + word + '</span></span>';
       })

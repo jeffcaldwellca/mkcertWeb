@@ -1,8 +1,8 @@
 # SCEP
 
 mkcert Web UI includes a small SCEP (Simple Certificate Enrollment Protocol,
-RFC 8894) server. Devices and MDM systems can fetch the CA certificate and
-enroll for certificates signed by the mkcert root CA. It is meant for
+RFC 8894) server. SCEP clients can fetch the CA certificate and enroll for
+certificates signed by the mkcert root CA. It is meant for
 development and test networks; it has no revocation (CRL/OCSP) and keeps
 challenge passwords in memory.
 
@@ -100,8 +100,21 @@ at `http://<server>:3000/scep` (or the HTTPS port).
   is a profile template. Replace `YOUR_SERVER_IP`, `YOUR_DEVICE_NAME` and
   `YOUR_CHALLENGE_PASSWORD_HERE`, and give both `PayloadUUID`s fresh values
   (`uuidgen`) before installing it.
-- **Other clients** (Intune, Jamf, NetworkManager, `sscep`): use the SCEP URL,
-  the challenge password, a 2048-bit RSA key and SHA-256.
+- **Other clients** (for example `sscep`, or an MDM profile that takes a fixed
+  challenge): use the SCEP URL, the challenge password, a 2048-bit RSA key and
+  SHA-256.
+
+### Compatibility
+
+Works with standard SCEP clients that use a static challenge password: the
+client is given a challenge from the **challenges** tab and sends it in its
+request. Each challenge works for one enrollment, so every device needs its own.
+
+MDMs that issue a fresh challenge per device, such as Microsoft Intune, expect
+the SCEP server to sit behind NDES (Microsoft's Network Device Enrollment
+Service) or to offer a challenge-validation API the MDM can call. This server
+provides neither, so it can't be plugged into Intune (or a similar dynamic
+challenge flow) as its certificate authority.
 
 Clients must trust the mkcert root CA to use the issued certificates; it can be
 downloaded from the root-ca page or with `GetCACert`.

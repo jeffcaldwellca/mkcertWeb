@@ -116,7 +116,7 @@ console for CSP violations.
 - Reloading keeps the selection (`#cert=…` in the URL).
 
 **root-ca**
-- With a CA present: summary, details, `↓ rootCA.pem`. Don't press install.
+- With a CA present: summary, details, `↓ mkcert-rootCA.pem`. Don't press install.
 - With an empty `CAROOT`: the generate button shows (see the warning above).
 
 **scep**

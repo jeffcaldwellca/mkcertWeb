@@ -326,11 +326,17 @@
   // ------------------------------------------------------------------ notes
 
   // readOnly: the notes route rejects this folder, so show the note only.
+  // The server keeps one note per folder + name, so an archived copy with an
+  // active twin shares the active cert's note: show it read-only and edit it
+  // on the active cert, so the two copies never overwrite each other's note.
   function notesHtml(cert, loc, readOnly) {
     const note = certNotes.get(model.certKey(cert)) || '';
-    if (readOnly) {
+    const twin = model.activeTwinOf(cert, state.certs);
+    if (readOnly || twin) {
       return '<div class="card"><div class="section-label">notes</div>' +
-        (note ? '<p class="note-text">' + esc(note) + '</p>' : '<p class="text-muted">No note.</p>') + '</div>';
+        (note ? '<p class="note-text">' + esc(note) + '</p>' : '<p class="text-muted">No note.</p>') +
+        (twin ? '<p class="text-muted">shares a note with the active "' + esc(cert.name) + '" — edit it there</p>' : '') +
+        '</div>';
     }
     return '<div class="card"><div class="section-label">notes</div>' +
       '<div class="certificate-notes" data-key="' + esc(model.certKey(cert)) + '" data-folder="' + esc(loc.folderParam) +
@@ -382,6 +388,12 @@
       certNotes.set(key, saved);
       const cert = state.certs.find((c) => model.certKey(c) === key);
       if (cert) cert.note = saved;
+      // The server note is shared with a same-name archived copy; mirror it.
+      const twin = cert && model.archivedTwinOf(cert, state.certs);
+      if (twin) {
+        twin.note = saved;
+        certNotes.set(model.certKey(twin), saved);
+      }
       closeNoteEditor(container);
       toast('note saved', 'ok');
     } catch (err) {
@@ -531,8 +543,7 @@
         focusAfterChange();
         return;
       }
-      if (/read-only/i.test(err.message)) toast('root certificates are read-only and cannot be deleted', 'err');
-      else toast('failed to delete certificate: ' + err.message, 'err');
+      toast('failed to delete certificate: ' + err.message, 'err');
     }
   }
 

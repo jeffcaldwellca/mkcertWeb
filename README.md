@@ -73,7 +73,7 @@ docker compose up -d
 Open <http://localhost:3000>. The compose file runs
 `jeffcaldwellca/mkcertweb:latest` with volumes for certificates, notes,
 settings and the root CA. The image has no CA of its own: open **root-ca** and
-press `generate`, then download `rootCA.pem` and install it on the machines
+press `generate`, then download `mkcert-rootCA.pem` and install it on the machines
 that should trust your certificates. [docs/DOCKER.md](docs/DOCKER.md) covers
 `docker run`, configuration, custom UIDs and backups.
 
@@ -243,7 +243,7 @@ for the test suites and a manual checklist.
 |---|---|
 | Status dot `mkcert` or `openssl` is red | The binary isn't on the server's `PATH`: `mkcert -help`, `openssl version` |
 | Status dot `CA` is red | No CA in `mkcert -CAROOT`. Generate one on root-ca, or point `CAROOT` at an existing one (in Docker, mount the CA volume) |
-| Browsers don't trust generated certificates | Install `rootCA.pem` from root-ca in each client's trust store, then restart the browser |
+| Browsers don't trust generated certificates | Install `mkcert-rootCA.pem` (downloaded from root-ca) in each client's trust store, then restart the browser |
 | install on root-ca fails | It installs into the server's own trust store and needs root; in Docker or under the systemd unit, install the CA on clients instead |
 | Login password unknown | With `AUTH_PASSWORD` unset (or `admin`), a random one is printed in the server log at each start |
 | Logged out after every restart | Set `SESSION_SECRET` |

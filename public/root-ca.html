@@ -26,7 +26,7 @@
         <div class="pane-section">
           <ul class="log" id="install-guide">
             <li><span class="lvl-info">macOS</span> double-click the downloaded file, add it to Keychain, set trust to "Always Trust"</li>
-            <li><span class="lvl-info">Linux</span> <code>sudo cp rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt &amp;&amp; sudo update-ca-certificates</code></li>
+            <li><span class="lvl-info">Linux</span> <code>sudo cp mkcert-rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt &amp;&amp; sudo update-ca-certificates</code></li>
             <li><span class="lvl-info">Windows</span> double-click the file, install it to "Trusted Root Certification Authorities"</li>
           </ul>
         </div>
@@ -39,7 +39,7 @@
           <h1 class="page-title"><span class="prompt">$</span> root-ca</h1>
         </div>
         <div class="row detail-actions" id="ca-actions">
-          <button id="download-btn" class="btn" type="button" hidden>↓ rootCA.pem</button>
+          <button id="download-btn" class="btn" type="button" hidden>↓ mkcert-rootCA.pem</button>
           <button id="install-btn" class="btn btn--primary" type="button" aria-describedby="install-hint" hidden>install</button>
           <span id="install-hint" class="field-key" hidden>installs into the trust store of the machine running this server</span>
           <button id="generate-btn" class="btn btn--primary" type="button" hidden>generate</button>

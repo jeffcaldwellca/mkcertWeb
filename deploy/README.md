@@ -44,7 +44,8 @@ secrets: `sudo chown root:www-data .env && sudo chmod 0640 .env`). See
 - `NoNewPrivileges=yes`.
 
 Because the service can't write the system trust store, the **install** button
-on the root-ca page fails under this unit; install `rootCA.pem` on client
+on the root-ca page fails under this unit; install the CA certificate
+(`mkcert-rootCA.pem`, downloaded from the root-ca page) on client
 machines instead.
 
 ## Upgrading from a unit that kept the CA in the service user's home

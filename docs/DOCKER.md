@@ -20,7 +20,7 @@ named volumes.
 **First run:** the image ships without a root CA, so each container makes its
 own. Open **root-ca** and press `generate`. The CA is created in the
 `mkcert_ca` volume; adding it to the container's own trust store fails without
-root, which is expected. Download `rootCA.pem` from the same page and install it
+root, which is expected. Download `mkcert-rootCA.pem` from the same page and install it
 on the machines that should trust your certificates.
 
 ## Volumes
