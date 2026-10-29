@@ -1,304 +1,135 @@
-# SCEP Service Documentation
+# SCEP
 
-## Overview
+mkcert Web UI includes a small SCEP (Simple Certificate Enrollment Protocol,
+RFC 8894) server. Devices and MDM systems can fetch the CA certificate and
+enroll for certificates signed by the mkcert root CA. It is meant for
+development and test networks; it has no revocation (CRL/OCSP) and keeps
+challenge passwords in memory.
 
-This mkcert Web UI now includes SCEP (Simple Certificate Enrollment Protocol) support, allowing devices to automatically request and receive certificates. This implementation provides a simplified SCEP server that generates certificates using mkcert.
+![SCEP page](screenshots/scep.png)
 
-## SCEP Endpoints
+## Endpoints
 
-### Standard SCEP Endpoints
+The protocol endpoint is `/scep` on the same port as the UI. It needs no login
+and is exempt from CSRF.
 
-#### Get CA Capabilities
+| Request | Response |
+|---|---|
+| `GET /scep?operation=GetCACaps` | `text/plain`: `Renewal`, `SHA-256`, `AES` (SHA-1 and DES3 are not offered) |
+| `GET /scep?operation=GetCACert` | The mkcert root CA certificate, DER-encoded, `application/x-x509-ca-cert` |
+| `POST /scep?operation=PKIOperation` | A PKCS#7 `CertRep` (`application/x-pki-message`) |
+
+`PKIOperation` accepts the PKCS#7 message as the raw request body
+(`Content-Type: application/x-pki-message` or `application/octet-stream`) or as
+a multipart field named `message`, up to 10 MB. For each request the server:
+
+1. decrypts the request with the mkcert CA key and reads the CSR, transaction
+   ID, nonce and challenge password;
+2. checks the challenge password: it must match an unexpired, unused challenge,
+   and is marked used on success. With `SCEP_ALLOW_OPEN_ENROLLMENT=true`, a
+   request without a password is accepted;
+3. checks every CN, DNS name and IP in the CSR. Each must be a valid hostname or
+   IP and, if `SCEP_ALLOWED_DOMAINS` is set, match one of its suffixes;
+4. signs the CSR with the mkcert root CA (`openssl x509 -req`, SHA-256,
+   825 days) and returns it in a signed, encrypted `CertRep`.
+
+A rejected request gets a `CertRep` failure (`badRequest`, or `badCertId` when
+the CSR's names are refused). If the CA files can't be read the response is an
+empty 500. Certificates issued this way are returned to the client only; they
+are not saved under `certificates/`.
+
+The rate limit is the `api` tier for `GET /scep` and the `cli` tier (10 per
+15 minutes by default) for `POST /scep`.
+
+### Configuration
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SCEP_ALLOW_OPEN_ENROLLMENT` | `false` | Accept enrollment requests that carry no challenge password. Anyone who can reach `/scep` could then get a certificate trusted by every machine that trusts the mkcert CA. |
+| `SCEP_ALLOWED_DOMAINS` | empty (any valid name) | Comma-separated name suffixes, e.g. `dev.local,test`. IPs must be listed exactly. |
+
+## The SCEP page
+
+- **Left pane:** the service URL, GetCACert and GetCACaps URLs (with copy
+  buttons), enterprise CA status, and the certificate templates.
+- **challenges:** create a challenge password for an identifier with a TTL of
+  1h, 2h, 24h or 7d. The password is shown once, in a banner; the list shows each
+  challenge's state and time left, and expired ones disappear. Challenges live in
+  memory, so a restart clears them.
+- **issued:** certificates under `certificates/scep/`.
+- **manual enroll:** generate a certificate through the SCEP workflow without a
+  device, choosing a template (`User`, `M365User`, `Computer`, `WiFi`), an
+  optional UPN (required for `M365User`) and extra names. The optional challenge
+  password field is passed to the server but not checked.
+- **mdm setup:** the values an MDM profile needs.
+
+The management API behind the page is listed in [API.md](API.md#scep).
+
+## Manual enrollment and the enterprise CA
+
+`POST /api/scep/certificate` (the **manual enroll** tab) writes a key and
+certificate to `certificates/scep/<common name>/`. By default it runs mkcert
+with the mkcert root CA. If `ENTERPRISE_CA_ENABLED=true` and both CA files
+exist, it signs with that CA instead, using the template's key usages:
+
+| Variable | Default |
+|---|---|
+| `ENTERPRISE_CA_ENABLED` | `false` |
+| `ENTERPRISE_CA_CERT_PATH`, `ENTERPRISE_CA_KEY_PATH` | — (both required) |
+| `ENTERPRISE_CA_CHAIN_PATH` | — |
+| `ENTERPRISE_CA_DEFAULT_TEMPLATE` | `User` |
+| `ENTERPRISE_CA_M365_TEMPLATE` | `M365User` |
+| `ENTERPRISE_CA_VALIDITY_DAYS` | `365` |
+| `ENTERPRISE_CA_KEY_SIZE` | `2048` |
+| `ENTERPRISE_CA_HASH_ALGORITHM` | `sha256` |
+
+The enterprise CA path runs `openssl … -CAcreateserial`, which writes a `.srl`
+file next to the CA certificate, so that directory must be writable (under the
+systemd unit, add it to `ReadWritePaths`).
+
+These certificates appear on the certificates page under READ-ONLY (folder
+`scep`). The per-certificate routes don't accept that folder, so they can be
+viewed but not downloaded, archived or deleted from the UI.
+
+## Client configuration
+
+Generate a challenge password on the **challenges** tab, then point the client
+at `http://<server>:3000/scep` (or the HTTPS port).
+
+- **Apple devices:** [`examples/ios-scep-profile.mobileconfig`](../examples/ios-scep-profile.mobileconfig)
+  is a profile template. Replace `YOUR_SERVER_IP`, `YOUR_DEVICE_NAME` and
+  `YOUR_CHALLENGE_PASSWORD_HERE`, and give both `PayloadUUID`s fresh values
+  (`uuidgen`) before installing it.
+- **Other clients** (Intune, Jamf, NetworkManager, `sscep`): use the SCEP URL,
+  the challenge password, a 2048-bit RSA key and SHA-256.
+
+Clients must trust the mkcert root CA to use the issued certificates; it can be
+downloaded from the root-ca page or with `GetCACert`.
+
+## Testing from the command line
+
 ```bash
-GET /scep?operation=GetCACaps
-```
-Returns the SCEP server capabilities:
-- Renewal
-- SHA-1
-- SHA-256
-- DES3
-- AES
+curl "http://localhost:3000/scep?operation=GetCACaps"
+curl -o ca.der "http://localhost:3000/scep?operation=GetCACert"
+openssl x509 -inform DER -in ca.der -noout -subject
 
-#### Get CA Certificate
-```bash
-GET /scep?operation=GetCACert
-```
-Downloads the CA certificate in PEM format. This certificate should be installed on client devices for certificate validation.
-
-#### PKI Operation (Implemented)
-```bash
-POST /scep?operation=PKIOperation
-Content-Type: multipart/form-data
+# with a PKCS#7 request built by a SCEP client (for example sscep)
+curl -X POST -H 'Content-Type: application/x-pki-message' \
+  --data-binary @request.p7 -o response.p7 \
+  "http://localhost:3000/scep?operation=PKIOperation"
 ```
 
-Handles PKCS#7 certificate requests with SCEP protocol support. This endpoint:
+## Known issues
 
-1. **Parses PKCS#7 SCEP requests** using node-forge library
-2. **Validates challenge passwords** against active challenge store  
-3. **Extracts certificate signing requests** from PKCS#7 enveloped data
-4. **Generates certificates** using mkcert for valid requests
-5. **Returns PKCS#7 responses** with proper SCEP message format
+- Manual enrollment with extra names or a UPN makes mkcert name the files
+  `<common name>+<n>.pem`, so the **issued** tab (which looks for
+  `<common name>.pem`) doesn't list them.
+- `GET /api/scep/enterprise-ca/status` always reports the enterprise CA as
+  disabled, even when `ENTERPRISE_CA_*` is set and manual enrollment uses it.
 
-**Request Format:**
-- Multipart form data with `message` field containing PKCS#7 binary data
-- PKCS#7 message should contain encrypted CSR and optional challenge password
-- Transaction ID and nonces are handled automatically
+## Code
 
-**Response Format:**
-- Success: `application/x-pki-message` containing PKCS#7 certificate response
-- Failure: `application/x-pki-message` containing SCEP failure message with appropriate error codes
-
-**Supported SCEP Message Types:**
-- PKCSReq: Certificate signing request
-- CertRep: Certificate response (success/failure)
-
-**Error Handling:**
-- Invalid PKCS#7: Returns `badRequest` failure
-- Expired/invalid challenge: Returns `badRequest` failure  
-- Certificate generation failure: Returns `systemFailure` failure
-
-### Management API Endpoints (Authenticated)
-
-#### Get SCEP Configuration
-```bash
-GET /api/scep/config
-```
-Returns complete SCEP server configuration including URLs and capabilities.
-
-#### Generate Challenge Password
-```bash
-POST /api/scep/challenge
-Content-Type: application/json
-
-{
-  "identifier": "device-001",
-  "expiresIn": 3600
-}
-```
-Generates a challenge password for SCEP clients.
-
-#### List Challenge Passwords
-```bash
-GET /api/scep/challenges
-```
-Lists all active challenge passwords with their status.
-
-#### Manual Certificate Generation
-```bash
-POST /api/scep/certificate
-Content-Type: application/json
-
-{
-  "commonName": "test.example.com",
-  "challengePassword": "optional-challenge"
-}
-```
-Generates a certificate using the SCEP workflow (for testing purposes).
-
-#### List SCEP Certificates
-```bash
-GET /api/scep/certificates
-```
-Lists all certificates generated via SCEP.
-
-#### Get Certificate Details
-```bash
-GET /api/scep/certificates/:commonName
-```
-Returns details for a specific SCEP-generated certificate.
-
-## Web Interface
-
-Access the SCEP management interface at: `http://localhost:3000/scep.html`
-
-The web interface provides:
-- SCEP configuration display
-- Challenge password generation and management
-- Manual certificate generation for testing
-- List of SCEP-generated certificates
-
-## Client Configuration
-
-### iOS Profile Example
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>PayloadContent</key>
-    <array>
-        <dict>
-            <key>PayloadType</key>
-            <string>com.apple.security.scep</string>
-            <key>PayloadVersion</key>
-            <integer>1</integer>
-            <key>PayloadIdentifier</key>
-            <string>com.example.scep</string>
-            <key>PayloadDisplayName</key>
-            <string>SCEP Certificate</string>
-            <key>URL</key>
-            <string>http://localhost:3000/scep</string>
-            <key>Subject</key>
-            <array>
-                <array>
-                    <string>CN</string>
-                    <string>device.example.com</string>
-                </array>
-            </array>
-            <key>Challenge</key>
-            <string>YOUR_CHALLENGE_PASSWORD</string>
-            <key>Keysize</key>
-            <integer>2048</integer>
-            <key>KeyType</key>
-            <string>RSA</string>
-            <key>KeyUsage</key>
-            <integer>5</integer>
-        </dict>
-    </array>
-    <key>PayloadDisplayName</key>
-    <string>SCEP Configuration</string>
-    <key>PayloadIdentifier</key>
-    <string>com.example.scep</string>
-    <key>PayloadType</key>
-    <string>Configuration</string>
-    <key>PayloadUUID</key>
-    <string>12345678-1234-5678-9012-123456789012</string>
-    <key>PayloadVersion</key>
-    <integer>1</integer>
-</dict>
-</plist>
-```
-
-### Windows Certificate Template
-For Windows SCEP clients, configure with:
-- SCEP URL: `http://localhost:3000/scep`
-- Challenge Password: Generated via web interface
-- Key Length: 2048 bits
-- Hash Algorithm: SHA-256
-
-## Security Notes
-
-1. **Development Use**: This SCEP implementation is designed for development and testing environments.
-
-2. **Challenge Passwords**: Generate challenge passwords via the web interface before enrolling devices.
-
-3. **HTTPS Recommended**: For production use, enable HTTPS by setting `ENABLE_HTTPS=true`.
-
-4. **Rate Limiting**: SCEP endpoints are rate-limited to prevent abuse:
-   - CLI operations: 10 requests per 15 minutes
-   - API operations: 100 requests per 15 minutes
-
-5. **Authentication**: Management API endpoints require authentication.
-
-## Certificate Storage
-
-SCEP-generated certificates are stored in:
-```
-certificates/
-├── scep/
-│   ├── domain1.example.com/
-│   │   ├── domain1.example.com.pem
-│   │   └── domain1.example.com-key.pem
-│   └── domain2.example.com/
-│       ├── domain2.example.com.pem
-│       └── domain2.example.com-key.pem
-└── temp/
-    └── [temporary CSR files]
-```
-
-## Implementation Details
-
-### PKCS#7 Message Processing
-
-The SCEP implementation includes full PKCS#7 message parsing using the `node-forge` library:
-
-**Components:**
-- `src/utils/pkcs7.js` - PKCS#7 parsing and generation utilities
-- `src/routes/scep.js` - SCEP protocol endpoint handlers  
-- `node-forge` - Cryptographic operations and ASN.1 parsing
-- `asn1js` - Additional ASN.1 support for complex structures
-
-**Message Flow:**
-1. **Request Parsing**: PKCS#7 signed data structures are parsed to extract:
-   - Enveloped CSR data (requires decryption)
-   - Challenge passwords from authenticated attributes
-   - Transaction IDs and nonces for message tracking
-
-2. **Certificate Generation**: Valid requests trigger:
-   - mkcert CLI execution for certificate creation
-   - Proper domain validation and certificate storage
-   - Integration with existing certificate management system
-
-3. **Response Generation**: SCEP-compliant responses include:
-   - PKCS#7 signed data containing generated certificates
-   - Proper SCEP message types (CertRep) 
-   - Success/failure status with appropriate error codes
-
-### Security Features
-
-- **Challenge Password Validation**: Time-based expiration and one-time use
-- **Request Rate Limiting**: Prevents abuse of certificate generation
-- **Command Injection Protection**: Secured mkcert CLI execution
-- **Path Traversal Prevention**: Validated certificate storage paths
-
-## Testing
-
-### Web Interface
-Use the web interface at `/scep.html` to:
-1. Generate challenge passwords
-2. Test certificate generation  
-3. View SCEP configuration
-4. Monitor certificate status
-
-### Command Line Testing
-Test PKI operations directly:
-```bash
-# Test CA certificate retrieval
-curl "http://localhost:3000/scep?operation=GetCACert"
-
-# Test SCEP capabilities
-curl "http://localhost:3000/scep?operation=GetCACaps" 
-
-# Test PKI operation with PKCS#7 message
-curl -X POST "http://localhost:3000/scep?operation=PKIOperation" \
-  -F "message=@path/to/pkcs7-request.p7m"
-```
-
-## Limitations
-
-- **CSR Extraction**: Enveloped data decryption requires additional implementation
-- **Full SCEP Compliance**: Some advanced SCEP features not implemented
-- **Certificate Revocation**: Not implemented (CRL/OCSP support)
-- **Production Security**: Intended for development/testing environments
-
-## Future Enhancements
-
-- Complete PKCS#7 enveloped data decryption
-- Certificate revocation list (CRL) support
-- Integration with external Certificate Authorities
-- Enhanced security for production deployments
-- Enhanced security features
-- Certificate renewal automation
-
-## Troubleshooting
-
-### Common Issues
-
-1. **mkcert not found**: Ensure mkcert is installed and in PATH
-2. **Permission errors**: Check certificate directory permissions
-3. **Authentication failures**: Verify credentials and session configuration
-4. **Rate limiting**: Wait for rate limit window to reset
-
-### Debug Mode
-
-Enable debug logging by setting environment variables:
-```bash
-DEBUG=scep* npm start
-```
-
-### Log Files
-
-Check console output for SCEP-related events:
-- Challenge password generation
-- Certificate requests
-- Error conditions
+- `src/routes/scep.js`: the `/scep` endpoint and the management API.
+- `src/utils/pkcs7.js`: PKCS#7 parsing and `CertRep` building (node-forge),
+  challenge checks, CSR name checks.
+- `src/utils/scep.js` and `src/utils/enterpriseCA.js`: manual enrollment.

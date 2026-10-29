@@ -1,181 +1,108 @@
-# Settings Configuration Guide
+# Settings
 
-## Overview
+The **settings** page edits the server configuration and saves it to
+`config/settings.json`. The server reads that file once at startup, so saved
+changes apply after a restart.
 
-The Settings page provides a web-based interface for managing all mkcert Web UI configuration options. Settings configured through the UI are stored in `config/settings.json` and take precedence over built-in defaults — but any environment variable that is *explicitly set* (in `.env`, docker-compose, or the host environment) overrides the saved setting, so deployment-level configuration is never silently ignored.
+![Settings page](screenshots/settings.png)
 
-## Features
+## Requirements
 
-- **Tabbed Interface**: Organized settings by category (Server, Authentication, Rate Limiting, Email, Monitoring, Theme)
-- **Persistent Storage**: Settings are saved to `config/settings.json` and persist across server restarts
-- **Override Mechanism**: Settings from the UI override `.env` values
-- **Security**: Sensitive values (passwords, secrets) are masked when displayed and only saved when explicitly changed
-- **Import/Export**: Backup and restore settings via JSON export/import
-- **Real-time Validation**: Form validation before saving
+The settings API (and therefore the page) works only when authentication is
+on: `ENABLE_AUTH=true` (or `ENABLE_OIDC=true`). Otherwise every
+`/api/settings` request returns 403 and the page shows that message. This stops
+anyone on the network from reading or rewriting credentials when the app runs
+without a login.
 
-## Settings Categories
+## Where a value comes from
 
-### Server Configuration
-- HTTP and HTTPS ports
-- SSL domain and certificate settings
-- HTTPS enable/force options
-- Certificate storage paths
+From highest to lowest priority:
 
-### Authentication
-- **Basic Authentication**: Enable/disable, username, password, session secret
-- **OIDC SSO**: OpenID Connect integration for enterprise authentication (Azure AD, Google, Okta, etc.)
+1. **Environment variables that are set**, including those loaded from `.env`,
+   docker-compose `environment:` and the host environment.
+2. **`config/settings.json`**, written by the settings page.
+3. **Defaults** in `src/config/index.js`.
 
-### Rate Limiting
-- **CLI Rate Limiting**: Protect certificate generation endpoints
-- **API Rate Limiting**: General API request limits
-- **Auth Rate Limiting**: Login attempt throttling
+An environment variable that is not set never hides a saved value. But a
+variable that *is* set (even in `.env`) wins over the saved one, so if a change
+you saved doesn't take effect after a restart, check whether the same setting
+is also set in the environment. `view running config` on the settings page shows
+what the process actually loaded.
 
-### Email Notifications
-- SMTP server configuration
-- TLS/SSL settings
-- From/To addresses
-- Test email functionality
+## Using the page
 
-### Certificate Monitoring
-- Automatic certificate expiry checking
-- Cron-based scheduling
-- Warning and critical thresholds
-- Email alert integration
+- **Sections.** The left pane lists the sections in four groups: SERVER
+  (`server`), ACCESS (`authentication`, `rate limits`), ALERTS (`email`, `ntfy`,
+  `webhook`, `monitoring`) and APPEARANCE (`theme`). For authentication, email,
+  ntfy, webhook and monitoring, the dot shows whether the feature is switched on
+  in the form. `find setting…` filters by label or config key.
+- **Fields.** Each field shows its config key (for example
+  `email.smtp.host`), which is also the key in `settings.json`.
+- **Unsaved changes.** The sticky footer counts changed fields, and each
+  section with changes is marked `edited`. `discard` reverts them; `save changes`
+  writes them. Leaving the page with unsaved changes asks for confirmation.
+- **Secrets.** Passwords, the session secret, the OIDC client secret and ntfy
+  credentials come back masked. Leave a masked or empty secret alone to keep the
+  stored value.
+- **Other actions.** `reset to defaults` deletes `config/settings.json` (after a
+  confirmation). `reload` re-reads the saved values. `view running config` shows
+  the configuration the server loaded at startup, with copy and download
+  buttons.
+- **Test buttons.** The ntfy and webhook sections have a test button. It uses
+  the running configuration, so restart after saving before testing new values.
+  The [notifications](../README.md#pages) page has the same tests.
 
-### Theme
-- Default theme mode (light/dark)
-- Primary color customization
+## Sections
 
-## Usage
+| Section | Keys | Notes |
+|---|---|---|
+| server | `server.port`, `server.httpsPort`, `server.host`, `server.sslDomain`, `server.enableHttps`, `server.forceHttps`, `paths.certificates`, `paths.uploaded` | `server.host` is reported by `GET /api/config` but the server listens on all interfaces regardless. `paths.uploaded` is where uploads are saved. `paths.certificates` only changes which folder the expiry monitor scans; the certificate list and routes always use `certificates/` in the working directory. |
+| authentication | `auth.*`, `oidc.*` | Basic auth and OpenID Connect. OIDC needs basic auth enabled too. |
+| rate limits | `rateLimit.{cli,api,auth}.{window,max}` | Windows in milliseconds. |
+| email | `email.enabled`, `email.smtp.*`, `email.from`, `email.to`, `email.subject` | `email.to` is comma-separated. |
+| ntfy | `ntfy.*` | Token auth takes priority over username/password. |
+| webhook | `webhook.enabled`, `webhook.url` | Custom request headers are not editable here; see below. |
+| monitoring | `monitoring.enabled`, `monitoring.checkInterval` (cron, UTC), `monitoring.warningDays`, `monitoring.criticalDays`, `monitoring.includeUploaded` | |
+| theme | `theme.mode`, `theme.darkMode`, `theme.primaryColor` | Only `theme.mode` is used: it is the default theme for browsers that haven't picked one. The other two are stored but nothing reads them. |
 
-### Accessing Settings
-1. Navigate to the Settings page via the navigation menu
-2. Authentication is required if auth is enabled
-3. Click on tabs to view different setting categories
+### Webhook headers
 
-### Saving Settings
-1. Modify desired settings in the form
-2. Click "Save Settings" button
-3. Settings are immediately saved to `config/settings.json`
-4. Some settings may require a server restart to take effect
+To send custom headers (for example an `Authorization` header), add them to
+`config/settings.json` by hand and restart:
 
-### Resetting to Defaults
-1. Click "Reset to Defaults" button
-2. Confirm the action
-3. All custom settings are deleted, reverting to `.env` or default values
-
-### Import/Export Settings
-- **Export**: Use the export endpoint `/api/settings/export` to download current settings as JSON
-- **Import**: POST to `/api/settings/import` with JSON data to restore settings
-
-## Technical Details
-
-### Storage Mechanism
-- Settings are stored in `config/settings.json`
-- File is created automatically on first save
-- Nested object structure mirrors the application configuration
-
-### Override Priority
-1. **Highest**: Environment variables that are *explicitly set* (`.env`, docker-compose, host environment)
-2. **Middle**: Values from `config/settings.json` (UI settings)
-3. **Lowest**: Default values in `src/config/index.js`
-
-Only env vars that are actually present override saved settings — an unset
-env var never masks a UI-saved value. This ensures docker-compose / host
-environment configuration is never silently ignored.
-
-### Configuration Loading
-The config loader (`src/config/index.js`) performs a deep merge:
-```javascript
-finalConfig = deepMerge(deepMerge(defaults, savedSettings), explicitEnvOverrides)
+```json
+{ "webhook": { "enabled": true, "url": "https://hooks.dev.local/mkcert", "headers": { "Authorization": "Bearer <token>" } } }
 ```
 
-### API Endpoints
-- `GET /api/settings` - Retrieve current settings
-- `POST /api/settings` - Save settings
-- `DELETE /api/settings` - Reset to defaults
-- `GET /api/settings/export` - Export settings as JSON
-- `POST /api/settings/import` - Import settings from JSON
+The settings API never returns header values (they are masked) and doesn't
+change them when you save other settings.
 
-### Security Considerations
-- Sensitive fields (passwords, secrets) are sanitized before sending to client
-- Masked values (`********`) are not saved unless explicitly changed
-- Settings file is added to `.gitignore` to prevent committing sensitive data
-- Authentication required for settings access (if enabled)
-- Rate limiting applied to settings endpoints
+## API
 
-## Migration from .env
+`GET/POST/DELETE /api/settings`, `GET /api/settings/running`,
+`GET /api/settings/export` and `POST /api/settings/import` are described in
+[API.md](API.md#settings). Export and import have no buttons on the page. The
+export masks secrets; importing that file leaves the stored secrets unchanged.
 
-To migrate existing `.env` configuration to the Settings UI:
+```bash
+# after logging in and fetching a CSRF token (see API.md)
+curl -b jar -H "X-CSRF-Token: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"monitoring":{"warningDays":45}}' http://localhost:3000/api/settings
+```
 
-1. Start the server with your existing `.env` file
-2. Navigate to the Settings page
-3. Review the pre-populated values (loaded from `.env`)
-4. Make any desired changes
-5. Click "Save Settings"
-6. Settings are now stored in `config/settings.json`; remove the corresponding
-   entries from `.env`, since explicitly-set env vars override saved settings
-
-## Restart Requirements
-
-The following settings require a server restart to take effect:
-- Server ports (HTTP/HTTPS)
-- HTTPS enable/disable
-- Authentication configuration
-- Rate limiting windows
-- Certificate monitoring schedule
-
-Other settings (like email SMTP) are loaded dynamically by services and may not require restart.
+Only keys the settings page knows are saved; anything else in the body is
+dropped.
 
 ## Troubleshooting
 
-### Settings Not Saving
-- Check console for error messages
-- Verify write permissions on `config/` directory
-- Check server logs for detailed error information
-
-### Settings Not Taking Effect
-- Some settings require server restart
-- Check that `config/settings.json` was created
-- Verify settings file is valid JSON
-
-### Lost Settings
-- Check if `config/settings.json` exists
-- Restore from backup using import feature
-- Settings file may have been deleted or corrupted
-- **Docker**: make sure a volume is mounted at `/app/config` (see
-  `docker-compose.yml`) — without it, UI-saved settings are lost whenever
-  the container is recreated (e.g. after pulling a new image)
-
-## Best Practices
-
-1. **Backup Settings**: Regularly export settings for backup
-2. **Test Changes**: Test critical changes (auth, ports) in development first
-3. **Document Custom Values**: Keep notes on why certain settings were changed
-4. **Use Environment Variables for Secrets**: Consider keeping sensitive data in `.env` (not committed to git) and using settings UI for non-sensitive configuration
-5. **Review After Updates**: Check settings page after updating the application
-
-## Development
-
-### Adding New Settings
-1. Add setting to `src/config/index.js` base configuration
-2. Add form field to `public/settings.html` in appropriate tab
-3. Ensure field name matches nested config path (e.g., `email.smtp.host`)
-4. Update this documentation
-
-### Testing Settings
-```bash
-# Start server
-npm run dev
-
-# Test settings endpoint
-curl http://localhost:3000/api/settings
-
-# Save test settings
-curl -X POST http://localhost:3000/api/settings \
-  -H "Content-Type: application/json" \
-  -d '{"server":{"port":3001}}'
-
-# Reset settings
-curl -X DELETE http://localhost:3000/api/settings
-```
+- **The server won't start after editing `settings.json` by hand.** A file that
+  isn't valid JSON stops startup with `Failed to load …/config/settings.json`.
+  Fix the JSON or delete the file.
+- **A saved change has no effect.** Restart the server, then check `view running
+  config`. If the value still differs, the same setting is set as an
+  environment variable (see [Where a value comes from](#where-a-value-comes-from)).
+- **Settings are lost when a container is recreated.** Mount a volume at
+  `/app/config` (see `docker-compose.yml` and [DOCKER.md](DOCKER.md)).
+- **Settings don't save.** Check that the server can write to `config/` (under
+  the systemd unit it must be in `ReadWritePaths`; see
+  [deploy/README.md](../deploy/README.md)).

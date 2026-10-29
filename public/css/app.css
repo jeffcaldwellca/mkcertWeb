@@ -1,7 +1,7 @@
 /* mkcert Web UI — split-pane design system. Tokens, shell, components. */
 
 /* ===== SHARED DESIGN LANGUAGE — keep in sync between public/css/app.css and docs/assets/styles.css.
-   Canonical source: docs/superpowers/specs/2026-06-21-unified-design-language-design.md ===== */
+   Canonical source: CONTRIBUTING.md → Design language ===== */
 :root {
   --accent:          #2cf5b8;
   --accent-soft:     #8cf5d4;

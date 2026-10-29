@@ -49,7 +49,7 @@ services:
 
       # Certificate Expiry Notifications
       # Explicitly-set env vars override values saved from the Settings UI.
-      # Webhook (custom request headers are UI/settings.json only)
+      # Webhook (custom request headers: edit config/settings.json by hand)
       # - WEBHOOK_ENABLED=true
       # - WEBHOOK_URL=https://example.com/hook
       # ntfy push notifications
@@ -80,9 +80,9 @@ services:
       - mkcert_config:/app/config
       # Persist the per-container mkcert Root CA across container restarts.
       # As of v4.0.0 the image no longer ships a baked-in CA (every pulled
-      # image used to share the same rootCA-key.pem — see CHANGELOG). The
-      # CA is generated on first boot inside the container via
-      # POST /api/generate-ca, and this volume keeps it across restarts.
+      # image used to share the same rootCA-key.pem — see CHANGELOG). Create
+      # one with "generate" on the root-ca page (POST /api/generate-ca); this
+      # volume keeps it across restarts.
       - mkcert_ca:/home/nodejs/.local/share/mkcert
     restart: unless-stopped
     healthcheck:
