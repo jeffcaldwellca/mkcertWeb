@@ -3,6 +3,7 @@
   'use strict';
 
   const core = window.MK.core;
+  const scepModel = window.MK.scepModel;
   const esc = core.escapeHtml;
   const toast = core.toast;
 
@@ -26,25 +27,9 @@
     return isNaN(date) ? 'unknown' : date.toLocaleString();
   }
 
-  function relExpiry(expiresAt, now) {
-    const ms = new Date(expiresAt) - now;
-    if (isNaN(ms)) return 'unknown';
-    if (ms <= 0) return 'expired';
-    const min = Math.floor(ms / 60000);
-    if (min < 1) return '<1m';
-    if (min < 60) return min + 'm';
-    const h = Math.floor(min / 60);
-    if (h < 48) return h + 'h ' + (min % 60) + 'm';
-    const d = Math.floor(h / 24);
-    return d + 'd ' + (h % 24) + 'h';
-  }
-
-  // 'used' | 'expired' | 'pending'
-  function challengeState(c) {
-    if (c.used) return 'used';
-    if (c.expired) return 'expired';
-    return 'pending';
-  }
+  // State and expiry text are derived at render time (MK.scepModel).
+  const relExpiry = scepModel.relExpiry;
+  const challengeState = scepModel.challengeState;
   const STATE_PILL = { used: 'muted', expired: 'err', pending: 'ok' };
 
   async function copyText(text, sourceEl) {
@@ -162,7 +147,7 @@
   // ---------------------------------------------------------------- challenges
 
   function renderStats() {
-    const active = state.challenges.filter((c) => challengeState(c) === 'pending').length;
+    const active = scepModel.activeCount(state.challenges, new Date());
     $('stat-challenges').textContent = (state.challengesLoaded ? active : '…') + ' active challenges';
     $('stat-certs').textContent = (state.certsLoaded ? state.certs.length : '…') + ' certificates issued';
     $('challenges-label').textContent = 'active challenges' + (state.challengesLoaded ? ' · ' + active : '');
@@ -180,7 +165,7 @@
     el.innerHTML = '<div class="data-table-wrap"><table class="data-table"><thead><tr>' +
       '<th scope="col">identifier</th><th scope="col">expires</th><th scope="col">state</th></tr></thead><tbody>' +
       state.challenges.map((c) => {
-        const st = challengeState(c);
+        const st = challengeState(c, now);
         return '<tr><td>' + esc(c.identifier) + '</td>' +
           '<td title="' + esc(fmtDate(c.expiresAt)) + '">' + esc(relExpiry(c.expiresAt, now)) + '</td>' +
           '<td><span class="pill pill--' + STATE_PILL[st] + '">' + st + '</span></td></tr>';
@@ -216,7 +201,7 @@
           '<span class="text-ok">✓ created</span>' +
           '<span class="text-muted">' + esc(c.identifier) + '</span>' +
           '<code id="challenge-password">' + esc(c.challengePassword) + '</code>' +
-          '<button class="btn" type="button" data-copy="challenge-password">copy</button>' +
+          '<button class="btn" type="button" data-copy="challenge-password" aria-label="copy challenge password">copy</button>' +
           '<span class="text-muted">shown once · expires in ' + esc(rel) + '</span>' +
         '</div></div>';
       idEl.value = '';
@@ -355,9 +340,8 @@
   async function init() {
     detailEl = document.querySelector('.pane-detail');
 
-    const shell = await window.MK.shell.mountShell('scep');
-    state.api = shell.api;
-
+    // Wire handlers and start loading before the shell resolves.
+    state.api = core.createApiClient({});
     document.addEventListener('click', onClick);
     detailEl.addEventListener('keydown', onDetailKeydown);
     $('challenge-form').addEventListener('submit', generateChallenge);
@@ -369,7 +353,10 @@
     });
     setInterval(renderChallenges, 30000);
 
-    await Promise.all([loadConfig(), loadEnterpriseCA(), loadTemplates(), loadChallenges(), loadCerts()]);
+    await Promise.all([
+      window.MK.shell.mountShell('scep', { api: state.api }),
+      loadConfig(), loadEnterpriseCA(), loadTemplates(), loadChallenges(), loadCerts()
+    ]);
   }
 
   init().catch((err) => {

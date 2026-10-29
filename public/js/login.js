@@ -3,7 +3,8 @@
   'use strict';
 
   const core = window.MK.core;
-  const api = core.createApiClient();
+  // Already on the login page: a 401 must not redirect here again.
+  const api = core.createApiClient({ onRedirect: () => {} });
 
   const ERRORS = {
     invalid_credentials: 'Invalid username or password. Please try again.',

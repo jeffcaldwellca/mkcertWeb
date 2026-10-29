@@ -172,3 +172,53 @@ test('no side-stripe accents in redesigned CSS/HTML/JS', () => {
     assert.deepStrictEqual(hits, [], `${rel}: side-stripe accent(s) found`);
   }
 });
+
+// ---- Page skeleton guard ----
+function scriptsOf(html) {
+  return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
+}
+
+function controllerOf(rel) {
+  const base = path.posix.basename(rel, '.html');
+  return 'js/' + (base === 'index' ? 'certificates' : base) + '.js';
+}
+
+function pageProblems(rel, html) {
+  const problems = [];
+  const scripts = scriptsOf(html);
+  const isLogin = path.posix.basename(rel) === 'login.html';
+  const controller = controllerOf(rel);
+  if (scripts[0] !== 'js/core.js') problems.push('js/core.js is not the first script');
+  if (scripts[scripts.length - 1] !== controller) problems.push(controller + ' is not the last script');
+  if (isLogin) {
+    if (scripts.includes('js/shell.js')) problems.push('login must not load js/shell.js');
+  } else {
+    if (scripts[1] !== 'js/shell.js') problems.push('js/shell.js does not follow js/core.js');
+    if (!/<header id="shell"><\/header>/.test(html)) problems.push('missing <header id="shell">');
+    if (!/<main\b/.test(html)) problems.push('missing <main>');
+  }
+  return problems;
+}
+
+test('pageProblems flags broken page skeletons', () => {
+  const good = '<header id="shell"></header><main></main>' +
+    '<script src="js/core.js"></script><script src="js/shell.js"></script><script src="js/scep.js"></script>';
+  assert.deepStrictEqual(pageProblems('public/scep.html', good), []);
+  for (const bad of [
+    good.replace('<script src="js/core.js"></script>', ''),
+    good.replace('<script src="js/shell.js"></script>', ''),
+    '<header id="shell"></header><main></main><script src="js/shell.js"></script><script src="js/core.js"></script><script src="js/scep.js"></script>',
+    good.replace('<script src="js/scep.js"></script>', '') + '<script src="js/scep.js"></script><script src="js/extra.js"></script>',
+    good.replace('<header id="shell"></header>', ''),
+    good.replace('<main></main>', ''),
+  ]) assert.ok(pageProblems('public/scep.html', bad).length > 0, bad);
+  assert.ok(pageProblems('public/login.html',
+    '<main></main><script src="js/core.js"></script><script src="js/shell.js"></script><script src="js/login.js"></script>').length > 0);
+  assert.deepStrictEqual(pageProblems('public/login.html',
+    '<main></main><script src="js/core.js"></script><script src="js/login.js"></script>'), []);
+});
+
+test('every page loads core.js (then shell.js, except login) before its controller', () => {
+  assert.ok(REDESIGNED.includes('public/login.html'));
+  for (const rel of REDESIGNED) assert.deepStrictEqual(pageProblems(rel, read(rel)), [], rel);
+});

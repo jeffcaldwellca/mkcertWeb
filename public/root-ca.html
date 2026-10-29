@@ -36,7 +36,8 @@
         </div>
         <div class="row detail-actions" id="ca-actions">
           <button id="download-btn" class="btn" type="button" hidden>↓ rootCA.pem</button>
-          <button id="install-btn" class="btn btn--primary" type="button" hidden>install</button>
+          <button id="install-btn" class="btn btn--primary" type="button" aria-describedby="install-hint" hidden>install</button>
+          <span id="install-hint" class="field-key" hidden>installs into the trust store of the machine running this server</span>
           <button id="generate-btn" class="btn btn--primary" type="button" hidden>generate</button>
         </div>
       </div>

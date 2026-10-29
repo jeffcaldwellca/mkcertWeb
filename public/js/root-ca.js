@@ -12,7 +12,7 @@
   const DOT = { valid: 'dot--ok', attention: 'dot--warn', expired: 'dot--err', unknown: 'dot--off' };
 
   const state = { api: null, status: null, info: null, infoError: null, loadError: null, result: null };
-  let summaryEl, detailEl, resultEl, downloadBtn, installBtn, generateBtn;
+  let summaryEl, detailEl, resultEl, downloadBtn, installBtn, installHint, generateBtn;
 
   // ---------------------------------------------------------------- helpers
 
@@ -55,7 +55,7 @@
     }
     const c = expiryState(info);
     summaryEl.innerHTML =
-      '<div class="list-item" aria-current="true">' +
+      '<div class="list-item is-selected">' +
         '<span class="line"><span class="dot ' + DOT[c.state] + '"></span>' +
         '<span class="name" title="' + esc(info.subject) + '">' + esc(info.subject || 'N/A') + '</span></span>' +
         '<span class="meta"><span class="pill pill--' + TONE[c.state] + '">' + esc(expiryText(c)) + '</span></span>' +
@@ -111,6 +111,7 @@
     const exists = known && state.status.caExists;
     downloadBtn.hidden = !exists;
     installBtn.hidden = !exists;
+    installHint.hidden = !exists;
     generateBtn.hidden = !known || exists;
   }
 
@@ -133,15 +134,21 @@
     }
   }
 
-  async function loadSystemStatus() {
-    try {
-      state.status = await state.api.get('/status');
+  // `known` is a status already fetched (the shell's), to avoid a refetch.
+  async function loadSystemStatus(known) {
+    if (known) {
+      state.status = known;
       state.loadError = null;
-    } catch (err) {
-      state.status = null;
-      state.loadError = 'failed to load system status: ' + err.message;
-      render();
-      return;
+    } else {
+      try {
+        state.status = await state.api.get('/status');
+        state.loadError = null;
+      } catch (err) {
+        state.status = null;
+        state.loadError = 'failed to load system status: ' + err.message;
+        render();
+        return;
+      }
     }
     if (state.status.caExists) await loadRootCAInfo();
     else { state.info = null; state.infoError = null; }
@@ -196,7 +203,11 @@
     setBusy(installBtn, true, 'installing…', 'install');
     try {
       const result = await state.api.post('/install-ca');
-      state.result = { tone: 'ok', title: result.message || 'root CA installed successfully', lines: [] };
+      state.result = {
+        tone: 'ok',
+        title: result.message || 'root CA installed successfully',
+        lines: ['installed into the trust store of the machine running this server']
+      };
       renderResult();
       toast('root CA installed successfully', 'ok');
       await waitForCAInstallation();
@@ -257,16 +268,17 @@
     resultEl = document.getElementById('ca-result');
     downloadBtn = document.getElementById('download-btn');
     installBtn = document.getElementById('install-btn');
+    installHint = document.getElementById('install-hint');
     generateBtn = document.getElementById('generate-btn');
 
-    const shell = await window.MK.shell.mountShell('root-ca');
-    state.api = shell.api;
-
+    state.api = core.createApiClient({});
     downloadBtn.addEventListener('click', downloadRootCA);
     installBtn.addEventListener('click', handleInstallCA);
     generateBtn.addEventListener('click', handleGenerateCA);
 
-    await loadSystemStatus();
+    // The shell already fetches /status; reuse it (null if that failed).
+    const shell = await window.MK.shell.mountShell('root-ca', { api: state.api });
+    await loadSystemStatus(shell.status);
   }
 
   init().catch((err) => {

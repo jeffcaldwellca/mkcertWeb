@@ -1025,7 +1025,7 @@ wget --load-cookies=/tmp/auth-cookies.txt \
 
 # Test static assets
 wget -qO- http://localhost:3000/css/app.css | grep -q "body" && echo "✓ CSS loads"
-wget -qO- http://localhost:3000/script.js | grep -q "function" && echo "✓ JavaScript loads"
+wget -qO- http://localhost:3000/js/core.js | grep -q "function" && echo "✓ JavaScript loads"
 ```
 
 ### 2. Authentication Flow Testing (Manual Browser Testing)

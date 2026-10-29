@@ -45,12 +45,18 @@
     </section>
 
     <section class="pane-detail" aria-label="Certificate detail">
-      <div id="cert-detail"></div>
-      <div id="cert-empty" class="detail-body" hidden>
-        <div class="empty">
-          <p><span class="prompt">$</span> no certificates yet</p>
-          <p>Type one or more domains into <strong>quick generate</strong> (for example <code>localhost 127.0.0.1</code>), pick a format and press <strong>run ↵</strong>.</p>
-          <p>Already have certificate and key files? Use <strong>↑ upload</strong> to add them.</p>
+      <div id="cert-detail">
+        <div class="detail-head"><h1 class="page-title"><span class="prompt">$</span> certificates</h1></div>
+        <div class="detail-body"><p class="empty">loading…</p></div>
+      </div>
+      <div id="cert-empty" hidden>
+        <div class="detail-head"><h1 class="page-title"><span class="prompt">$</span> certificates</h1></div>
+        <div class="detail-body">
+          <div class="empty">
+            <p>no certificates yet</p>
+            <p>Type one or more domains into <strong>quick generate</strong> (for example <code>localhost 127.0.0.1</code>), pick a format and press <strong>run ↵</strong>.</p>
+            <p>Already have certificate and key files? Use <strong>↑ upload</strong> to add them.</p>
+          </div>
         </div>
       </div>
     </section>

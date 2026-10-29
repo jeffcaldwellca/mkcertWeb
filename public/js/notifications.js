@@ -204,7 +204,7 @@
     const entries = state.logs[state.selected];
     if (!entries.length) { logEl.innerHTML = ''; return; }
     logEl.innerHTML =
-      '<div class="card"><h2 class="section-label">log</h2><ul class="log" aria-live="polite">' +
+      '<div class="card"><h2 class="section-label">log</h2><ul class="log">' +
       entries.map((l) => '<li><span class="ts">' + esc(l.ts) + '</span> <span class="lvl-' + esc(l.lvl) + '">' +
         (l.lvl === 'ok' ? 'OK' : 'ERR') + '</span> ' + esc(l.text) + '</li>').join('') +
       '</ul></div>';
@@ -281,9 +281,8 @@
     extraEl = document.getElementById('channel-extra');
     logEl = document.getElementById('channel-log');
 
-    const shell = await window.MK.shell.mountShell('notifications');
-    state.api = shell.api;
-
+    // Wire handlers and start loading before the shell resolves.
+    state.api = core.createApiClient({});
     actionsEl.addEventListener('click', (ev) => {
       const btn = ev.target.closest('button[data-action]');
       if (btn) runAction(btn.dataset.action);
@@ -292,8 +291,10 @@
 
     state.selected = parseChannel(location.hash);
     render();
-    await Promise.all(CHANNELS.map(loadStatus).concat(loadExpiring()));
-    render();
+    await Promise.all([
+      window.MK.shell.mountShell('notifications', { api: state.api }),
+      Promise.all(CHANNELS.map(loadStatus).concat(loadExpiring())).then(render)
+    ]);
   }
 
   init().catch((err) => {

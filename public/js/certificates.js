@@ -101,7 +101,9 @@
     if (state.loadError && state.certs.length === 0) {
       groupsEl.innerHTML = '<p class="empty text-err">failed to load certificates: ' + esc(state.loadError) + '</p>';
       emptyEl.hidden = true;
-      detailEl.hidden = true;
+      detailEl.hidden = false;
+      detailEl.innerHTML = '<div class="detail-head"><h1 class="page-title" tabindex="-1"><span class="prompt">$</span> certificates</h1></div>' +
+        '<div class="detail-body"><p class="text-err">failed to load certificates: ' + esc(state.loadError) + '</p></div>';
       state.selected = null;
       return;
     }
@@ -177,7 +179,8 @@
   function renderDetail(cert, now) {
     state.selected = cert;
     if (!cert) {
-      detailEl.innerHTML = '<div class="detail-body"><p class="empty">no certificate matches the filter</p></div>';
+      detailEl.innerHTML = '<div class="detail-head"><h1 class="page-title" tabindex="-1"><span class="prompt">$</span> certificates</h1></div>' +
+        '<div class="detail-body"><p class="empty">no certificate matches the filter</p></div>';
       return;
     }
     const loc = model.locationOf(cert);
@@ -966,9 +969,10 @@
     pfxError = document.getElementById('pfx-error');
     pfxGenerateBtn = document.getElementById('pfx-generate');
 
-    const shell = await window.MK.shell.mountShell('certificates');
-    state.api = shell.api;
-
+    // Wire handlers before anything is awaited so an early Enter in quick
+    // generate never falls through to a native form submit; load the list
+    // alongside the shell.
+    state.api = core.createApiClient({});
     quickGenForm.addEventListener('submit', onQuickGenerate);
     filterEl.addEventListener('input', onFilterInput);
     filterEl.addEventListener('keydown', onFilterKeydown);
@@ -983,7 +987,7 @@
     pfxForm.addEventListener('submit', onPfxSubmit);
     document.getElementById('pfx-cancel').addEventListener('click', () => pfxDialog.close());
 
-    await load();
+    await Promise.all([window.MK.shell.mountShell('certificates', { api: state.api }), load()]);
   }
 
   init().catch((err) => {

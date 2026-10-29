@@ -178,8 +178,8 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .muted { color: var(--muted); }
 .codeblock { position: relative; margin: 14px 0 22px; }
 .codeblock pre {
-  margin: 0; background: var(--bg-panel); border: 1px solid var(--border);
-  border-left: 3px solid var(--phosphor); padding: 16px 18px; overflow-x: auto;
+  margin: 0; background: var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--phosphor) 45%, transparent); padding: 16px 18px; overflow-x: auto;
   color: var(--text); text-shadow: none; border-radius: var(--radius);
 }
 .codeblock code { font-family: var(--mono); font-size: 15px; white-space: pre; }

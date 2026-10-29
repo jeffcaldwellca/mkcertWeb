@@ -76,9 +76,11 @@
     return href ? 'a[href="' + href + '"]' : null;
   }
 
-  async function mountShell(active) {
+  // Pass { api } to share the page's client (and its CSRF token), so a page
+  // can wire handlers and load data before the shell resolves.
+  async function mountShell(active, options = {}) {
     const el = document.getElementById('shell');
-    const api = core.createApiClient({});
+    const api = options.api || core.createApiClient({});
     const state = { api, auth: null, status: null };
     const draw = () => {
       const key = focusKey(el);

@@ -221,9 +221,9 @@
       snapshot();
       return true;
     } catch (err) {
-      let msg = 'failed to load settings: ' + err.message;
-      if (err.status === 403) msg = err.message || 'Settings API unavailable';
-      else if (err.status === 401) msg = 'You need to log in to access settings.';
+      let msg = "couldn't load settings: " + err.message;
+      if (err.status === 403) msg = err.message || 'settings API unavailable';
+      else if (err.status === 401) msg = 'log in to access settings';
       showLoadError(msg);
       toast(msg, 'err');
       return false;
@@ -234,12 +234,12 @@
     const btn = $('save-btn');
     btn.disabled = true;
     try {
-      const result = await state.api.post('/settings', getFormData());
-      toast(result.message || 'Settings saved successfully!', 'ok');
+      await state.api.post('/settings', getFormData());
+      toast('settings saved', 'ok');
       // Reload to show sanitized values and re-snapshot.
       await loadSettings();
     } catch (err) {
-      toast('Error saving settings: ' + err.message, 'err');
+      toast("couldn't save settings: " + err.message, 'err');
     } finally {
       btn.disabled = false;
     }
@@ -265,9 +265,9 @@
       const result = await state.api.del('/settings');
       populateForm(configOf(result));
       snapshot();
-      toast('Settings reset to defaults successfully!', 'ok');
+      toast('settings reset to defaults', 'ok');
     } catch (err) {
-      toast('Error resetting settings: ' + err.message, 'err');
+      toast("couldn't reset settings: " + err.message, 'err');
     }
   }
 
@@ -281,16 +281,25 @@
       content.textContent = JSON.stringify(configOf(result), null, 2);
     } catch (err) {
       content.textContent = 'Error: ' + err.message;
-      toast('Failed to load running configuration', 'err');
+      toast("couldn't load the running configuration: " + err.message, 'err');
     }
   }
 
+  // navigator.clipboard needs a secure context; on plain-HTTP LAN use, select
+  // the text instead and let the user copy it (same fallback as scep.js).
   async function copyConfig() {
+    const src = $('config-content');
     try {
-      await navigator.clipboard.writeText($('config-content').textContent);
-      toast('Configuration copied to clipboard', 'ok');
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard unavailable');
+      await navigator.clipboard.writeText(src.textContent);
+      toast('configuration copied to clipboard', 'ok');
     } catch (err) {
-      toast('Failed to copy to clipboard', 'err');
+      const range = document.createRange();
+      range.selectNodeContents(src);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      toast('press ⌘C / Ctrl+C to copy', 'info');
     }
   }
 
@@ -304,7 +313,7 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast('Configuration downloaded', 'ok');
+    toast('configuration downloaded', 'ok');
   }
 
   async function runNotificationTest(channel) {
@@ -359,7 +368,7 @@
     $('discard-btn').addEventListener('click', () => { populateForm(state.saved); updateDirty(); });
     $('reset-btn').addEventListener('click', resetSettings);
     $('reload-btn').addEventListener('click', async () => {
-      if (await loadSettings()) toast('Settings reloaded from server', 'info');
+      if (await loadSettings()) toast('settings reloaded from the server', 'info');
     });
     $('view-config-btn').addEventListener('click', showRunningConfig);
     $('copy-config-btn').addEventListener('click', copyConfig);
@@ -384,15 +393,16 @@
 
   async function init() {
     form = $('settings-form');
+    state.api = core.createApiClient({});
     renderNav();
     indexSettings();
     wire();
     selectSection(model.sectionFromHash(location.hash) || 'server');
     snapshot();
-    const shell = await window.MK.shell.mountShell('settings');
-    state.api = shell.api;
-    await loadSettings();
+    await Promise.all([window.MK.shell.mountShell('settings', { api: state.api }), loadSettings()]);
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  init().catch((err) => {
+    toast("couldn't start the settings page: " + err.message, 'err');
+  });
 })();

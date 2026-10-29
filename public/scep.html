@@ -15,20 +15,20 @@
       <div class="pane-section">
         <div class="section-label"><span>service</span><span id="service-pill" class="pill pill--muted">loading…</span></div>
         <div class="field">
-          <div class="row spread"><span class="field-key">service url</span><button class="btn btn--ghost" type="button" data-copy="scep-service-url">copy</button></div>
+          <div class="row spread"><span class="field-key">service url</span><button class="btn btn--ghost" type="button" data-copy="scep-service-url" aria-label="copy service url">copy</button></div>
           <pre class="codeblock codeblock--wrap" id="scep-service-url">loading…</pre>
         </div>
         <div class="field">
-          <div class="row spread"><span class="field-key">GetCACert</span><button class="btn btn--ghost" type="button" data-copy="get-ca-cert-url">copy</button></div>
+          <div class="row spread"><span class="field-key">GetCACert</span><button class="btn btn--ghost" type="button" data-copy="get-ca-cert-url" aria-label="copy GetCACert url">copy</button></div>
           <pre class="codeblock codeblock--wrap" id="get-ca-cert-url">loading…</pre>
         </div>
         <div class="field">
-          <div class="row spread"><span class="field-key">GetCACaps</span><button class="btn btn--ghost" type="button" data-copy="get-ca-caps-url">copy</button></div>
+          <div class="row spread"><span class="field-key">GetCACaps</span><button class="btn btn--ghost" type="button" data-copy="get-ca-caps-url" aria-label="copy GetCACaps url">copy</button></div>
           <pre class="codeblock codeblock--wrap" id="get-ca-caps-url">loading…</pre>
         </div>
       </div>
 
-      <div class="pane-section" id="enterprise-ca-status" aria-live="polite">
+      <div class="pane-section" id="enterprise-ca-status">
         <h2 class="section-label">enterprise ca</h2>
         <p class="empty">loading…</p>
       </div>
@@ -190,6 +190,7 @@ POST /api/scep/validate-upn           UPN validation for M365</pre>
 
 <script src="js/core.js"></script>
 <script src="js/shell.js"></script>
+<script src="js/scep-model.js"></script>
 <script src="js/scep.js"></script>
 </body>
 </html>
