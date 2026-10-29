@@ -71,9 +71,19 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Docker Hub is the registry the README and docker-compose.yml point at.
+    # Without it here, the weekly rebuild only refreshed GHCR and Hub's
+    # :latest went stale (issue #53). secrets.* can't be read in step `if:`,
+    # so expose the username as an env var to gate the Hub steps on it.
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Warn if Docker Hub credentials are missing
+        if: env.DOCKERHUB_USERNAME == ''
+        run: echo "::warning::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not set — pushing to GHCR only; docker.io/jeffcaldwellca/mkcertweb will not be updated."
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -88,12 +98,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+            name=docker.io/jeffcaldwellca/${{ env.IMAGE_NAME }},enable=${{ env.DOCKERHUB_USERNAME != '' }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha

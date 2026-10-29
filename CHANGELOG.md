@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+### Fixed
+
+- **Docker Hub image wasn't getting security rebuilds (#53).** The weekly
+  rebuild added in #46 pushed only to GHCR, so `jeffcaldwellca/mkcertweb` on
+  Docker Hub (the image the README and `docker-compose.yml` use) stayed on
+  whatever Node it was built with at release time — currently missing the
+  CVE-2026-111497 fix in Node 24.22.1. The build workflow now pushes to
+  Docker Hub as well when `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets are
+  set, and warns when they aren't.
+- **CA generation failed when running as a custom UID (#54).** With e.g.
+  `user: "2000:2000"`, the UID has no passwd entry, Docker sets `HOME=/`, and
+  mkcert tried to create `/.local/share/mkcert`. The image now sets
+  `CAROOT=/home/nodejs/.local/share/mkcert`, so the CA path no longer depends
+  on `HOME`. `docs/DOCKER.md` documents running as a custom UID.
+
 ## [4.4.2] - 2026-10-14
 
 ### Fixed
