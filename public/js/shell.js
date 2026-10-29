@@ -23,14 +23,25 @@
     return 'dot--off';
   }
 
+  function dotWord(value) {
+    if (value === true) return 'installed';
+    if (value === false) return 'missing';
+    return 'unknown';
+  }
+
   // Returns the INNER markup of the header; the mount element carries class="topbar".
   function renderShell({ active, status, auth } = {}) {
     const s = status || {};
     const tabs = NAV.map(n =>
       '<a class="nav-tab" href="' + n.href + '"' + (n.id === active ? ' aria-current="page"' : '') + '>' + n.id + '</a>'
     ).join('');
+    // Colour alone doesn't carry state: each dot has hidden text and a title.
     const dots = [['mkcert', s.mkcertInstalled], ['CA', s.caExists], ['openssl', s.opensslAvailable]]
-      .map(([label, v]) => '<span><span class="dot ' + dot(status ? v : null) + '"></span>' + label + '</span>')
+      .map(([label, v]) => {
+        const word = dotWord(status ? v : null);
+        return '<span title="' + label + ': ' + word + '"><span class="dot ' + dot(status ? v : null) + '" aria-hidden="true"></span>' +
+          label + '<span class="sr-only">: ' + word + '</span></span>';
+      })
       .join('');
     const user = auth && auth.authEnabled
       ? '<span>' + core.escapeHtml(auth.username || '') + '</span>' +

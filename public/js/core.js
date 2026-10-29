@@ -105,20 +105,72 @@
     return next;
   }
 
-  function toast(message, type = 'info', { timeout = 5000 } = {}) {
-    let stack = document.querySelector('.toast-stack');
-    if (!stack) {
-      stack = document.createElement('div');
-      stack.className = 'toast-stack';
-      document.body.appendChild(stack);
-    }
-    const el = document.createElement('div');
-    el.className = 'toast toast--' + (['ok', 'err', 'info'].includes(type) ? type : 'info');
-    el.setAttribute('role', 'status');
-    el.textContent = message;
-    stack.appendChild(el);
-    if (timeout > 0) setTimeout(() => el.remove(), timeout);
+  // Toasts go into live regions that exist before the first toast, so screen
+  // readers announce it: a polite region, plus an assertive one for errors.
+  // Both sit in one fixed .toast-stack. Created when core.js loads (scripts
+  // sit at the end of <body>) or, failing that, on first use.
+  let toastRegions = null;
+
+  function ensureToastRegions() {
+    if (toastRegions) return false;
+    if (typeof document === 'undefined' || !document.body) return false;
+    const stack = document.createElement('div');
+    stack.className = 'toast-stack';
+    const polite = document.createElement('div');
+    polite.className = 'toast-region';
+    polite.setAttribute('aria-live', 'polite');
+    polite.setAttribute('aria-atomic', 'false');
+    const assertive = document.createElement('div');
+    assertive.className = 'toast-region';
+    assertive.setAttribute('aria-live', 'assertive');
+    assertive.setAttribute('aria-atomic', 'false');
+    stack.append(polite, assertive);
+    document.body.appendChild(stack);
+    toastRegions = { stack, polite, assertive };
+    return true;
   }
+
+  // Keep the stack clear of a sticky footer (settings page) by lifting it.
+  function placeToastStack(stack) {
+    const footer = document.querySelector('.sticky-footer');
+    let lift = 0;
+    if (footer) {
+      const r = footer.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) lift = window.innerHeight - r.top;
+    }
+    stack.style.bottom = (16 + Math.min(lift, window.innerHeight / 2)) + 'px';
+  }
+
+  // Error toasts stay until dismissed; others go after `timeout` ms.
+  function toast(message, type = 'info', { timeout = 5000 } = {}) {
+    const kind = ['ok', 'err', 'info'].includes(type) ? type : 'info';
+    const fresh = ensureToastRegions();
+    if (!toastRegions) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast--' + kind;
+    const text = document.createElement('span');
+    text.className = 'toast-text';
+    text.textContent = message;
+    el.appendChild(text);
+    if (kind === 'err') {
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'toast-dismiss';
+      close.setAttribute('aria-label', 'dismiss');
+      close.textContent = '×';
+      close.addEventListener('click', () => el.remove());
+      el.appendChild(close);
+    } else if (timeout > 0) {
+      setTimeout(() => el.remove(), timeout);
+    }
+    placeToastStack(toastRegions.stack);
+    const region = kind === 'err' ? toastRegions.assertive : toastRegions.polite;
+    // A region created this instant may not be tracked yet; give it a beat.
+    if (fresh) setTimeout(() => region.appendChild(el), 100);
+    else region.appendChild(el);
+  }
+
+  ensureToastRegions();
 
   return { escapeHtml, createApiClient, resolveInitialTheme, initTheme, toggleTheme, toast };
 });

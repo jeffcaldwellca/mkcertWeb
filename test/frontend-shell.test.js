@@ -32,3 +32,21 @@ test('renderShell shows ok and err dots', () => {
   assert.strictEqual((html.match(/dot--ok/g) || []).length, 2);
   assert.strictEqual((html.match(/dot--err/g) || []).length, 1);
 });
+
+test('status dots carry their state as text, not colour only', () => {
+  const html = shell.renderShell({ active: 'scep', status, auth });
+  assert.match(html, /mkcert<span class="sr-only">: installed<\/span>/);
+  assert.match(html, /CA<span class="sr-only">: missing<\/span>/);
+  assert.match(html, /openssl<span class="sr-only">: installed<\/span>/);
+  assert.match(html, /title="CA: missing"/);
+  const loading = shell.renderShell({ active: 'scep', status: null, auth: null });
+  assert.strictEqual((loading.match(/<span class="sr-only">: unknown<\/span>/g) || []).length, 3);
+  assert.match(loading, /title="mkcert: unknown"/);
+});
+
+test('theme toggle accessible name contains its visible text', () => {
+  const html = shell.renderShell({ active: 'scep', status, auth });
+  const m = /data-shell="theme" aria-label="([^"]*)">([^<]*)</.exec(html);
+  assert.ok(m, 'theme button rendered');
+  assert.ok(m[1].includes(m[2]), `aria-label "${m[1]}" should contain "${m[2]}"`);
+});

@@ -91,7 +91,8 @@
           '<a class="list-item" href="#section=' + esc(id) + '" data-section="' + esc(id) + '">' +
             '<span class="line"><span class="name">' + esc(TITLES[id]) + '</span>' +
             '<span class="pill pill--warn" data-edited hidden>edited</span>' +
-            '<span class="dot dot--ok" data-dot></span></span></a>').join('') +
+            '<span class="dot dot--ok" data-dot aria-hidden="true"></span>' +
+            '<span class="sr-only" data-dot-text></span></span></a>').join('') +
       '</div>').join('');
   }
 
@@ -132,8 +133,11 @@
       const key = model.ENABLE_KEY[item.dataset.section];
       const on = key ? Boolean(data[key]) : true;
       const dot = item.querySelector('[data-dot]');
+      const word = key ? (on ? 'enabled' : 'disabled') : '';
       dot.className = 'dot ' + (on ? 'dot--ok' : 'dot--off');
-      dot.title = key ? (on ? 'enabled' : 'disabled') : '';
+      dot.title = word;
+      // Colour alone doesn't carry state; sections without a switch say nothing.
+      item.querySelector('[data-dot-text]').textContent = word ? ': ' + word : '';
     });
   }
 
