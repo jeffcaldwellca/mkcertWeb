@@ -14,6 +14,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   `CAROOT=/home/nodejs/.local/share/mkcert`, so the CA path no longer depends
   on `HOME`. `docs/DOCKER.md` documents running as a custom UID.
 
+### Security
+
+- **Dependency updates for four advisories.** `npm audit` is clean again:
+  - `body-parser` 1.20.8 → 1.20.9 — DoS via trailing bytes after a
+    compressed request body (GHSA-27r3-jxmh-p828; also used by Express).
+  - `multer` 2.4.0 → 2.5.0 — DoS via a pending async `fileFilter` after
+    request teardown (GHSA-q7qp-rjg7-q26m).
+  - `node-forge` 1.4.0 → 1.4.2 — RSA PKCS#1 v1.5 signature verification
+    accepted extra nested DigestAlgorithm elements (GHSA-86w9-cpqp-85rv).
+  - `nodemailer` 10.1.1 → 10.2.1 — address-parser bugs that could turn
+    display text into extra recipients (GHSA-8c8m-p3m8-cjg8,
+    GHSA-m943-m63m-w62w, GHSA-85x2-q946-cp5h).
+
 ## [4.4.2] - 2026-10-14
 
 ### Fixed
