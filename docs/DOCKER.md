@@ -116,7 +116,10 @@ home directory.
 
 - `ENABLE_HTTPS=true` makes the app also listen on 3443 with an mkcert
   certificate for `SSL_DOMAIN`, created in `/app/ssl` at startup and signed by
-  the container's CA.
+  the container's CA. Add `FORCE_HTTPS=true` to redirect plain-HTTP requests
+  there (301). Requests from inside the container (the health check) and
+  `/scep` are not redirected, and nothing is redirected if the HTTPS server
+  failed to start.
 - Behind a reverse proxy, terminate TLS at the proxy and forward to port 3000.
   The app trusts `X-Forwarded-*` from loopback, link-local and private
   addresses.

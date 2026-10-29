@@ -116,7 +116,7 @@ restart, and the settings page only works with `ENABLE_AUTH=true`.
 | `PORT` / `HTTPS_PORT` | `3000` / `3443` | Listening ports |
 | `ENABLE_HTTPS` | `false` | Also serve HTTPS with an mkcert certificate for `SSL_DOMAIN` |
 | `SSL_DOMAIN` | `localhost` | Name on the HTTPS certificate |
-| `FORCE_HTTPS` | `false` | Redirect HTTP to HTTPS |
+| `FORCE_HTTPS` | `false` | With `ENABLE_HTTPS=true`, answer every plain-HTTP request with a 301 to the HTTPS port, except loopback clients (health checks) and `/scep` |
 | `THEME_MODE` | `light` (`dark` in Docker) | Default theme for new browsers |
 | `ENABLE_AUTH` | `false` | Require a login |
 | `AUTH_USERNAME` | `admin` | Login name |

@@ -120,6 +120,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   `failed to generate PFX` and logs the details.
 - `POST /api/execute` no longer has the `list` command, which always failed
   with 500; it now gets the same 400 as any unknown command.
+- `FORCE_HTTPS=true` redirected almost nothing: the redirect was registered
+  after the static files and every route, so only unknown paths reached it.
+  It now runs first, so pages, assets and API calls over plain HTTP get a 301
+  to the HTTPS port. Loopback clients (the Docker health check) and the SCEP
+  endpoint are not redirected, and nothing is redirected until the HTTPS
+  server is listening.
 
 ### Security
 

@@ -17,7 +17,7 @@ const { securityHeaders } = require('./src/config/securityHeaders');
 // Single safe execution path — execFile, no shell. (executeCommand isn't
 // used directly in server.js anymore; the route modules import it themselves.)
 const { runTool } = require('./src/security');
-const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
+const { createHttpsRedirect } = require('./src/utils/httpsRedirect');
 const { apiResponse } = require('./src/utils/responses');
 const { getAuthState, isAuthenticated, createRequireAuth } = require('./src/utils/authState');
 const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
@@ -125,6 +125,15 @@ if (allowedOrigins.length > 0) {
 // Security headers via helmet — options live in src/config/securityHeaders.js
 // so tests can assert the CSP without booting the server.
 app.use(securityHeaders());
+
+// FORCE_HTTPS: redirect plain-HTTP requests before any static file or route
+// can answer them. It only redirects once the HTTPS server is listening (so a
+// failed HTTPS start doesn't send everyone to a dead port), and never for
+// loopback clients (the Docker health check) or the SCEP endpoint.
+let httpsListening = false;
+if (ENABLE_HTTPS && FORCE_HTTPS) {
+  app.use(createHttpsRedirect({ httpsPort: HTTPS_PORT, isActive: () => httpsListening }));
+}
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -489,31 +498,13 @@ async function generateSSLCertificate() {
   return { certPath, keyPath };
 }
 
-// HTTPS redirect middleware
-function redirectToHTTPS(req, res, next) {
-  if (FORCE_HTTPS && !req.secure && req.get('x-forwarded-proto') !== 'https') {
-    const target = buildHttpsRedirectUrl(req.get('host'), req.url, HTTPS_PORT);
-    if (target) {
-      return res.redirect(301, target);
-    }
-    // No Host header to redirect to — fail loudly rather than crash.
-    return res.status(400).send('Missing Host header');
-  }
-  next();
-}
-
 // Start server(s)
 async function startServer() {
   try {
     // OIDC discovery happens before we accept any /auth/oidc traffic.
     await configureOIDC();
 
-    // Always start HTTP server (for API and optionally for redirects)
-    if (ENABLE_HTTPS && FORCE_HTTPS) {
-      // Add HTTPS redirect middleware to HTTP server
-      app.use(redirectToHTTPS);
-    }
-    
+    // Always start the HTTP server (it redirects once HTTPS is up, with FORCE_HTTPS)
     const httpServer = http.createServer(app);
     httpServer.listen(PORT, () => {
       if (ENABLE_HTTPS && FORCE_HTTPS) {
@@ -535,6 +526,7 @@ async function startServer() {
         
         const httpsServer = https.createServer(options, app);
         httpsServer.listen(HTTPS_PORT, () => {
+          httpsListening = true;
           console.log(`🔐 HTTPS server running on https://localhost:${HTTPS_PORT}`);
           console.log(`🔑 SSL Domain: ${SSL_DOMAIN}`);
           console.log(`📁 Certificate storage: ${CERT_DIR}`);
