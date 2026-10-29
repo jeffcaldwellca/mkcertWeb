@@ -137,8 +137,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
           // SECURITY: mkcert -uninstall is destructive (breaks trust for every
           // cert this server issued). Mirror the guards on POST /api/uninstall-ca
           // so this path can't be used to bypass them.
-          if (!config.auth.enabled && !config.oidc.enabled) {
-            return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled');
+          // Only ENABLE_AUTH counts: without it there is no login, even with OIDC configured.
+          if (config.auth.enabled !== true) {
+            return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled (ENABLE_AUTH=true)');
           }
           if (req.body?.confirm !== true) {
             return apiResponse.badRequest(res, 'Pass { "confirm": true } to acknowledge this will remove the local root CA from the system trust store');

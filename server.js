@@ -19,7 +19,7 @@ const { securityHeaders } = require('./src/config/securityHeaders');
 const { runTool } = require('./src/security');
 const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
 const { apiResponse } = require('./src/utils/responses');
-const { getAuthState, isAuthenticated } = require('./src/utils/authState');
+const { getAuthState, isAuthenticated, createRequireAuth } = require('./src/utils/authState');
 const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
 
 // Import SCEP routes
@@ -233,23 +233,9 @@ async function configureOIDC() {
   }
 }
 
-// Authentication middleware
-const requireAuth = (req, res, next) => {
-  if (!ENABLE_AUTH) {
-    return next(); // Skip authentication if disabled
-  }
-  
-  // Check for basic auth session or OIDC authentication
-  if (isAuthenticated(req)) {
-    return next();
-  } else {
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Authentication required',
-      redirectTo: '/login'
-    });
-  }
-};
+// Authentication middleware: a no-op unless ENABLE_AUTH is on (basic or OIDC
+// session otherwise required).
+const requireAuth = createRequireAuth(ENABLE_AUTH);
 
 // Serve static files
 app.use(express.static('public'));

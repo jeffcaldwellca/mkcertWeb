@@ -23,8 +23,17 @@ Download routes (`/api/download/*`, `/api/generate/pfx/*`,
 **Authentication.** With `ENABLE_AUTH=true`, routes marked "auth" in the tables
 need a logged-in session (cookie `mkcertweb.sid`). Without one they return
 `401 { success: false, error: "Authentication required", redirectTo: "/login" }`.
-With auth disabled, "auth" routes are open, except the settings API (see
-[Settings](#settings)).
+
+**What is protected without `ENABLE_AUTH`.** Authentication is on only when
+`ENABLE_AUTH=true`. `ENABLE_OIDC` alone turns nothing on: the OIDC routes are
+mounted only when `ENABLE_AUTH=true`. With auth off, every "auth" route is open
+to anyone who can reach the server, including generate, upload, archive,
+delete, `POST /api/generate-ca` and `POST /api/install-ca` (which only add
+trust; generate is how a new container gets its CA). Two things refuse instead:
+
+- the whole settings API (`/api/settings*`) returns 403 (see [Settings](#settings));
+- `mkcert -uninstall` (`POST /api/uninstall-ca` and `uninstall-ca` in
+  `POST /api/execute`) returns 403.
 
 ```bash
 # log in and keep the session cookie
@@ -117,7 +126,7 @@ Each entry has `name`, `cert` and `key` (file objects with `filename`, `size`,
 | `generate` | `mkcert` in `certificates/<today>/`. `input` is the space-separated names (the first one names the files). `format`: `pem` (default, `<name>.pem` + `<name>-key.pem`), `crt` (`.crt` + `.key`), `p12`, or `p12-client` (`-pkcs12 -client`). | `output`, `command`, `certificateDir`, `format` |
 | `caroot` | `mkcert -CAROOT` | `output`, `command` |
 | `install-ca` | Returns a note without running anything when the CA files already exist; otherwise `mkcert -install`. | `output`, `command`, `warning?` |
-| `uninstall-ca` | `mkcert -uninstall`. Needs authentication enabled (403 otherwise) and `"confirm": true` (400 otherwise). | `output`, `command` |
+| `uninstall-ca` | `mkcert -uninstall`. Needs `ENABLE_AUTH=true` (403 otherwise, even with OIDC configured) and `"confirm": true` (400 otherwise). | `output`, `command` |
 
 Any other value, including the removed `list`, gets `400 Invalid command`.
 
@@ -182,7 +191,7 @@ To recover by hand:
 | GET | `/api/download/rootca` | auth | general | `mkcert-rootCA.pem` |
 | POST | `/api/install-ca` | auth | cli | Runs `mkcert -install` (adds the CA to **this server's** trust store; needs root). `{ output }` |
 | POST | `/api/generate-ca` | auth | cli | If the CA exists: `action: "none"`. Otherwise runs `mkcert -install`, which creates the CA and then tries the trust store. Succeeds when the CA files exist afterwards: `{ caRoot, caExists, action: "generated", trustStoreInstalled, caCopiedToPublic, output, publicCACertPath }`. Copies the CA certificate to `certificates/mkcert-rootCA.pem`. |
-| POST | `/api/uninstall-ca` | auth | cli | Runs `mkcert -uninstall`. 403 unless authentication is enabled; 400 unless the body is `{ "confirm": true }`. |
+| POST | `/api/uninstall-ca` | auth | cli | Runs `mkcert -uninstall`. 403 unless `ENABLE_AUTH=true` (OIDC alone is not enough); 400 unless the body is `{ "confirm": true }`. |
 
 `generate-ca` and `install-ca` change the trust store of the machine running the
 server. Don't call them against your workstation casually.
@@ -227,8 +236,9 @@ Challenge passwords are kept in memory, so a restart clears them. See
 
 ## Settings
 
-All settings routes return **403 when neither `ENABLE_AUTH` nor `ENABLE_OIDC`
-is on**, and otherwise need a session. They use the `api` tier.
+All settings routes return **403 unless `ENABLE_AUTH=true`** (`ENABLE_OIDC`
+alone is not enough), and otherwise need a session (401 without one). They use
+the `api` tier.
 
 | Method | Path | Notes |
 |---|---|---|

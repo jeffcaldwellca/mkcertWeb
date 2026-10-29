@@ -121,6 +121,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `POST /api/execute` no longer has the `list` command, which always failed
   with 500; it now gets the same 400 as any unknown command.
 
+### Security
+
+- **`ENABLE_OIDC=true` without `ENABLE_AUTH=true` left the settings API and
+  `mkcert -uninstall` open to anyone.** Those guards accepted the OIDC flag as
+  "authentication enabled", but without `ENABLE_AUTH` there is no login at all
+  (the OIDC routes aren't mounted and route auth is a no-op), so anyone on the
+  network could read the masked settings, rewrite credentials or remove the CA
+  from the trust store. The settings API (403) and both uninstall paths (403)
+  now require `ENABLE_AUTH=true`.
+
 ### Removed
 
 - The old UI files `public/script.js`, `public/styles.css` and

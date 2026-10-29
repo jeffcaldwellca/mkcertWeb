@@ -262,8 +262,9 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
   // issued. Require explicit confirm:true and only allow it when auth is enabled
   // (so an anonymous LAN attacker can't break trust with a single POST).
   router.post('/api/uninstall-ca', requireAuth, rateLimiters.cliRateLimiter, asyncHandler(async (req, res) => {
-    if (!config.auth.enabled && !config.oidc.enabled) {
-      return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled');
+    // Only ENABLE_AUTH counts: without it there is no login, even with OIDC configured.
+    if (config.auth.enabled !== true) {
+      return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled (ENABLE_AUTH=true)');
     }
     if (req.body?.confirm !== true) {
       return apiResponse.badRequest(res, 'Pass { "confirm": true } to acknowledge this will remove the local root CA from the system trust store');

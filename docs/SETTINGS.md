@@ -8,9 +8,10 @@ changes apply after a restart.
 
 ## Requirements
 
-The settings API (and therefore the page) works only when authentication is
-on: `ENABLE_AUTH=true` (or `ENABLE_OIDC=true`). Otherwise every
-`/api/settings` request returns 403 and the page shows that message. This stops
+The settings API (and therefore the page) works only with `ENABLE_AUTH=true`.
+`ENABLE_OIDC` alone is not enough: OIDC sign-in is only available when
+`ENABLE_AUTH=true`. Otherwise every `/api/settings` request returns 403 and the
+page shows that message. This stops
 anyone on the network from reading or rewriting credentials when the app runs
 without a login.
 

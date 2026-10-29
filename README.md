@@ -107,7 +107,7 @@ Configuration comes from environment variables (a `.env` file in the working
 directory is loaded at startup), from the settings page, and from built-in
 defaults. **An environment variable that is set wins over the value saved on the
 settings page**; saved settings win over defaults. Saved settings apply after a
-restart, and the settings page only works when authentication is on.
+restart, and the settings page only works with `ENABLE_AUTH=true`.
 [`.env.example`](.env.example) lists every variable;
 [docs/SETTINGS.md](docs/SETTINGS.md) explains the settings page.
 
@@ -175,8 +175,8 @@ response envelope, rate-limit tiers and the archive/restore rules.
 - **Commands:** only `mkcert` and `openssl` run, through `execFile` (no shell)
   with an argument allowlist; file names and paths are validated against
   traversal.
-- **Guarded operations:** the settings API is disabled unless auth is on, secrets
-  are masked in responses, `mkcert -uninstall` needs auth plus explicit
+- **Guarded operations:** the settings API is disabled unless `ENABLE_AUTH=true`, secrets
+  are masked in responses, `mkcert -uninstall` needs `ENABLE_AUTH=true` plus explicit
   confirmation, and SCEP enrollment needs a one-time challenge password unless
   you turn on open enrollment.
 
