@@ -288,6 +288,7 @@ h1, h2, h3 { margin: 0; }
 .spread { justify-content: space-between; }
 .row > .chip { max-width: 100%; overflow-wrap: anywhere; }
 .meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; font-size: 12px; color: var(--text-muted); }
+.detail-actions { padding-bottom: 14px; }
 .detail-body { display: flex; flex-direction: column; gap: 16px; padding: 24px 32px; min-width: 0; }
 .big-num { font-size: 34px; font-weight: 700; line-height: 1.1; }
 .text-ok { color: var(--success); }

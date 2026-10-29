@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>root-ca · mkcert Web UI</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <header id="shell"></header>
+
+  <main class="panes">
+    <section class="pane-list" aria-label="Root CA summary and install guide">
+      <div class="list-group">
+        <h2 class="section-label">ca summary</h2>
+        <div id="ca-summary"><p class="empty">loading…</p></div>
+      </div>
+
+      <div class="list-group">
+        <h2 class="section-label">install guide</h2>
+        <div class="pane-section">
+          <ul class="log" id="install-guide">
+            <li><span class="lvl-info">macOS</span> double-click the downloaded file, add it to Keychain, set trust to "Always Trust"</li>
+            <li><span class="lvl-info">Linux</span> <code>sudo cp rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt &amp;&amp; sudo update-ca-certificates</code></li>
+            <li><span class="lvl-info">Windows</span> double-click the file, install it to "Trusted Root Certification Authorities"</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane-detail" aria-label="Root CA detail">
+      <div class="detail-head">
+        <div class="row spread">
+          <h1 class="page-title"><span class="prompt">$</span> root-ca</h1>
+        </div>
+        <div class="row detail-actions" id="ca-actions">
+          <button id="download-btn" class="btn" type="button" hidden>↓ rootCA.pem</button>
+          <button id="install-btn" class="btn btn--primary" type="button" hidden>install</button>
+          <button id="generate-btn" class="btn btn--primary" type="button" hidden>generate</button>
+        </div>
+      </div>
+      <div class="detail-body">
+        <div id="ca-result" role="status"></div>
+        <div id="ca-detail"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/cert-model.js"></script>
+<script src="js/root-ca.js"></script>
+</body>
+</html>
