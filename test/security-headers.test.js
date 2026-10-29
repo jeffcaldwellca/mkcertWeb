@@ -29,13 +29,15 @@ test('CSP still carries the app-specific directives', async () => {
   const csp = await fetchCsp();
   assert.match(csp, /default-src 'self'/);
   assert.match(csp, /frame-ancestors 'none'/);
-  // Inline <script> blocks (scep.html) must keep working.
-  assert.match(csp, /script-src 'self' 'unsafe-inline'/);
+  // No inline <script>, <style> or style="" remain in public/, so inline
+  // code is not allowed at all (ruling 14).
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.doesNotMatch(csp, /unsafe-inline/);
 });
 
 test('CSP allows no third-party origins', async () => {
   const csp = await fetchCsp();
-  assert.doesNotMatch(csp, /cdnjs/);
+  assert.doesNotMatch(csp, /https?:\/\//);
 });
 
 test('no inline event-handler attributes in frontend sources', () => {
