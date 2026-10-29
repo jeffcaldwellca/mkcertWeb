@@ -525,6 +525,12 @@
       await load();
       focusAfterChange();
     } catch (err) {
+      if (model.isStaleListError(err)) {
+        await load();
+        toast(model.staleListMessage(certName), 'err');
+        focusAfterChange();
+        return;
+      }
       if (/read-only/i.test(err.message)) toast('root certificates are read-only and cannot be deleted', 'err');
       else toast('failed to delete certificate: ' + err.message, 'err');
     }
@@ -548,6 +554,12 @@
         await load();
         toast('an archived "' + certName + '" already exists here — reloaded', 'err');
         selectMoved(folder, certName, false);
+        focusAfterChange();
+        return;
+      }
+      if (model.isStaleListError(err)) {
+        await load();
+        toast(model.staleListMessage(certName), 'err');
         focusAfterChange();
         return;
       }
@@ -577,6 +589,12 @@
         await load();
         toast('an active "' + certName + '" exists — reloaded; try again', 'err');
         selectMoved(folder, certName, true);
+        focusAfterChange();
+        return;
+      }
+      if (model.isStaleListError(err)) {
+        await load();
+        toast(model.staleListMessage(certName), 'err');
         focusAfterChange();
         return;
       }

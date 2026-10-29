@@ -222,3 +222,15 @@ test('every page loads core.js (then shell.js, except login) before its controll
   assert.ok(REDESIGNED.includes('public/login.html'));
   for (const rel of REDESIGNED) assert.deepStrictEqual(pageProblems(rel, read(rel)), [], rel);
 });
+
+test('delete, archive and restore reload the list and toast on a stale-list 404', () => {
+  const src = read('public/js/certificates.js');
+  for (const name of ['deleteCertificate', 'archiveCertificate', 'restoreCertificate']) {
+    const start = src.indexOf(`async function ${name}(`);
+    assert.ok(start >= 0, `${name} not found`);
+    const body = src.slice(start, src.indexOf('\n  }\n', start));
+    assert.match(body,
+      /if \(model\.isStaleListError\(err\)\) \{\s*await load\(\);\s*toast\(model\.staleListMessage\(certName\), 'err'\);/,
+      `${name} must reload and toast on 404`);
+  }
+});

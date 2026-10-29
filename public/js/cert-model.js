@@ -153,8 +153,18 @@
     return '#cert=' + encodeURIComponent(key);
   }
 
+  // A 404 from a per-cert action means the list was stale: the cert was
+  // deleted, archived or restored elsewhere since it was loaded.
+  function isStaleListError(err) {
+    return !!(err && err.status === 404);
+  }
+
+  function staleListMessage(name) {
+    return '"' + name + '" changed elsewhere — reloaded';
+  }
+
   return {
     ATTENTION_DAYS, locationOf, certKey, activeTwinOf, archivedTwinOf, classify, groupCertificates, metaLine,
-    matchesQuery, parseQuickGenerate, resolveSelection, parseHash, formatHash
+    matchesQuery, parseQuickGenerate, resolveSelection, parseHash, formatHash, isStaleListError, staleListMessage
   };
 });

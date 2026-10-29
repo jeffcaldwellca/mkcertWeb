@@ -25,13 +25,37 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
   };
 
   // The .pem / -key.pem pair for `certname` inside `dir`, resolved through
-  // the security helpers (throws on an unsafe name).
-  const pemPairIn = (dir, certname) => ({
-    cert: security.validateAndSanitizePath(`${certname}.pem`, dir).resolved,
-    key: security.validateAndSanitizePath(`${certname}-key.pem`, dir).resolved
-  });
+  // the security helpers (throws on an unsafe name). Each file must sit
+  // directly in `dir`: the helper URL-decodes again, so a name Express has
+  // already decoded once (e.g. "archive%2Ftw") could otherwise reach a
+  // subdirectory such as archive/.
+  const pemPairIn = (dir, certname) => {
+    const inDir = (filename) => {
+      const resolved = security.validateAndSanitizePath(filename, dir).resolved;
+      if (path.dirname(resolved) !== path.resolve(dir)) {
+        throw new Error(`Invalid path: ${filename} is not directly inside its folder`);
+      }
+      return resolved;
+    };
+    return { cert: inDir(`${certname}.pem`), key: inDir(`${certname}-key.pem`) };
+  };
   const pairExists = (pair) => fsSync.existsSync(pair.cert) || fsSync.existsSync(pair.key);
   const twinExists = (res, message) => apiResponse.conflict(res, message, { code: 'TWIN_EXISTS' });
+
+  // Temp files from an interrupted swap of `certname`, named as in the restore
+  // route: .swap-<16 hex>-<certname>.pem / -key.pem inside archive/.
+  const SWAP_TEMP = /^\.swap-[0-9a-f]{16}-/;
+  const hasSwapLeftovers = (archiveDir, certname) => {
+    let entries;
+    try {
+      entries = fsSync.readdirSync(archiveDir);
+    } catch (err) {
+      if (err.code === 'ENOENT') return false;
+      throw err;
+    }
+    return entries.some((f) => SWAP_TEMP.test(f) &&
+      [`${certname}.pem`, `${certname}-key.pem`].includes(f.replace(SWAP_TEMP, '')));
+  };
 
   // Exchange an active pair with its archived twin without overwriting
   // anything. Per file: active -> temp, archived -> active, temp -> archived.
@@ -250,6 +274,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
           relativePath: fileInfo.relativePath
         };
       } catch (err) {
+        // Deleted by another request since the directory scan: just skip it.
+        if (err.code === 'ENOENT') return { filename: fileInfo.name, error: 'File no longer exists' };
         console.error(`Error processing certificate ${fileInfo.fullPath}:`, err);
         return {
           filename: fileInfo.name,
@@ -446,10 +472,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     }
 
     // Use security-validated paths
-    let certFile, keyFile, archiveDir, archived;
+    let active, archiveDir, archived;
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+      active = pemPairIn(sourceDir, certname);
       archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
       archived = pemPairIn(archiveDir, certname);
     } catch (error) {
@@ -468,8 +493,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       }
 
       // Move certificate files to archive
-      if (fsSync.existsSync(certFile)) fsSync.renameSync(certFile, archived.cert);
-      if (fsSync.existsSync(keyFile)) fsSync.renameSync(keyFile, archived.key);
+      if (fsSync.existsSync(active.cert)) fsSync.renameSync(active.cert, archived.cert);
+      if (fsSync.existsSync(active.key)) fsSync.renameSync(active.key, archived.key);
 
       apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
     } catch (error) {
@@ -579,19 +604,28 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     } else {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
-    
-    // Use security-validated paths, including the temp names a swap parks
-    // the active pair under inside archive/.
-    let archiveDir, archived, active, temp;
+
+    const swapParam = req.query.swap;
+    if (swapParam !== undefined && swapParam !== 'true' && swapParam !== 'false') {
+      return apiResponse.badRequest(res, 'swap must be "true" or "false"');
+    }
+
+    // Use security-validated paths
+    let archiveDir, archived, active;
     try {
       archiveDir = security.validateAndSanitizePath('archive', targetDir).resolved;
       archived = pemPairIn(archiveDir, certname);
       active = pemPairIn(targetDir, certname);
-      const tempName = `.swap-${crypto.randomBytes(8).toString('hex')}-${certname}`;
-      security.validateFilename(`${tempName}-key.pem`);
-      temp = pemPairIn(archiveDir, tempName);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
+    }
+
+    // An interrupted swap leaves one of the pair under a temp name; moving
+    // anything now could strand it further.
+    if (hasSwapLeftovers(archiveDir, certname)) {
+      return apiResponse.conflict(res,
+        `an interrupted swap left temporary files for "${certname}"; resolve them manually`,
+        { code: 'SWAP_INCOMPLETE' });
     }
 
     if (!pairExists(archived)) {
@@ -601,11 +635,21 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     // An active certificate of the same name is never overwritten: refuse,
     // or with ?swap=true exchange the two copies.
     const twin = pairExists(active);
-    if (twin && req.query.swap !== 'true') {
+    if (twin && swapParam !== 'true') {
       return twinExists(res, `an active "${certname}" already exists in this folder`);
     }
 
     if (twin) {
+      // The swap parks the active pair in archive/ under a temp name, which
+      // is longer than the certificate name and must still be valid.
+      let temp;
+      try {
+        const tempName = `${certificateUtils.SWAP_TEMP_PREFIX}${crypto.randomBytes(8).toString('hex')}-${certname}`;
+        security.validateFilename(`${tempName}-key.pem`);
+        temp = pemPairIn(archiveDir, tempName);
+      } catch (error) {
+        return apiResponse.badRequest(res, 'Certificate name is too long to swap with the active copy');
+      }
       try {
         swapPairs(active, archived, temp);
         return apiResponse.success(res, {

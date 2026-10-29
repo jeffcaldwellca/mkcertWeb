@@ -184,3 +184,16 @@ test('archivedTwinOf finds the archived cert sharing an active cert\'s folder + 
   assert.strictEqual(m.archivedTwinOf(active, [active, { name: 'x', folder: '2026-01-02' }]), null);
   assert.strictEqual(m.archivedTwinOf(null, [archived]), null);
 });
+
+test('isStaleListError is true only for a 404 from the API client', () => {
+  const err = (status) => Object.assign(new Error('x'), { status });
+  assert.strictEqual(m.isStaleListError(err(404)), true);
+  assert.strictEqual(m.isStaleListError(err(409)), false);
+  assert.strictEqual(m.isStaleListError(err(500)), false);
+  assert.strictEqual(m.isStaleListError(new Error('network')), false);
+  assert.strictEqual(m.isStaleListError(null), false);
+});
+
+test('staleListMessage names the certificate', () => {
+  assert.strictEqual(m.staleListMessage('web.local'), '"web.local" changed elsewhere — reloaded');
+});
