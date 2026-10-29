@@ -459,9 +459,9 @@ app.get('/favicon.ico', (req, res) => {
   res.redirect(301, '/assets/favicon.ico');
 });
 
-// Certificate storage directory — kept for boot-time visibility/logging.
-// The actual cert routes resolve their own paths under process.cwd()/certificates.
-const CERT_DIR = path.join(__dirname, 'certificates');
+// Certificate storage directory, for the startup log. The certificate routes
+// resolve process.cwd()/certificates, so log (and create) that same path.
+const CERT_DIR = path.join(process.cwd(), 'certificates');
 fs.ensureDirSync(CERT_DIR);
 
 // Centralized error-handling middleware. asyncHandler forwards all async

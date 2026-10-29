@@ -9,15 +9,14 @@
     "https": "ENABLE_HTTPS=true node server.js",
     "https-dev": "ENABLE_HTTPS=true nodemon server.js",
     "https-only": "ENABLE_HTTPS=true FORCE_HTTPS=true node server.js",
-    "env": "node -r dotenv/config server.js",
     "test": "node --test 'test/*.test.js'",
     "docker:build": "docker build -t mkcert-web-ui .",
-    "docker:run": "docker run -d --name mkcert-web-ui -p 3000:3000 -v mkcert_certificates:/app/certificates -v mkcert_data:/app/data -v mkcert_ca:/home/nodejs/.local/share/mkcert mkcert-web-ui",
+    "docker:run": "docker run -d --name mkcert-web-ui -p 3000:3000 -v mkcert_certificates:/app/certificates -v mkcert_data:/app/data -v mkcert_config:/app/config -v mkcert_ca:/home/nodejs/.local/share/mkcert mkcert-web-ui",
     "docker:stop": "docker stop mkcert-web-ui && docker rm mkcert-web-ui",
     "docker:logs": "docker logs mkcert-web-ui",
-    "compose:up": "docker-compose up -d",
-    "compose:down": "docker-compose down",
-    "compose:logs": "docker-compose logs -f"
+    "compose:up": "docker compose up -d",
+    "compose:down": "docker compose down",
+    "compose:logs": "docker compose logs -f"
   },
   "keywords": [
     "mkcert",
@@ -32,6 +31,11 @@
     "enrollment"
   ],
   "author": "",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffcaldwellca/mkcertWeb.git"
+  },
   "engines": {
     "node": ">=22"
   },
