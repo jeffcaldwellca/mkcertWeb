@@ -1,24 +1,51 @@
 // Certificate upload route module
 const express = require('express');
 const path = require('path');
+const os = require('os');
+const fsSync = require('fs');
 const fs = require('fs').promises;
 const multer = require('multer');
 const security = require('../security');
 const { apiResponse, asyncHandler } = require('../utils/responses');
 
+// Prefix of the per-request directory multer stages uploads in.
+const UPLOAD_STAGING_PREFIX = 'mkcertweb-upload-staging-';
+
+// Remove the request's staging directory (and anything left in it).
+const removeStaging = async (req) => {
+  if (!req.uploadStagingDir) return;
+  const dir = req.uploadStagingDir;
+  req.uploadStagingDir = null;
+  await fs.rm(dir, { recursive: true, force: true }).catch((err) => {
+    console.error('Failed to remove upload staging directory:', err);
+  });
+};
+
 const createFileRoutes = (config, rateLimiters, requireAuth) => {
   const router = express.Router();
   const { apiRateLimiter } = rateLimiters;
 
-  // Configure multer for file uploads
+  // Configure multer for file uploads. Files are staged in a private
+  // per-request directory under os.tmpdir(), never in the working directory
+  // (the read-only code tree under the systemd unit), then moved into the
+  // uploaded folder by the handler below.
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, process.cwd());
+      try {
+        if (!req.uploadStagingDir) {
+          req.uploadStagingDir = fsSync.mkdtempSync(path.join(os.tmpdir(), UPLOAD_STAGING_PREFIX));
+        }
+        cb(null, req.uploadStagingDir);
+      } catch (err) {
+        cb(err);
+      }
     },
     filename: (req, file, cb) => {
-      // Validate and sanitize filename
-      if (!security.validateFilename(file.originalname)) {
-        return cb(new Error('Invalid filename'));
+      // security.validateFilename throws on an unsafe name.
+      try {
+        security.validateFilename(file.originalname);
+      } catch (err) {
+        return cb(err);
       }
       cb(null, file.originalname);
     }
@@ -44,6 +71,14 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
 
   // Upload certificate files
   router.post('/api/upload', requireAuth, apiRateLimiter, upload.array('certificates'), asyncHandler(async (req, res) => {
+    try {
+      await saveUploads(req, res);
+    } finally {
+      await removeStaging(req); // no-op unless saveUploads threw
+    }
+  }));
+
+  const saveUploads = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return apiResponse.badRequest(res, 'No files uploaded');
     }
@@ -106,7 +141,8 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       // Move file to uploaded folder
       const targetPath = path.join(absoluteUploadedFolder, fileName);
       try {
-        // Use copy + unlink instead of rename to handle cross-device moves (EXDEV error)
+        // copy + unlink rather than rename: the tmpdir staging area is often
+        // on a different filesystem, where rename fails with EXDEV.
         await fs.copyFile(file.path, targetPath);
         await fs.unlink(file.path);
         
@@ -141,11 +177,13 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       results.success = false;
     }
 
+    await removeStaging(req);
     apiResponse.success(res, results, 'Upload processing complete');
-  }));
+  };
 
   // Handle file upload errors
-  router.use('/api/upload', (error, req, res, next) => {
+  router.use('/api/upload', async (error, req, res, next) => {
+    await removeStaging(req);
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {
         return apiResponse.badRequest(res, 'File size too large (max 10MB)');
@@ -159,5 +197,6 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
 };
 
 module.exports = {
-  createFileRoutes
+  createFileRoutes,
+  UPLOAD_STAGING_PREFIX
 };
