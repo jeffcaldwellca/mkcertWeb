@@ -20,9 +20,32 @@ env:
   IMAGE_NAME: mkcertweb
 
 jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The engines floor in package.json.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
   scan:
     name: Vulnerability Scan
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: read
     steps:
