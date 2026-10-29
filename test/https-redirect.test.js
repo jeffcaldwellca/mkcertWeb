@@ -151,7 +151,7 @@ test('server.js registers the HTTPS redirect before static files and routes', ()
   const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   const redirect = src.indexOf('app.use(createHttpsRedirect(');
   assert.ok(redirect > 0, 'server.js must use createHttpsRedirect');
-  for (const marker of ["app.use(express.static('public'))", "app.get('/'", 'app.use(createCertificateRoutes(']) {
+  for (const marker of ['app.use(express.static(', "app.get('/'", 'app.use(createCertificateRoutes(']) {
     const i = src.indexOf(marker);
     assert.ok(i > 0, marker);
     assert.ok(redirect < i, 'redirect must be registered before ' + marker);

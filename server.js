@@ -247,8 +247,12 @@ async function configureOIDC() {
 // session otherwise required).
 const requireAuth = createRequireAuth(ENABLE_AUTH);
 
-// Serve static files
-app.use(express.static('public'));
+// Serve static files from the code tree (not the working directory). index:
+// false so "/" falls through to app.get('/') below, which sends anonymous
+// visitors to /login when auth is on. The other pages, /index.html included,
+// are plain static files: their data comes from API routes that need a
+// session, and a 401 there sends the browser to /login.
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Authentication routes
 if (ENABLE_AUTH) {

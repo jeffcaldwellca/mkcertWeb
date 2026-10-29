@@ -39,6 +39,10 @@ Download routes (`/api/download/*`, `/api/generate/pfx/*`,
 **Authentication.** With `ENABLE_AUTH=true`, routes marked "auth" in the tables
 need a logged-in session (cookie `mkcertweb.sid`). Without one they return
 `401 { success: false, error: "Authentication required", redirectTo: "/login" }`.
+Pages: `GET /` without a session redirects to `/login`. The other pages
+(`/root-ca.html`, …, and `/index.html`) are static files served to anyone;
+their data comes from these routes, and the page goes to `/login` on the
+first 401.
 
 <a id="what-is-protected-without-enable_auth"></a>
 **What is protected without `ENABLE_AUTH`.** Authentication is on only when
