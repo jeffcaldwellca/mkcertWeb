@@ -293,7 +293,7 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="section-label">test ntfy</legend>
-          <p class="text-muted note-text">Save settings first, then send a test notification to verify the configuration.</p>
+          <p class="text-muted note-text">Save settings, restart the server, then send a test notification to verify the configuration. Tests use the running configuration.</p>
           <div class="row"><button type="button" id="test-ntfy-btn" class="btn">send test notification</button></div>
           <pre class="codeblock codeblock--wrap" id="ntfy-test-result" role="status" hidden></pre>
         </fieldset>
@@ -331,7 +331,7 @@
         </fieldset>
         <fieldset class="fieldset">
           <legend class="section-label">test webhook</legend>
-          <p class="text-muted note-text">Save settings first, then send a test payload to verify the endpoint is reachable.</p>
+          <p class="text-muted note-text">Save settings, restart the server, then send a test payload to verify the endpoint is reachable. Tests use the running configuration.</p>
           <div class="row"><button type="button" id="test-webhook-btn" class="btn">send test payload</button></div>
           <pre class="codeblock codeblock--wrap" id="webhook-test-result" role="status" hidden></pre>
         </fieldset>
@@ -397,7 +397,7 @@
           <button type="button" class="btn btn--danger" id="reset-btn">reset to defaults</button>
           <button type="button" class="btn" id="reload-btn">reload</button>
           <button type="button" class="btn" id="view-config-btn">view running config</button>
-          <p class="field-key footer-note">saved settings override .env · changes apply after a server restart</p>
+          <p class="field-key footer-note">environment variables override saved settings · changes apply after a server restart</p>
         </div>
       </form>
     </section>

@@ -57,7 +57,7 @@
         <div class="meta-row">
           <span id="stat-challenges">… active challenges</span>
           <span id="stat-certs">… certificates issued</span>
-          <span>key size 2048 (RSA)</span>
+          <span>enterprise ca key size 2048 (RSA, default)</span>
         </div>
         <div class="subtabs" role="tablist" aria-label="SCEP sections">
           <button class="subtab" type="button" role="tab" id="scep-tab-challenges" data-tab="challenges" aria-controls="scep-panel-challenges" aria-selected="true" tabindex="0">challenges</button>
@@ -154,9 +154,9 @@
           <p class="text-muted">Configure your Mobile Device Management system to use this SCEP service.</p>
           <dl class="kv">
             <dt>scep url</dt><dd id="mdm-scep-url">loading…</dd>
-            <dt>challenge</dt><dd>Configure via environment variables</dd>
+            <dt>challenge</dt><dd>Create one on the challenges tab</dd>
             <dt>templates</dt><dd>User, Computer, WiFi, M365User</dd>
-            <dt>key size</dt><dd>2048 bits (RSA)</dd>
+            <dt>key size</dt><dd>2048 bits (RSA) for enterprise CA certificates; override with ENTERPRISE_CA_KEY_SIZE</dd>
           </dl>
           <p class="text-muted">Compatible with Microsoft Intune, VMware Workspace ONE, Cisco Meraki, Apple Profile Manager.</p>
         </div>
@@ -168,14 +168,13 @@
             <dt>template</dt><dd>M365User</dd>
             <dt>upn format</dt><dd>user@domain.com</dd>
             <dt>san</dt><dd>Automatically includes the UPN</dd>
-            <dt>key usage</dt><dd>Digital Signature, Key Encipherment, Client Authentication</dd>
+            <dt>key usage</dt><dd>Digital Signature, Key Encipherment; Client Authentication and Email Protection</dd>
           </dl>
-          <h3 class="section-label">required environment variables</h3>
+          <h3 class="section-label">enterprise ca environment variables</h3>
 <pre class="codeblock">ENTERPRISE_CA_ENABLED=true
 ENTERPRISE_CA_CERT_PATH=/path/to/ca.crt
 ENTERPRISE_CA_KEY_PATH=/path/to/ca.key
-ENTERPRISE_CA_ORGANIZATION="Your Organization"
-ENTERPRISE_CA_ORGANIZATIONAL_UNIT="IT Department"</pre>
+ENTERPRISE_CA_CHAIN_PATH=/path/to/chain.crt   (optional)</pre>
         </div>
 
         <div class="card">
