@@ -27,7 +27,7 @@ Run `npm test` before every commit.
 | Security: CSRF, CSP and headers, input hardening, settings masking and allowlist, rate-limit status | `csrf`, `security-headers`, `input-hardening`, `settings-security`, `rate-limit-status` |
 | Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect (301/308, startup log), `TRUST_PROXY` parsing | `auth-state`, `oidc-logout`, `https-redirect`, `trust-proxy` |
 | SCEP: GetCACaps, enrollment authorisation, CSR name checks, enterprise CA calls and identity checks | `scep-*`, `enterprise-ca-*` |
-| Monitoring, notes store, response helpers, health version | `monitoring-*`, `notes-store`, `responses`, `health-version` |
+| Monitoring, ntfy headers (ASCII or RFC 2047, no `ERR_INVALID_CHAR`), notes store, response helpers, health version | `monitoring-*`, `ntfy-headers`, `notes-store`, `responses`, `health-version` |
 | 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, settings, upload); 4xx for bad JSON, oversized and malformed multipart bodies | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |
 | No server internals in success bodies: public `/api/status` (no paths, pid, memory, versions), `/api/system`, execute generate, the certificate list, generate-ca | `response-internals`, `generate-ca-route` |
 | Landing page console | `console-commands` |

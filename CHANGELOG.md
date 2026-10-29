@@ -154,6 +154,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   a trusted proxy (`TRUST_PROXY`); the header from any other client is
   ignored. The startup log mentions the redirect only once HTTPS is
   listening, and warns when HTTPS failed to start so redirects are off.
+- The ntfy test button ("send test notification") failed against every
+  server since 8f8e972: its title contained an em dash, which Node refuses
+  in an HTTP header (`ERR_INVALID_CHAR`). The title is plain ASCII now, and
+  any non-ASCII title or tags (for example from a certificate name) are sent
+  RFC 2047-encoded (`=?UTF-8?B?…?=`), which ntfy decodes. The message body
+  is sent as `text/plain; charset=utf-8`.
 - `.env.example` and `examples/*.env` had comments on the same line as
   values. dotenv strips them, but `docker run --env-file` keeps them, so
   `CERT_MONITOR_UPLOADED=false   # …` was read as true. Comments are now on

@@ -43,6 +43,18 @@ function makeRequest(urlString, method, headers, body) {
   });
 }
 
+/**
+ * Make a header value safe to send. Node's HTTP client throws
+ * ERR_INVALID_CHAR for characters outside Latin-1 (an em dash, most
+ * non-Latin names), so anything that isn't printable ASCII is sent as an
+ * RFC 2047 encoded word, which ntfy decodes. ASCII passes through as is.
+ */
+function headerSafe(value) {
+  const text = String(value);
+  if (/^[\x20-\x7e]*$/.test(text)) return text;
+  return `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`;
+}
+
 class NtfyService {
   constructor(config) {
     this.config = config;
@@ -99,14 +111,16 @@ class NtfyService {
     }
 
     const url = this._publishUrl();
+    // Title and tags may carry certificate names: keep them header-safe.
+    // The message goes in the body as UTF-8.
     const headers = {
-      'Content-Type': 'text/plain',
-      'Title': title,
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Title': headerSafe(title),
       'Priority': this._mapPriority(priority)
     };
 
     if (tags.length > 0) {
-      headers['Tags'] = tags.join(',');
+      headers['Tags'] = headerSafe(tags.join(','));
     }
 
     const authHeader = this._authHeader();
@@ -170,7 +184,7 @@ class NtfyService {
 
     try {
       const result = await this.sendNotification(
-        'Test Notification — mkcert Web UI',
+        'Test Notification - mkcert Web UI',
         'This is a test notification from mkcert Web UI to verify NTFY configuration is working correctly.',
         'default',
         ['white_check_mark']
@@ -183,4 +197,4 @@ class NtfyService {
   }
 }
 
-module.exports = { NtfyService };
+module.exports = { NtfyService, headerSafe };
