@@ -37,7 +37,6 @@
   },
   "dependencies": {
     "archiver": "^7.0.1",
-    "asn1js": "^3.0.6",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.9",
     "cors": "^2.8.5",
