@@ -1,6 +1,8 @@
 // Certificate management routes module - Refactored to eliminate code duplication
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
+const fsSync = require('fs');
 const fs = require('fs').promises;
 const security = require('../security');
 const certificateUtils = require('../utils/certificates');
@@ -21,6 +23,48 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     else if (group.name === 'mkcert-rootCA') folder = 'root-ca';
     else folder = 'legacy';
     return `${folder}/${group.name}`;
+  };
+
+  // The .pem / -key.pem pair for `certname` inside `dir`, resolved through
+  // the security helpers (throws on an unsafe name).
+  const pemPairIn = (dir, certname) => ({
+    cert: security.validateAndSanitizePath(`${certname}.pem`, dir).resolved,
+    key: security.validateAndSanitizePath(`${certname}-key.pem`, dir).resolved
+  });
+  const pairExists = (pair) => fsSync.existsSync(pair.cert) || fsSync.existsSync(pair.key);
+  const twinExists = (res, message) => apiResponse.conflict(res, message, { code: 'TWIN_EXISTS' });
+
+  // Exchange an active pair with its archived twin without overwriting
+  // anything. Per file: active -> temp, archived -> active, temp -> archived.
+  // Either side may hold only the cert or only the key. If any rename throws,
+  // the renames already done are undone in reverse order and the error is
+  // rethrown, with err.rollbackFailures listing any rename that could not be undone.
+  const swapPairs = (active, archived, temp) => {
+    const done = [];
+    const move = (from, to) => {
+      if (fsSync.existsSync(to)) throw new Error(`refusing to overwrite ${path.basename(to)}`);
+      fsSync.renameSync(from, to);
+      done.push([from, to]);
+    };
+    try {
+      for (const kind of ['cert', 'key']) {
+        const hadActive = fsSync.existsSync(active[kind]);
+        if (hadActive) move(active[kind], temp[kind]);
+        if (fsSync.existsSync(archived[kind])) move(archived[kind], active[kind]);
+        if (hadActive) move(temp[kind], archived[kind]);
+      }
+    } catch (err) {
+      const failures = [];
+      for (const [from, to] of done.reverse()) {
+        try {
+          fsSync.renameSync(to, from);
+        } catch (undoErr) {
+          failures.push(`${to} -> ${from}: ${undoErr.message}`);
+        }
+      }
+      if (failures.length) err.rollbackFailures = failures;
+      throw err;
+    }
   };
 
   // Get all available commands
@@ -514,32 +558,31 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     }
 
     // Use security-validated paths
-    let certFile, keyFile, archiveDir;
+    let certFile, keyFile, archiveDir, archived;
     try {
       certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
       keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
       archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
+      archived = pemPairIn(archiveDir, certname);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
+    // Never overwrite an archived certificate of the same name.
+    if (pairExists(archived)) {
+      return twinExists(res, `an archived "${certname}" already exists in this folder`);
+    }
+
     try {
       // Ensure archive directory exists
-      if (!require('fs').existsSync(archiveDir)) {
-        require('fs').mkdirSync(archiveDir, { recursive: true });
+      if (!fsSync.existsSync(archiveDir)) {
+        fsSync.mkdirSync(archiveDir, { recursive: true });
       }
-      
+
       // Move certificate files to archive
-      const fs = require('fs');
-      if (fs.existsSync(certFile)) {
-        const archiveCertPath = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
-        fs.renameSync(certFile, archiveCertPath);
-      }
-      if (fs.existsSync(keyFile)) {
-        const archiveKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
-        fs.renameSync(keyFile, archiveKeyPath);
-      }
-      
+      if (fsSync.existsSync(certFile)) fsSync.renameSync(certFile, archived.cert);
+      if (fsSync.existsSync(keyFile)) fsSync.renameSync(keyFile, archived.key);
+
       apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
     } catch (error) {
       console.error('Archive error:', error);
@@ -569,47 +612,57 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
     
+    // ?archived=true deletes the archive/ copy, ?archived=false the active
+    // copy; absent, the active copy if it exists, else the archived one.
+    // An active cert and an archived cert can share a name, so one request
+    // never deletes both.
+    const archivedParam = req.query.archived;
+    if (archivedParam !== undefined && archivedParam !== 'true' && archivedParam !== 'false') {
+      return apiResponse.badRequest(res, 'archived must be "true" or "false"');
+    }
+
     // Use security-validated paths. Archived certificates live in the
-    // folder's archive/ subdirectory (see the /archive endpoint above), and
-    // the UI offers "Delete Forever" only on archived cards — so check both.
-    let candidates;
+    // folder's archive/ subdirectory (see the /archive endpoint above).
+    let active, archived;
     try {
       const archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
-      candidates = [sourceDir, archiveDir].map((dir) => ({
-        certFile: security.validateAndSanitizePath(`${certname}.pem`, dir).resolved,
-        keyFile: security.validateAndSanitizePath(`${certname}-key.pem`, dir).resolved
-      }));
+      active = pemPairIn(sourceDir, certname);
+      archived = pemPairIn(archiveDir, certname);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
 
+    let scope;
+    if (archivedParam === 'true') scope = 'archived';
+    else if (archivedParam === 'false') scope = 'active';
+    else scope = pairExists(active) ? 'active' : 'archived';
+    const target = scope === 'active' ? active : archived;
+
     try {
-      const fs = require('fs');
-      let deletedFiles = [];
-
-      for (const { certFile, keyFile } of candidates) {
-        // Delete certificate file if it exists
-        if (fs.existsSync(certFile)) {
-          fs.unlinkSync(certFile);
-          deletedFiles.push(`${certname}.pem`);
-        }
-
-        // Delete key file if it exists
-        if (fs.existsSync(keyFile)) {
-          fs.unlinkSync(keyFile);
-          deletedFiles.push(`${certname}-key.pem`);
-        }
+      const deletedFiles = [];
+      if (fsSync.existsSync(target.cert)) {
+        fsSync.unlinkSync(target.cert);
+        deletedFiles.push(`${certname}.pem`);
+      }
+      if (fsSync.existsSync(target.key)) {
+        fsSync.unlinkSync(target.key);
+        deletedFiles.push(`${certname}-key.pem`);
       }
 
       if (deletedFiles.length === 0) {
-        return apiResponse.notFound(res, 'Certificate files not found');
+        return apiResponse.notFound(res,
+          scope === 'archived' ? 'Archived certificate files not found' : 'Certificate files not found');
       }
 
-      notesStore.remove(`${folder}/${certname}`);
+      // Both copies share one note; keep it while either copy remains.
+      if (!pairExists(active) && !pairExists(archived)) {
+        notesStore.remove(`${folder}/${certname}`);
+      }
 
       apiResponse.success(res, {
         message: `Certificate ${certname} deleted successfully`,
-        deletedFiles
+        deletedFiles,
+        scope
       });
     } catch (error) {
       console.error('Delete error:', error);
@@ -639,29 +692,55 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
     
-    // Use security-validated paths
-    let certFile, keyFile, archiveDir;
+    // Use security-validated paths, including the temp names a swap parks
+    // the active pair under inside archive/.
+    let archiveDir, archived, active, temp;
     try {
       archiveDir = security.validateAndSanitizePath('archive', targetDir).resolved;
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
+      archived = pemPairIn(archiveDir, certname);
+      active = pemPairIn(targetDir, certname);
+      const tempName = `.swap-${crypto.randomBytes(8).toString('hex')}-${certname}`;
+      security.validateFilename(`${tempName}-key.pem`);
+      temp = pemPairIn(archiveDir, tempName);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
+    if (!pairExists(archived)) {
+      return apiResponse.notFound(res, 'Archived certificate files not found');
+    }
+
+    // An active certificate of the same name is never overwritten: refuse,
+    // or with ?swap=true exchange the two copies.
+    const twin = pairExists(active);
+    if (twin && req.query.swap !== 'true') {
+      return twinExists(res, `an active "${certname}" already exists in this folder`);
+    }
+
+    if (twin) {
+      try {
+        swapPairs(active, archived, temp);
+        return apiResponse.success(res, {
+          message: `Certificate ${certname} swapped with the active copy`,
+          swapped: true
+        });
+      } catch (error) {
+        console.error('Restore swap error:', error);
+        if (error.rollbackFailures) {
+          console.error('Restore swap rollback incomplete:', error.rollbackFailures);
+          return apiResponse.serverError(res,
+            `Failed to swap certificate ${certname} and could not fully roll back; check its archive folder for .swap-* files`);
+        }
+        return apiResponse.serverError(res, `Failed to swap certificate: ${error.message}`);
+      }
+    }
+
     try {
       // Move certificate files from archive back to main directory
-      const fs = require('fs');
-      if (fs.existsSync(certFile)) {
-        const targetCertPath = security.validateAndSanitizePath(`${certname}.pem`, targetDir).resolved;
-        fs.renameSync(certFile, targetCertPath);
-      }
-      if (fs.existsSync(keyFile)) {
-        const targetKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, targetDir).resolved;
-        fs.renameSync(keyFile, targetKeyPath);
-      }
-      
-      apiResponse.success(res, { message: `Certificate ${certname} restored successfully` });
+      if (fsSync.existsSync(archived.cert)) fsSync.renameSync(archived.cert, active.cert);
+      if (fsSync.existsSync(archived.key)) fsSync.renameSync(archived.key, active.key);
+
+      apiResponse.success(res, { message: `Certificate ${certname} restored successfully`, swapped: false });
     } catch (error) {
       console.error('Restore error:', error);
       apiResponse.serverError(res, `Failed to restore certificate: ${error.message}`);

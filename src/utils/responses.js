@@ -46,6 +46,14 @@ const apiResponse = {
   },
 
   /**
+   * Send a conflict error (409). `extra` carries machine-readable fields
+   * such as { code: 'TWIN_EXISTS' }.
+   */
+  conflict: (res, error = 'Conflict', extra = {}) => {
+    return res.status(409).json({ ...extra, success: false, error });
+  },
+
+  /**
    * Send an internal server error (500)
    */
   serverError: (res, error = 'Internal server error', originalError = null) => {

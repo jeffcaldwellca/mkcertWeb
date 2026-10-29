@@ -2,7 +2,15 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+
+// Run in a private working directory (the routes resolve certificates/ from
+// process.cwd()) so these fixtures never race another file's
+// GET /api/certificates scan of the shared certificates/ directory.
+const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-validation-'));
+process.chdir(workDir);
+process.on('exit', () => fs.rmSync(workDir, { recursive: true, force: true }));
 const { createCertificateRoutes } = require('../src/routes/certificates');
 const { apiResponse } = require('../src/utils/responses');
 
