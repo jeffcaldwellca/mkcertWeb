@@ -76,7 +76,7 @@ Pages load scripts in this order: `core.js`, `shell.js`, any model, then the pag
 - Produces CSS classes later tasks use (names are fixed; look and spacing come from the mockups):
   `.app` (page root, flex column, `min-height: 100vh`), `.topbar`, `.brand`, `.brand .prompt`, `.nav-tabs`, `.nav-tab[aria-current="page"]`, `.status-dots`, `.dot` + modifiers `.dot--ok|--warn|--err|--off`,
   `.panes` (flex-wrap row), `.pane-list` (`flex: 1 1 340px`), `.pane-detail` (`flex: 999 1 560px; min-width: 0`),
-  `.section-label`, `.cmdbar` (bordered input row with glow), `.list-group`, `.list-item`, `.list-item[aria-current="true"]` (inset 2px accent bar),
+  `.section-label`, `.cmdbar` (bordered input row with glow), `.list-group`, `.list-item`, `.list-item[aria-current="true"]` (raised background + 45% accent outline + accent name; never a side stripe — see spec "State styling"),
   `.detail-head`, `.page-title` (with `.prompt` child), `.pill` + `.pill--ok|--warn|--err|--muted`, `.subtabs`, `.subtab[aria-selected="true"]`,
   `.card`, `.card-grid` (`repeat(auto-fit, minmax(320px, 1fr))`), `.chip`, `.kv` (dl grid), `.meter` + `.meter > span`,
   `.btn`, `.btn--primary`, `.btn--danger`, `.btn--ghost`, `.input`, `.select`, `.field`, `.field-key` (config-key hint), `.switch`,

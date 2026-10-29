@@ -15,7 +15,7 @@ body{margin:0;background:#0a0e13}
 a{color:#2cf5b8}a:hover{color:#8cf5d4}
 .tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;color:#9aa5b1;text-decoration:none;font-size:13px;border-bottom:2px solid transparent;box-sizing:border-box}
 .tab:hover{color:#e6edf3}
-.item{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 14px;border-radius:6px;text-decoration:none;color:#d6dde6;font-size:13px}
+.item{border:1px solid transparent;display:flex;align-items:center;gap:10px;min-height:38px;padding:0 14px;border-radius:6px;text-decoration:none;color:#d6dde6;font-size:13px}
 .item:hover{background:#131a22}
 .btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-radius:4px;font-size:12px;box-sizing:border-box}
 .field{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -142,7 +142,7 @@ class Component extends DCLogic {
       items: g.items.map(([name, on, active]) => ({
         name,
         dot: dot(on),
-        style: active ? 'background: rgba(44,245,184,0.08); box-shadow: inset 2px 0 0 #2cf5b8; color: #2cf5b8' : ''
+        style: active ? 'background: #121a22; border-color: rgba(44,245,184,0.45); color: #2cf5b8' : ''
       }))
     }));
     return { groups };
