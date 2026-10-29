@@ -33,6 +33,11 @@ test('CSP still carries the app-specific directives', async () => {
   assert.match(csp, /script-src 'self' 'unsafe-inline'/);
 });
 
+test('CSP allows no third-party origins', async () => {
+  const csp = await fetchCsp();
+  assert.doesNotMatch(csp, /cdnjs/);
+});
+
 test('no inline event-handler attributes in frontend sources', () => {
   // With script-src-attr 'none' enforced, any on*="" attribute is a silently
   // dead button. There is no DOM test infra, so guard at the source level.

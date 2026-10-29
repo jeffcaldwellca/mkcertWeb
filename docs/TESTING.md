@@ -1024,7 +1024,7 @@ wget --load-cookies=/tmp/auth-cookies.txt \
      -qO- http://localhost:3000/ | grep -q "<title>" && echo "✓ Main page loads when authenticated"
 
 # Test static assets
-wget -qO- http://localhost:3000/styles.css | grep -q "body" && echo "✓ CSS loads"
+wget -qO- http://localhost:3000/css/app.css | grep -q "body" && echo "✓ CSS loads"
 wget -qO- http://localhost:3000/script.js | grep -q "function" && echo "✓ JavaScript loads"
 ```
 

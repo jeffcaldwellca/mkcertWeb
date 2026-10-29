@@ -3,14 +3,24 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Pages that have been rebuilt on the split-pane design; each task appends its page.
-const REDESIGNED = ['public/styleguide.html', 'public/index.html', 'public/root-ca.html', 'public/notifications.html', 'public/scep.html', 'public/settings.html', 'public/login.html'];
-
 const ROOT = path.join(__dirname, '..');
 
 function read(rel) {
   return fs.readFileSync(path.join(ROOT, rel), 'utf8');
 }
+
+function htmlPages(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    const rel = path.posix.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...htmlPages(rel));
+    else if (entry.name.endsWith('.html')) out.push(rel);
+  }
+  return out;
+}
+
+// Every page under public/ is on the split-pane design.
+const REDESIGNED = htmlPages('public');
 
 function walk(dir) {
   const out = [];
@@ -38,6 +48,11 @@ test('no inline event handlers anywhere under public/ (including subfolders)', (
 
 test('no external URLs in redesigned pages', () => {
   for (const rel of REDESIGNED) assert.doesNotMatch(read(rel), /(src|href)=["']https?:\/\//i, rel);
+});
+
+test('no page references styles.css or font-awesome', () => {
+  assert.ok(REDESIGNED.length >= 6);
+  for (const rel of REDESIGNED) assert.doesNotMatch(read(rel), /styles\.css|font-?awesome|cdnjs/i, rel);
 });
 
 test('app.css defines light-theme overrides for every surface token', () => {
