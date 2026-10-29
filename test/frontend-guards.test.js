@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // Pages that have been rebuilt on the split-pane design; each task appends its page.
-const REDESIGNED = ['public/styleguide.html'];
+const REDESIGNED = ['public/styleguide.html', 'public/index.html'];
 
 const ROOT = path.join(__dirname, '..');
 

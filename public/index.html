@@ -1,214 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mkcert Web UI</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>certificates · mkcert Web UI</title>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <button class="theme-toggle" id="theme-toggle">
-                <i class="fas fa-sun"></i> Light Mode
-            </button>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h1><i class="fas fa-certificate"></i> mkcert Web UI</h1>
-                    <p>Manage SSL certificates with mkcert CLI</p>
-                </div>
-                <div id="auth-controls" style="display: none;">
-                    <span id="username-display" style="margin-right: 15px; color: var(--secondary-color);"></span>
-                    <button id="logout-btn" class="btn btn-logout">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </button>
-                </div>
-            </div>
-        </header>
+<div class="app">
+  <header id="shell"></header>
 
-        <!-- Navigation -->
-        <nav style="background: var(--secondary-bg); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
-            <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                <a href="/" style="text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: var(--accent-contrast);">
-                    <i class="fas fa-home"></i> Certificate Manager
-                </a>
-                <a href="/scep.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-                    <i class="fas fa-satellite-dish"></i> SCEP Service
-                </a>
-                <a href="/settings.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-                    <i class="fas fa-cog"></i> Settings
-                </a>
-            </div>
-        </nav>
-
-        <!-- Status Section -->
-        <section class="status-section">
-            <h2><i class="fas fa-info-circle"></i> System Status</h2>
-            <div id="status-info" class="status-card">
-                <div class="loading">
-                    <i class="fas fa-spinner fa-spin"></i> Checking mkcert status...
-                </div>
-            </div>
-        </section>
-
-        <!-- Root CA Section -->
-        <section class="rootca-section" id="rootca-section">
-            <h2><i class="fas fa-shield-alt"></i> Root Certificate Authority</h2>
-            <div id="rootca-info" class="rootca-card">
-                <div class="loading">
-                    <i class="fas fa-spinner fa-spin"></i> Loading CA information...
-                </div>
-            </div>
-        </section>
-
-        <!-- Certificate Generation Section -->
-        <section class="generate-section">
-            <h2><i class="fas fa-plus-circle"></i> Generate New Certificate</h2>
-            <div class="generate-card">
-                <form id="generate-form">
-                    <div class="form-group">
-                        <label for="domains">Domains (one per line):</label>
-                        <textarea id="domains" placeholder="localhost&#10;127.0.0.1&#10;*.example.com&#10;example.com" rows="4" required></textarea>
-                        <small class="help-text">Enter domain names, IP addresses, or wildcards. One per line.</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="format">Certificate Format:</label>
-                        <select id="format" class="form-select">
-                            <option value="pem">PEM (.pem / -key.pem)</option>
-                            <option value="crt">CRT/KEY (.crt / .key)</option>
-                            <option value="p12">P12/PFX (.p12) - PKCS#12 Bundle</option>
-                            <option value="p12-client">P12 Client (.p12) - S/MIME / Client Auth</option>
-                        </select>
-                        <small class="help-text">PEM/CRT for servers, P12 for browsers/email. P12 Client includes client authentication flag for S/MIME.</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-magic"></i> Generate Certificate
-                    </button>
-                </form>
-            </div>
-        </section>
-
-        <!-- Certificate Upload Section -->
-        <section class="upload-section">
-            <h2><i class="fas fa-upload"></i> Upload Certificate Files</h2>
-            <div class="upload-card">
-                <div class="upload-dropzone" id="upload-dropzone">
-                    <div class="upload-icon">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                    </div>
-                    <div class="upload-text">Drag & Drop Certificate Files</div>
-                    <div class="upload-subtext">or click to select files</div>
-                    <div class="file-types">Supported: .pem, .crt, .key, .cer files</div>
-                </div>
-                <input type="file" id="file-input" multiple accept=".pem,.crt,.key,.cer,.p7b,.p7c,.pfx,.p12">
-                
-                <div class="upload-progress" id="upload-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill"></div>
-                    </div>
-                    <div class="progress-text" id="progress-text">Uploading files...</div>
-                </div>
-                
-                <div class="upload-results" id="upload-results"></div>
-                
-                <div class="file-list" id="file-list"></div>
-            </div>
-        </section>
-
-        <!-- Email & Monitoring Configuration Section -->
-        <section class="notifications-section">
-            <h2><i class="fas fa-bell"></i> Notifications & Monitoring</h2>
-            
-            <!-- Email Status Card -->
-            <div class="notification-card">
-                <h3><i class="fas fa-envelope"></i> Email Notifications</h3>
-                <div id="email-status" class="notification-status">
-                    <div class="loading">
-                        <i class="fas fa-spinner fa-spin"></i> Checking email configuration...
-                    </div>
-                </div>
-                <div class="notification-actions" id="email-actions" style="display: none;">
-                    <button id="test-email-btn" class="btn btn-secondary">
-                        <i class="fas fa-paper-plane"></i> Send Test Email
-                    </button>
-                    <button id="verify-smtp-btn" class="btn btn-outline">
-                        <i class="fas fa-check-circle"></i> Verify SMTP
-                    </button>
-                </div>
-            </div>
-
-            <!-- Monitoring Status Card -->
-            <div class="notification-card">
-                <h3><i class="fas fa-shield-alt"></i> Certificate Monitoring</h3>
-                <div id="monitoring-status" class="notification-status">
-                    <div class="loading">
-                        <i class="fas fa-spinner fa-spin"></i> Checking monitoring status...
-                    </div>
-                </div>
-                <div class="notification-actions" id="monitoring-actions" style="display: none;">
-                    <button id="check-expiry-btn" class="btn btn-secondary">
-                        <i class="fas fa-search"></i> Check Now
-                    </button>
-                    <button id="start-monitoring-btn" class="btn btn-success" style="display: none;">
-                        <i class="fas fa-play"></i> Start Monitoring
-                    </button>
-                    <button id="stop-monitoring-btn" class="btn btn-warning" style="display: none;">
-                        <i class="fas fa-stop"></i> Stop Monitoring
-                    </button>
-                </div>
-            </div>
-
-            <!-- Expiring Certificates Card -->
-            <div class="notification-card" id="expiring-certs-card" style="display: none;">
-                <h3><i class="fas fa-exclamation-triangle"></i> Expiring Certificates</h3>
-                <div id="expiring-certs-list"></div>
-            </div>
-
-            <!-- Configuration Help -->
-            <div class="notification-help">
-                <p style="text-align: center; padding: 15px;">
-                    <i class="fas fa-cog"></i> 
-                    <a href="/settings.html" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
-                        Configure email and monitoring settings in the Settings page
-                    </a>
-                </p>
-            </div>
-        </section>
-
-        <!-- Certificates List Section -->
-        <section class="certificates-section">
-            <h2><i class="fas fa-list"></i> Existing Certificates</h2>
-            <div class="certificates-controls">
-                <button id="refresh-btn" class="btn btn-refresh">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
-            </div>
-            <div id="certificates-list" class="certificates-list">
-                <div class="loading">
-                    <i class="fas fa-spinner fa-spin"></i> Loading certificates...
-                </div>
-            </div>
-        </section>
-
-        <!-- Alerts -->
-        <div id="alerts-container"></div>
-    </div>
-
-    <!-- Modal for CA Installation -->
-    <div id="ca-modal" class="modal">
-        <div class="modal-content">
-            <h3><i class="fas fa-shield-alt"></i> Install Root CA</h3>
-            <p>The mkcert root Certificate Authority (CA) is not installed. You need to install it to create trusted certificates for local development.</p>
-            <div class="modal-actions">
-                <button id="install-ca-btn" class="btn btn-primary">
-                    <i class="fas fa-download"></i> Install CA
-                </button>
-                <button id="cancel-ca-btn" class="btn btn-secondary">Cancel</button>
-            </div>
+  <main class="panes">
+    <section class="pane-list" aria-label="Certificate list">
+      <form id="quick-gen" class="pane-section" autocomplete="off">
+        <label class="section-label" for="quick-gen-domains">quick generate</label>
+        <div class="cmdbar">
+          <span class="prompt" aria-hidden="true">$</span><span aria-hidden="true">mkcert</span>
+          <input id="quick-gen-domains" type="text" spellcheck="false" placeholder="app.dev.local *.app.dev.local">
         </div>
+        <div class="row">
+          <label class="row grow text-muted" for="quick-gen-format">--format
+            <select id="quick-gen-format" class="select grow">
+              <option value="pem">pem</option>
+              <option value="crt">crt</option>
+              <option value="p12">p12</option>
+              <option value="p12-client">p12-client</option>
+            </select>
+          </label>
+          <button class="btn btn--primary" type="submit">run ↵</button>
+        </div>
+      </form>
+
+      <div class="pane-section row">
+        <div class="filterbar grow">
+          <span aria-hidden="true">/</span>
+          <label class="sr-only" for="cert-filter">Filter certificates</label>
+          <input id="cert-filter" type="search" placeholder="filter…" spellcheck="false">
+        </div>
+        <button id="open-upload" class="btn" type="button" aria-label="Upload certificate files">↑ upload</button>
+      </div>
+
+      <div id="cert-groups" aria-live="polite"><p class="empty">loading…</p></div>
+    </section>
+
+    <section class="pane-detail" aria-label="Certificate detail">
+      <div id="cert-detail"></div>
+      <div id="cert-empty" class="detail-body" hidden>
+        <div class="empty">
+          <p><span class="prompt">$</span> no certificates yet</p>
+          <p>Type one or more domains into <strong>quick generate</strong> (for example <code>localhost 127.0.0.1</code>), pick a format and press <strong>run ↵</strong>.</p>
+          <p>Already have certificate and key files? Use <strong>↑ upload</strong> to add them.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="upload-dialog" class="dialog" aria-labelledby="upload-dialog-title">
+  <form method="dialog">
+    <h2 id="upload-dialog-title">upload certificate files</h2>
+    <button type="button" class="dropzone" id="upload-dropzone">
+      <span class="upload-text">drag &amp; drop certificate files</span>
+      <span class="upload-subtext">or click to select files</span>
+      <span class="file-types">.pem, .crt, .key, .cer, .p12, .pfx</span>
+    </button>
+    <input type="file" id="file-input" multiple accept=".pem,.crt,.key,.cer,.p7b,.p7c,.pfx,.p12" hidden>
+
+    <div class="upload-progress" id="upload-progress">
+      <div class="meter progress-bar"><span class="progress-fill" id="progress-fill"></span></div>
+      <div class="progress-text text-muted" id="progress-text">Uploading files...</div>
     </div>
 
-    <script src="script.js"></script>
+    <div class="upload-results" id="upload-results" role="status"></div>
+
+    <div class="file-list" id="file-list"></div>
+
+    <div class="row">
+      <button class="btn" value="close">close</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pfx-dialog" class="dialog" aria-labelledby="pfx-dialog-title">
+  <form id="pfx-form" method="dialog">
+    <h2 id="pfx-dialog-title">generate pfx</h2>
+    <p class="text-muted">The PFX file holds both the certificate and its private key. A password is optional but recommended.</p>
+    <div class="field">
+      <label for="pfx-password">password</label>
+      <input class="input" type="password" id="pfx-password" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="pfx-password-confirm">confirm password</label>
+      <input class="input" type="password" id="pfx-password-confirm" autocomplete="new-password">
+    </div>
+    <p id="pfx-error" class="text-err" role="alert" hidden></p>
+    <div class="row">
+      <button class="btn btn--primary" type="submit" id="pfx-generate">generate pfx</button>
+      <button class="btn" type="button" id="pfx-cancel">cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-message">
+  <form method="dialog">
+    <p id="confirm-message"></p>
+    <div class="row">
+      <button class="btn" type="submit" value="confirm" id="confirm-ok">confirm</button>
+      <button class="btn" type="submit" value="cancel">cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/cert-model.js"></script>
+<script src="js/certificates.js"></script>
 </body>
 </html>
