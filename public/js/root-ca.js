@@ -240,7 +240,7 @@
       let body = {};
       try { body = await res.json(); } catch (_) { /* not JSON */ }
       if (res.status === 401 && body.redirectTo) location.href = body.redirectTo;
-      throw new Error(body.error || ('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : '')));
+      throw new Error(core.formatApiError(body, res.status + (res.statusText ? ' ' + res.statusText : '')));
     }
     return res.blob();
   }

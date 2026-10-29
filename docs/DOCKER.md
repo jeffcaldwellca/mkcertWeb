@@ -137,14 +137,29 @@ home directory.
   loopback, link-local and private address. That keeps a proxy container on a
   Docker network working, but it also trusts **every client on a private
   LAN**, which can then fake its IP to dodge rate limits or claim HTTPS to
-  skip the redirect. Narrow it to your proxy:
+  skip the redirect. Narrow it to the proxy's address **as the app sees it**:
 
   | Setup | `TRUST_PROXY` |
   |---|---|
-  | Proxy on the same host (published port, host networking) | `loopback` |
-  | Proxy container on a compose network | the proxy's IP or the network's subnet, e.g. `172.18.0.0/16` (`docker network inspect <net>`) |
+  | No container in between: the app runs on the host (bare metal, systemd) with the proxy, or the container uses `network_mode: host` | `loopback` |
+  | Proxy on the host, reaching the container through a published port (`-p 3000:3000`) | the Docker network's **gateway**, e.g. `172.17.0.1` (default bridge) or the compose network's `.1` |
+  | Proxy in another container on the same network | that container's IP, or the network's subnet, e.g. `172.18.0.0/16` |
   | Proxy elsewhere on the LAN | its exact IP, e.g. `192.168.1.10` |
   | No proxy | `false` |
+
+  Find the gateway and subnet with `docker network inspect`:
+
+  ```bash
+  docker network ls                                    # e.g. bridge, mkcertweb_default
+  docker network inspect mkcertweb_default \
+    --format '{{range .IPAM.Config}}{{.Gateway}} {{.Subnet}}{{end}}'
+  ```
+
+  Don't use `loopback` with a published port. Inside the container, the
+  proxy's requests come from the network gateway, not from 127.0.0.1, so
+  `X-Forwarded-*` would be ignored. Every client would share the proxy's
+  rate-limit bucket, and with `FORCE_HTTPS` the app would keep redirecting
+  requests the proxy already received over HTTPS.
 
   It also accepts `true` (trust everyone; never on a reachable port) or a hop
   count. It is read from the environment only (not the settings page), and an

@@ -15,9 +15,10 @@ services:
       - SSL_DOMAIN=localhost
       - FORCE_HTTPS=false
       # Which proxies may set X-Forwarded-For/-Proto. The default trusts any
-      # private address, so any LAN client can spoof them. Behind a proxy,
-      # set its IP or network (e.g. 172.18.0.0/16); with no proxy, use false.
-      # See docs/DOCKER.md "HTTPS and reverse proxies".
+      # private address, so any LAN client can spoof them. A proxy on the host
+      # reaches this container from the network gateway (e.g. 172.17.0.1),
+      # not loopback; a proxy container, from its own IP. With no proxy, use
+      # false. See docs/DOCKER.md "HTTPS and reverse proxies".
       # - TRUST_PROXY=loopback,linklocal,uniquelocal
       
       # Application Configuration

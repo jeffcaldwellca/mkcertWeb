@@ -328,7 +328,8 @@
       const data = await state.api.post('/' + channel + '/test');
       line = 'OK   ' + (data.message || 'Test sent successfully');
     } catch (err) {
-      line = 'ERR  ' + ((err.body && (err.body.error || err.body.message)) || err.message || 'Test failed');
+      // err.message is core.formatApiError output: error (reason) · ref.
+      line = 'ERR  ' + (err.message || 'Test failed');
     } finally {
       btn.disabled = false;
       btn.textContent = idle;

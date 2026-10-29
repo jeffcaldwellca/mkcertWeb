@@ -129,7 +129,7 @@ live in `<folder>/archive/`.
 **`GET /api/certificates`.** Scans `certificates/` recursively for `.pem`,
 `.crt`, `.key`, `.p12` and `.pfx` files and groups each certificate with its key.
 Each entry has `name`, `cert` and `key` (file objects with `filename`, `size`,
-`modified`, …), `domains` (DNS SANs and CN), `expiry`, `fingerprint` (SHA-256),
+`modified`, `relativePath`, …; no absolute paths), `domains` (DNS SANs and CN), `expiry`, `fingerprint` (SHA-256),
 `format` (`pem`, `crt` or `p12`), `folder`, `folderDate`, `isArchived`,
 `isInterfaceSSL`, `canEdit`, and `note` when one is saved. Files named
 `.swap-*` are never listed.
@@ -138,7 +138,7 @@ Each entry has `name`, `cert` and `key` (file objects with `filename`, `size`,
 
 | `command` | What it runs | Response fields |
 |---|---|---|
-| `generate` | `mkcert` in `certificates/<today>/`. `input` is the space-separated names (the first one names the files). `format`: `pem` (default, `<name>.pem` + `<name>-key.pem`), `crt` (`.crt` + `.key`), `p12`, or `p12-client` (`-pkcs12 -client`). | `output`, `command`, `certificateDir`, `format` |
+| `generate` | `mkcert` in `certificates/<today>/`. `input` is the space-separated names (the first one names the files). `format`: `pem` (default, `<name>.pem` + `<name>-key.pem`), `crt` (`.crt` + `.key`), `p12`, or `p12-client` (`-pkcs12 -client`). | `output`, `format` |
 | `caroot` | `mkcert -CAROOT` | `output`, `command` |
 | `install-ca` | Returns a note without running anything when the CA files already exist; otherwise `mkcert -install`. | `output`, `command`, `warning?` |
 | `uninstall-ca` | `mkcert -uninstall`. Needs `ENABLE_AUTH=true` (403 otherwise, even with OIDC configured) and `"confirm": true` (400 otherwise). | `output`, `command` |
@@ -205,7 +205,7 @@ To recover by hand:
 | GET | `/api/rootca/info` | auth | general | `{ caRoot, subject, issuer, expiry, daysUntilExpiry, fingerprint, path }`; 404 when `rootCA.pem` is missing |
 | GET | `/api/download/rootca` | auth | general | `mkcert-rootCA.pem` |
 | POST | `/api/install-ca` | auth | cli | Runs `mkcert -install` (adds the CA to **this server's** trust store; needs root). `{ output }` |
-| POST | `/api/generate-ca` | auth | cli | If the CA exists: `action: "none"`. Otherwise runs `mkcert -install`, which creates the CA and then tries the trust store. Succeeds when the CA files exist afterwards: `{ caRoot, caExists, action: "generated", trustStoreInstalled, caCopiedToPublic, output, publicCACertPath }`. Copies the CA certificate to `certificates/mkcert-rootCA.pem`. |
+| POST | `/api/generate-ca` | auth | cli | If the CA exists: `action: "none"`. Otherwise runs `mkcert -install`, which creates the CA and then tries the trust store. Succeeds when the CA files exist afterwards: `{ caRoot, caExists, action: "generated", trustStoreInstalled, caCopiedToPublic, output }`. Copies the CA certificate to `certificates/mkcert-rootCA.pem`. |
 | POST | `/api/uninstall-ca` | auth | cli | Runs `mkcert -uninstall`. 403 unless `ENABLE_AUTH=true` (OIDC alone is not enough); 400 unless the body is `{ "confirm": true }`. |
 
 `generate-ca` and `install-ca` change the trust store of the machine running the
@@ -272,10 +272,10 @@ Saved settings take effect after a restart. See [SETTINGS.md](SETTINGS.md).
 |---|---|---|---|---|
 | GET | `/api` | — | general | `{ name, version, description, endpoints }` (see below) |
 | GET | `/api/health` | — | general | `{ status: "ok", timestamp, uptime, version }` |
-| GET | `/api/status` | — | general | `mkcertInstalled`, `opensslAvailable`, `caExists`, `caRoot`, plus `server`, `features` and `environment` blocks |
+| GET | `/api/status` | — | general | Public, even with `ENABLE_AUTH=true`: `mkcertInstalled`, `opensslAvailable`, `caExists`, plus `server` (`running`, `uptime`), `ca` (`exists`), `features` (booleans) and `environment` (`nodeEnv`, `platform`, `arch`). No paths, pid, memory or versions |
 | GET | `/api/config/theme` | — | general | `{ defaultTheme: "dark" \| "light" }` from `THEME_MODE` (no `success` field) |
 | GET | `/api/rate-limit/status` | — | general | The configured limits as text |
-| GET | `/api/system` | auth | general | Platform, memory, CPU count, Node version, working directory |
+| GET | `/api/system` | auth | general | Platform, memory, CPU count, Node version |
 | GET | `/api/config` | auth | general | Server port and host, auth/OIDC flags, theme |
 
 Unknown paths under `/api/` return `404 { success: false, error: "API endpoint not found" }`.

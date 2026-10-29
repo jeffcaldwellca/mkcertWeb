@@ -173,6 +173,17 @@ test('no side-stripe accents in redesigned CSS/HTML/JS', () => {
   }
 });
 
+// ---- Error text guard ----
+// Error bodies become text through MK.core.formatApiError (error, reason,
+// ref). A controller that reads body.error itself drops the reason and ref.
+test('page controllers never build error text from body.error / body.message', () => {
+  for (const rel of walkJs('public/js').filter((r) => r !== 'public/js/core.js')) {
+    const code = read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const hits = code.match(/\bbody\s*(?:&&\s*\(?\s*(?:err\.)?body\s*)?\.\s*(?:error|message)\b/g) || [];
+    assert.deepStrictEqual(hits, [], `${rel}: use err.message or core.formatApiError(body, status)`);
+  }
+});
+
 // ---- Page skeleton guard ----
 function scriptsOf(html) {
   return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);

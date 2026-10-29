@@ -55,6 +55,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Uploaded and SCEP-issued certificates are view-only in the UI (no download,
   PFX, archive or notes buttons); the server's per-certificate routes never
   accepted their folders.
+- **Removed response fields** that exposed server paths and that the UI
+  never read: `command` and `certificateDir` from `POST /api/execute`
+  (`generate`); the absolute `path` of each file in `GET /api/certificates`
+  (`relativePath` stays); `workingDirectory` from `GET /api/system`;
+  `publicCACertPath` from `POST /api/generate-ca`; and from the public
+  `GET /api/status`: `caRoot`, `ca.root`, `server.pid`, `server.memory`,
+  `server.version` and `environment.workingDir` (`features.oidc` is now a
+  boolean).
 - **systemd unit** moved to `deploy/mkcert-web-ui.service` and now keeps the
   root CA in `/var/lib/mkcert-web-ui/ca`. When upgrading, copy `rootCA.pem`
   and `rootCA-key.pem` from the service user's old mkcert directory there
@@ -67,7 +75,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   addresses, CIDRs and `loopback`/`linklocal`/`uniquelocal`). The default is
   the previous hard-coded `loopback,linklocal,uniquelocal`, so existing
   proxy-container setups keep working; that default trusts every private-LAN
-  client, so set `loopback` or your proxy's address (see `docs/DOCKER.md`).
+  client, so set it to your proxy's address as the app sees it (in Docker,
+  usually the network gateway or the proxy container's IP; see
+  `docs/DOCKER.md`).
 
 ### Changed
 
@@ -164,6 +174,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   the ref. Unexpected upload failures are now a 500 (they were a 400 with the
   fs error), and a file that can't be saved is reported without the fs error.
   A guard test keeps error details out of 5xx bodies.
+- **`GET /api/status` disclosed server internals without a login.** The
+  route is public (the top bar shows the mkcert / CA / openssl dots before
+  login), even with `ENABLE_AUTH=true`, and it returned the CA directory, the
+  working directory, the process ID, memory usage, the Node version and, as
+  `features.oidc`, the OIDC client ID. It now returns only the booleans the UI
+  uses, plus uptime, platform and architecture.
 - **`ENABLE_OIDC=true` without `ENABLE_AUTH=true` left the settings API and
   `mkcert -uninstall` open to anyone.** Those guards accepted the OIDC flag as
   "authentication enabled", but without `ENABLE_AUTH` there is no login at all

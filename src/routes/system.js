@@ -35,7 +35,6 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       freemem: os.freemem(),
       cpus: os.cpus().length,
       nodeVersion: process.version,
-      workingDirectory: process.cwd(),
       environment: process.env.NODE_ENV || 'development'
     };
 
@@ -107,12 +106,11 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
 
     // Check CA status
     let caExists = false;
-    let caRoot = null;
-    
+
     try {
       const result = await executeCommand('mkcert -CAROOT');
       if (result.stdout && result.stdout.trim()) {
-        caRoot = result.stdout.trim();
+        const caRoot = result.stdout.trim();
         // Check if CA files actually exist
         const fs = require('fs');
         const rootCAPath = path.join(caRoot, 'rootCA.pem');
@@ -123,33 +121,29 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       console.error('Error checking CA status:', error);
     }
 
+    // SECURITY: this route is public (the top bar shows the tool dots before
+    // login), so it carries only booleans: no paths, pid, memory or versions.
     const status = {
       server: {
         running: true,
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        pid: process.pid,
-        version: process.version
+        uptime: process.uptime()
       },
       ca: {
-        exists: caExists,
-        root: caRoot
+        exists: caExists
       },
-      // Frontend compatibility properties
+      // What the UI reads (shell.js status dots, root-ca.js)
       mkcertInstalled: mkcertInstalled,
       opensslAvailable: opensslAvailable,
       caExists: caExists,
-      caRoot: caRoot,
       features: {
-        authentication: config.auth.enabled,
-        oidc: config.oidc.enabled && config.oidc.issuer && config.oidc.clientId,
+        authentication: config.auth.enabled === true,
+        oidc: !!(config.oidc.enabled && config.oidc.issuer && config.oidc.clientId),
         rateLimiting: true,
         fileManagement: true,
         certificateManagement: true
       },
       environment: {
         nodeEnv: process.env.NODE_ENV || 'development',
-        workingDir: process.cwd(),
         platform: os.platform(),
         arch: os.arch()
       }
@@ -213,7 +207,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     if (alreadyExists) {
       const caCopiedToPublic = await copyCaToPublic({ overwrite: false });
       return apiResponse.success(res, {
-        caRoot, caExists: true, action: 'none', caCopiedToPublic, publicCACertPath: publicCertPath
+        caRoot, caExists: true, action: 'none', caCopiedToPublic
       }, 'Root CA already exists');
     }
 
@@ -249,8 +243,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     apiResponse.success(res, {
       caRoot, caExists: true, action: 'generated', trustStoreInstalled, caCopiedToPublic,
       // stdout only: on a trust-store failure stderr (logged above) can hold paths.
-      output: installResult ? installResult.stdout : '',
-      publicCACertPath: publicCertPath
+      output: installResult ? installResult.stdout : ''
     }, trustStoreInstalled
       ? 'Root CA generated and installed successfully'
       : 'Root CA generated. It was not added to this server\'s system trust store (requires root, e.g. not available in Docker) — download the CA certificate and install it on your client devices.');

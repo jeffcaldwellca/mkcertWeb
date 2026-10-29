@@ -84,6 +84,8 @@ test('generate-ca succeeds when mkcert creates the CA but cannot update the syst
   assert.strictEqual(body.caCopiedToPublic, true);
   assert.ok(fs.existsSync(path.join(workDir, 'certificates', 'mkcert-rootCA.pem')),
     'CA certificate should be copied to the public certificates directory');
+  assert.ok(!('publicCACertPath' in body), 'no server path for the public copy');
+  assert.strictEqual(body.output, '', 'stderr of the failed trust-store step is not returned');
 });
 
 test('generate-ca reports trustStoreInstalled when mkcert -install fully succeeds', async () => {
@@ -120,6 +122,7 @@ test('generate-ca reports caCopiedToPublic when the CA already exists', async ()
   assert.strictEqual(status, 200, JSON.stringify(body));
   assert.strictEqual(body.action, 'none');
   assert.strictEqual(body.caCopiedToPublic, true);
+  assert.ok(!('publicCACertPath' in body), 'no server path for the public copy');
   assert.ok(fs.existsSync(path.join(workDir, 'certificates', 'mkcert-rootCA.pem')));
 });
 

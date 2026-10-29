@@ -191,8 +191,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
             const result = await security.executeCommand(fullCommand, { cwd: certDir });
             return apiResponse.success(res, {
               output: result.stdout || result.stderr,
-              command: fullCommand,
-              certificateDir: certDir,
               format: format
             });
           } catch (error) {
@@ -254,7 +252,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         
         return {
           filename: fileInfo.name,
-          path: fileInfo.fullPath,
           size: stats.size,
           modified: stats.mtime,
           expiry: expiry,
@@ -275,7 +272,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         console.error(`Error processing certificate ${fileInfo.fullPath}:`, err);
         return {
           filename: fileInfo.name,
-          path: fileInfo.fullPath,
           error: 'Could not read certificate details'
         };
       }
