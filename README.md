@@ -20,7 +20,7 @@ A secure, modern web interface for managing SSL certificates using the mkcert CL
 
 ## 📷 Screenshots
 
-![mkcert Web UI Interface](public/assets/screenshot.png)
+![mkcert Web UI Interface](docs/screenshots/certificates-dark.png)
 
 *Split-pane certificates page: quick generate and the certificate list on the left, the selected certificate's details on the right (dark theme)*
 
