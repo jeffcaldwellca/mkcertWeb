@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs-extra');
 const { runTool, executeCommand } = require('../security');
-const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
+const { apiResponse, asyncHandler } = require('../utils/responses');
 // Read from package.json rather than npm_package_version: the Docker image
 // starts with `node server.js`, so npm never sets that variable.
 const { version: APP_VERSION } = require('../../package.json');
@@ -277,34 +277,81 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     }
   }));
 
-  // API endpoints discovery
+  // API endpoints discovery. Keys are "METHOD /path"; keep this in step with
+  // the routes mounted in server.js (test/api-index.test.js guards it).
   router.get('/api', generalRateLimiter, asyncHandler(async (req, res) => {
     const endpoints = {
       authentication: {
-        '/api/auth/status': 'GET - Check authentication status',
-        '/api/auth/methods': 'GET - Get available authentication methods',
-        '/api/auth/login': 'POST - Login with credentials',
-        '/api/auth/logout': 'POST - Logout current session'
+        'GET /api/auth/status': 'Check authentication status',
+        'GET /api/auth/methods': 'Get available authentication methods',
+        'POST /api/auth/login': 'Log in with username and password (basic auth enabled)',
+        'POST /api/auth/logout': 'Log out the current session (basic auth enabled)',
+        'GET /api/csrf-token': 'Get a CSRF token for state-changing requests'
       },
       certificates: {
-        '/api/certificates': 'GET - List all certificates',
-        '/api/certificate/:filename': 'GET - Get certificate details',
-        '/api/certificate/:filename': 'DELETE - Delete certificate',
-        '/api/commands': 'GET - Get available mkcert commands',
-        '/api/execute': 'POST - Execute mkcert command'
+        'GET /api/certificates': 'List all certificates',
+        'POST /api/execute': 'Run an mkcert command (generate, caroot, list, install-ca, uninstall-ca)',
+        'POST /api/upload': 'Upload certificate and key files',
+        'POST /api/certificates/:folder/:certname/archive': 'Archive a certificate',
+        'POST /api/certificates/:folder/:certname/restore': 'Restore an archived certificate (?swap=true|false)',
+        'DELETE /api/certificates/:folder/:certname': 'Delete a certificate (?archived=true|false)',
+        'PUT /api/certificates/:folder/:certname/notes': 'Save or clear a certificate note',
+        'POST /api/generate/pfx/:folder/:certname': 'Generate and download a PFX bundle',
+        'GET /api/download/cert/:folder/:filename': 'Download a certificate file',
+        'GET /api/download/key/:folder/:filename': 'Download a private key file',
+        'GET /api/download/bundle/:folder/:certname': 'Download a certificate and key as a ZIP'
       },
-      files: {
-        '/api/files': 'GET - List certificate files',
-        '/api/file/:filename/content': 'GET - Get file content',
-        '/api/upload': 'POST - Upload certificate file',
-        '/download/:filename': 'GET - Download certificate file'
+      rootCA: {
+        'GET /api/rootca/info': 'Get root CA details',
+        'GET /api/download/rootca': 'Download the root CA certificate',
+        'POST /api/install-ca': 'Install the root CA in the system trust store',
+        'POST /api/generate-ca': 'Generate a root CA',
+        'POST /api/uninstall-ca': 'Remove the root CA from the system trust store (auth enabled, confirm required)'
+      },
+      notifications: {
+        'GET /api/email/status': 'Get email configuration status',
+        'POST /api/email/test': 'Send a test email',
+        'POST /api/email/verify': 'Verify the SMTP connection',
+        'GET /api/monitoring/status': 'Get certificate monitoring status',
+        'POST /api/monitoring/check': 'Run a certificate expiry check now',
+        'POST /api/monitoring/start': 'Start or restart certificate monitoring',
+        'POST /api/monitoring/stop': 'Stop certificate monitoring',
+        'GET /api/monitoring/expiring': 'List certificates that expire soon',
+        'PUT /api/monitoring/config': 'Update monitoring configuration at runtime',
+        'GET /api/ntfy/status': 'Get ntfy configuration status',
+        'POST /api/ntfy/test': 'Send a test ntfy notification',
+        'GET /api/webhook/status': 'Get webhook configuration status',
+        'POST /api/webhook/test': 'Send a test webhook'
+      },
+      scep: {
+        'GET /scep': 'SCEP protocol endpoint (GetCACaps, GetCACert)',
+        'POST /scep': 'SCEP protocol endpoint (PKIOperation)',
+        'POST /api/scep/challenge': 'Generate a challenge password',
+        'GET /api/scep/challenges': 'List challenge passwords',
+        'POST /api/scep/certificate': 'Issue a certificate through the SCEP workflow',
+        'GET /api/scep/certificates': 'List SCEP certificates',
+        'GET /api/scep/certificates/:commonName': 'Get SCEP certificate details',
+        'GET /api/scep/config': 'Get SCEP configuration',
+        'GET /api/scep/enterprise-ca/status': 'Get enterprise CA status',
+        'GET /api/scep/templates': 'List certificate templates',
+        'POST /api/scep/validate-upn': 'Validate a user principal name'
+      },
+      settings: {
+        'GET /api/settings': 'Get saved settings',
+        'GET /api/settings/running': 'Get the running configuration',
+        'POST /api/settings': 'Save settings',
+        'DELETE /api/settings': 'Reset settings to defaults',
+        'GET /api/settings/export': 'Export settings as JSON',
+        'POST /api/settings/import': 'Import settings from JSON'
       },
       system: {
-        '/api/health': 'GET - Health check',
-        '/api/status': 'GET - Server status',
-        '/api/system': 'GET - System information',
-        '/api/config': 'GET - Client configuration',
-        '/api/rate-limit/status': 'GET - Rate limiting status'
+        'GET /api': 'This endpoint index',
+        'GET /api/health': 'Health check',
+        'GET /api/status': 'Server status',
+        'GET /api/system': 'System information',
+        'GET /api/config': 'Client configuration',
+        'GET /api/config/theme': 'Default UI theme',
+        'GET /api/rate-limit/status': 'Rate limiting status'
       }
     };
 

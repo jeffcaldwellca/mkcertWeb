@@ -25,13 +25,6 @@ const apiResponse = {
   },
 
   /**
-   * Send an unauthorized error (401)
-   */
-  unauthorized: (res, error = 'Unauthorized') => {
-    return res.status(401).json({ success: false, error });
-  },
-
-  /**
    * Send a forbidden error (403)
    */
   forbidden: (res, error = 'Forbidden') => {
@@ -65,37 +58,6 @@ const apiResponse = {
       response.stack = originalError.stack;
     }
     return res.status(500).json(response);
-  },
-
-  /**
-   * Send a rate limit error (429)
-   */
-  rateLimited: (res, error = 'Too many requests') => {
-    return res.status(429).json({ success: false, error });
-  }
-};
-
-/**
- * Enhanced error handler that logs and responds
- */
-const handleError = (res, error, context = '', statusCode = 500) => {
-  // Log the error
-  console.error(`Error ${context}:`, error);
-  
-  // Respond based on status code
-  switch (statusCode) {
-    case 400:
-      return apiResponse.badRequest(res, error.message || error, error);
-    case 401:
-      return apiResponse.unauthorized(res, error.message || error);
-    case 403:
-      return apiResponse.forbidden(res, error.message || error);
-    case 404:
-      return apiResponse.notFound(res, error.message || error);
-    case 429:
-      return apiResponse.rateLimited(res, error.message || error);
-    default:
-      return apiResponse.serverError(res, 'Internal server error', error);
   }
 };
 
@@ -145,7 +107,6 @@ const validateRequest = (validators) => {
 
 module.exports = {
   apiResponse,
-  handleError,
   asyncHandler,
   validateRequest
 };

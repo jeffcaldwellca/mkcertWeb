@@ -211,31 +211,8 @@ function buildSCEPFailureResponse(opts) {
   return Buffer.from(forge.asn1.toDer(signed.toAsn1()).getBytes(), 'binary');
 }
 
-// Backwards-compat: older code calls createSCEPFailure(transactionId, failInfo)
-// without the CA material. Keep the signature but require the caller to pass
-// a third argument with the keys; if absent, fall back to a JSON debug stub
-// so we don't crash. New callers should use buildSCEPFailureResponse directly.
-function createSCEPFailure(transactionId, failInfo = 'badRequest', caMaterial = null) {
-  if (caMaterial && caMaterial.caKeyPem && caMaterial.caCertPem) {
-    return buildSCEPFailureResponse({
-      transactionId,
-      failInfo: FAIL_INFO[failInfo] ?? FAIL_INFO.badRequest,
-      caKeyPem: caMaterial.caKeyPem,
-      caCertPem: caMaterial.caCertPem
-    });
-  }
-  // Last-resort: not a real SCEP message, but at least the client gets
-  // SOMETHING distinguishable instead of HTML.
-  return Buffer.from(JSON.stringify({
-    messageType: 'CertRep', pkiStatus: 'FAILURE', failInfo, transactionId
-  }));
-}
-
 function generateTransactionId() {
   return crypto.randomBytes(16).toString('hex');
-}
-function generateNonce() {
-  return crypto.randomBytes(16).toString('base64');
 }
 
 /**
@@ -352,10 +329,7 @@ module.exports = {
   validateCSRIdentity,
   buildSCEPSuccessResponse,
   buildSCEPFailureResponse,
-  createSCEPFailure,            // legacy alias
-  createSCEPResponse: buildSCEPSuccessResponse, // legacy alias
   generateTransactionId,
-  generateNonce,
   validateChallenge,
   MSG_TYPE,
   PKI_STATUS,

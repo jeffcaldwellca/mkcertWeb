@@ -171,16 +171,6 @@ function parseLegacyCommand(command) {
   return { tool, args: tokens, cwd };
 }
 
-// Command validation function — retained for back-compat in case any caller
-// imports it directly. Returns true iff parseLegacyCommand can structure it
-// AND the resulting argv passes the runTool allowlist.
-const isCommandSafe = (command) => {
-  const parsed = parseLegacyCommand(command);
-  if (!parsed) return false;
-  const validator = TOOL_ARG_VALIDATORS[parsed.tool];
-  return !validator || validator(parsed.args);
-};
-
 // Path validation function to prevent directory traversal attacks
 // SECURITY: This function validates and sanitizes user-provided paths to prevent
 // access to files outside the certificates directory
@@ -282,7 +272,6 @@ const validateFilename = (filename) => {
 module.exports = {
   runTool,
   executeCommand,
-  isCommandSafe,
   validateAndSanitizePath,
   validateFilename,
   // expose for tests / advanced callers

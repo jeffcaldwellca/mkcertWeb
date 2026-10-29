@@ -1,7 +1,6 @@
 // SCEP (Simple Certificate Enrollment Protocol) routes module
 const express = require('express');
 const multer = require('multer');
-const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
@@ -9,7 +8,7 @@ const scepUtils = require('../utils/scep');
 const pkcs7Utils = require('../utils/pkcs7');
 const enterpriseCA = require('../utils/enterpriseCA');
 const security = require('../security');
-const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
+const { apiResponse, asyncHandler } = require('../utils/responses');
 
 // Load CA key + cert lazily so we don't fail boot if mkcert isn't installed.
 async function loadCAMaterial() {

@@ -270,9 +270,4 @@ class EmailService {
   }
 }
 
-// Factory function following the project pattern
-const createEmailService = (config) => {
-  return new EmailService(config);
-};
-
-module.exports = { EmailService, createEmailService };
+module.exports = { EmailService };

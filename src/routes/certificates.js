@@ -1,4 +1,4 @@
-// Certificate management routes module - Refactored to eliminate code duplication
+// Certificate management routes module
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
@@ -6,8 +6,7 @@ const fsSync = require('fs');
 const fs = require('fs').promises;
 const security = require('../security');
 const certificateUtils = require('../utils/certificates');
-const { apiResponse, handleError, asyncHandler, validateRequest } = require('../utils/responses');
-const { validateFileRequest, deleteFile } = require('../utils/fileValidation');
+const { apiResponse, asyncHandler, validateRequest } = require('../utils/responses');
 const { createNotesStore } = require('../services/notesStore');
 
 const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore = createNotesStore()) => {
@@ -15,7 +14,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
   const { cliRateLimiter, generalRateLimiter } = rateLimiters;
 
   // Note-store key for a grouped certificate. Mirrors the folder identifiers
-  // the frontend uses for API calls (public/script.js displayCertificates).
+  // the frontend uses for API calls (locationOf in public/js/cert-model.js).
   const noteKeyForCert = (group) => {
     let folder;
     if (group.isInterfaceSSL) folder = 'interface-ssl';
@@ -66,46 +65,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       throw err;
     }
   };
-
-  // Get all available commands
-  router.get('/api/commands', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const commands = [
-      {
-        name: 'Install CA',
-        key: 'install-ca',
-        description: 'Install the local CA certificate',
-        dangerous: false
-      },
-      {
-        name: 'Uninstall CA',
-        key: 'uninstall-ca',
-        description: 'Uninstall the local CA certificate',
-        dangerous: true
-      },
-      {
-        name: 'Generate',
-        key: 'generate',
-        description: 'Generate certificate for domains',
-        dangerous: false,
-        hasInput: true,
-        inputPlaceholder: 'Enter domain names (space-separated)'
-      },
-      {
-        name: 'Get CAROOT',
-        key: 'caroot',
-        description: 'Get the CA root directory path',
-        dangerous: false
-      },
-      {
-        name: 'List Certificates',
-        key: 'list',
-        description: 'List all certificates in the current directory',
-        dangerous: false
-      }
-    ];
-
-    apiResponse.success(res, { commands });
-  }));
 
   // Execute mkcert commands
   router.post('/api/execute', requireAuth, cliRateLimiter,
@@ -313,77 +272,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       certificates: groupedCertificates,
       total: groupedCertificates.length
     });
-  }));
-
-  // Get certificate details
-  router.get('/api/certificate/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    const stats = await fs.stat(safePath);
-    const expiry = await certificateUtils.getCertificateExpiry(safePath);
-    const domains = await certificateUtils.getCertificateDomains(safePath);
-    const fingerprint = await certificateUtils.getCertificateFingerprint(safePath);
-    
-    apiResponse.success(res, {
-      filename: filename,
-      size: stats.size,
-      modified: stats.mtime,
-      expiry: expiry,
-      domains: domains,
-      fingerprint: fingerprint,
-      type: filename.endsWith('-key.pem') ? 'key' : 'cert'
-    });
-  }));
-
-  // Delete certificate
-  router.delete('/api/certificate/:filename', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    // Delete the certificate file
-    const deleted = await deleteFile(safePath, res);
-    if (!deleted) return; // Error response already sent by deleteFile
-    
-    // Also try to delete the corresponding key/cert file if it exists
-    let companionFile;
-    if (filename.endsWith('-key.pem')) {
-      companionFile = filename.replace('-key.pem', '.pem');
-    } else if (filename.endsWith('.pem') && !filename.endsWith('-key.pem')) {
-      companionFile = filename.replace('.pem', '-key.pem');
-    }
-    
-    if (companionFile) {
-      // Re-run containment on the derived name rather than trusting that it
-      // inherits safety from `filename` — keeps this path self-evidently safe.
-      let companionPath;
-      try {
-        companionPath = security.validateAndSanitizePath(companionFile, process.cwd()).resolved;
-      } catch (_) {
-        companionPath = null;
-      }
-      try {
-        if (!companionPath) throw new Error('unsafe companion path');
-        await fs.access(companionPath);
-        await deleteFile(companionPath); // Don't pass res - we don't want to send error response for companion file
-      } catch (err) {
-        // Companion file doesn't exist or couldn't be deleted, that's OK
-      }
-    }
-
-    // Drop any note. This route deletes files in the certificates root, where
-    // the UI folder key is interface-ssl or legacy — remove both candidates.
-    const base = path.basename(filename).replace(/(-key)?\.(pem|crt|key|p12|pfx)$/i, '');
-    notesStore.remove(`interface-ssl/${base}`);
-    notesStore.remove(`legacy/${base}`);
-
-    apiResponse.success(res, {}, 'Certificate deleted successfully');
   }));
 
   // Get root CA information

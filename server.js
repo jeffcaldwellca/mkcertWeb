@@ -251,12 +251,8 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-// Serve static files with conditional authentication
-app.use(express.static('public', {
-  setHeaders: (res, path) => {
-    // No special headers needed for static files
-  }
-}));
+// Serve static files
+app.use(express.static('public'));
 
 // Authentication routes
 if (ENABLE_AUTH) {
@@ -449,7 +445,7 @@ app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService
 // Mount certificate routes
 app.use(createCertificateRoutes(config, rateLimiters, requireAuth));
 
-// Mount file routes (upload/download)
+// Mount file routes (upload)
 app.use(createFileRoutes(config, rateLimiters, requireAuth));
 
 // Mount SCEP routes (must be before system routes to avoid catch-all)
@@ -460,9 +456,6 @@ app.use('/api/settings', createSettingsRoutes(config, rateLimiters, requireAuth)
 
 // Mount system routes
 app.use(createSystemRoutes(config, rateLimiters, requireAuth));
-
-// (csrf-token, auth/status, config/theme moved above the router mounts to
-// avoid being shadowed by the /api/* catch-all in createSystemRoutes.)
 
 // Favicon handler (return 204 No Content if not found)
 app.get('/favicon.ico', (req, res) => {

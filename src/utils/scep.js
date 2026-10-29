@@ -13,16 +13,6 @@ const generateChallengePassword = () => {
 };
 
 /**
- * Validate SCEP challenge password
- * @param {string} password - The challenge password to validate
- * @param {string} storedPassword - The stored challenge password
- * @returns {boolean} - Whether the password is valid
- */
-const validateChallengePassword = (password, storedPassword) => {
-  return password && storedPassword && password === storedPassword;
-};
-
-/**
  * Generate SCEP CA certificate response (DER-encoded X.509, per RFC 8894).
  * The Content-Type returned by the SCEP route is `application/x-x509-ca-cert`
  * which RFC 8894 §3.1 specifies as DER, not PEM. Convert PEM→DER here so
@@ -138,19 +128,6 @@ const isValidDomainName = (domain) => {
 };
 
 /**
- * Create SCEP certificate store directory structure
- */
-const initializeSCEPStore = async () => {
-  const scepDir = path.join(process.cwd(), 'certificates', 'scep');
-  const tempDir = path.join(process.cwd(), 'certificates', 'temp');
-  
-  await fs.mkdir(scepDir, { recursive: true });
-  await fs.mkdir(tempDir, { recursive: true });
-  
-  return { scepDir, tempDir };
-};
-
-/**
  * List all SCEP-generated certificates
  */
 const listSCEPCertificates = async () => {
@@ -233,11 +210,9 @@ const getSCEPCertificateDetails = async (commonName) => {
 
 module.exports = {
   generateChallengePassword,
-  validateChallengePassword,
   getSCEPCACertificate,
   processSCEPCertificateRequest,
   isValidDomainName,
-  initializeSCEPStore,
   listSCEPCertificates,
   getSCEPCertificateDetails
 };

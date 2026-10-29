@@ -1,15 +1,14 @@
-// File management routes module - Refactored to eliminate code duplication
+// Certificate upload route module
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const multer = require('multer');
 const security = require('../security');
-const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
-const { validateFileRequest, listCertificateFiles, readFileContent } = require('../utils/fileValidation');
+const { apiResponse, asyncHandler } = require('../utils/responses');
 
 const createFileRoutes = (config, rateLimiters, requireAuth) => {
   const router = express.Router();
-  const { generalRateLimiter, apiRateLimiter } = rateLimiters;
+  const { apiRateLimiter } = rateLimiters;
 
   // Configure multer for file uploads
   const storage = multer.diskStorage({
@@ -42,30 +41,6 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       }
     }
   });
-
-  // Download certificate files
-  router.get('/download/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request (filename, path, existence)
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent by validateFileRequest
-    
-    // Determine content type based on file extension
-    let contentType = 'application/x-pem-file';
-    if (filename.endsWith('.p12') || filename.endsWith('.pfx')) {
-      contentType = 'application/x-pkcs12';
-    } else if (filename.endsWith('.crt')) {
-      contentType = 'application/x-x509-ca-cert';
-    } else if (filename.endsWith('.key')) {
-      contentType = 'application/x-pem-file';
-    }
-    
-    // Send file with appropriate headers
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', contentType);
-    res.sendFile(safePath);
-  }));
 
   // Upload certificate files
   router.post('/api/upload', requireAuth, apiRateLimiter, upload.array('certificates'), asyncHandler(async (req, res) => {
@@ -167,40 +142,6 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
     }
 
     apiResponse.success(res, results, 'Upload processing complete');
-  }));
-
-  // List files in current directory
-  router.get('/api/files', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    try {
-      const files = await listCertificateFiles();
-      
-      apiResponse.success(res, {
-        files,
-        total: files.length,
-        directory: process.cwd()
-      });
-    } catch (error) {
-      handleError(res, error, 'listing files');
-    }
-  }));
-
-  // Get file content (for viewing certificate content)
-  router.get('/api/file/:filename/content', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    // Read file content
-    const content = await readFileContent(safePath, 'utf8', res);
-    if (content === null) return; // Error response already sent
-    
-    apiResponse.success(res, {
-      filename,
-      content,
-      size: content.length
-    });
   }));
 
   // Handle file upload errors
