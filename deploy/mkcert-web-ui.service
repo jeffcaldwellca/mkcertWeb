@@ -1,0 +1,37 @@
+# systemd unit for running mkcert Web UI directly on a host (without Docker).
+# Needs Node.js >= 22, mkcert and openssl. Install the app in
+# /opt/mkcert-web-ui (npm ci --omit=dev), owned by the service user, then:
+#   sudo cp deploy/mkcert-web-ui.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mkcert-web-ui
+[Unit]
+Description=mkcert Web UI
+Documentation=https://github.com/FiloSottile/mkcert
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mkcert-web-ui
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ENABLE_HTTPS=true
+Environment=SSL_DOMAIN=localhost
+Environment=HTTPS_PORT=3443
+# Keep mkcert's root CA inside the app directory: ProtectSystem=strict makes
+# the service user's home read-only, so the default CAROOT is not writable.
+Environment=CAROOT=/opt/mkcert-web-ui/ca
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# The app writes certificates/, ssl/, data/ (notes), config/settings.json and
+# the CAROOT above, and multer stages uploads in the working directory itself.
+ReadWritePaths=/opt/mkcert-web-ui
+
+[Install]
+WantedBy=multi-user.target
