@@ -55,10 +55,26 @@ test('no page references styles.css or font-awesome', () => {
   for (const rel of REDESIGNED) assert.doesNotMatch(read(rel), /styles\.css|font-?awesome|cdnjs/i, rel);
 });
 
+// The custom properties declared in the first `<selector> {` block that follows
+// `marker` in css.
+function tokensOfBlock(css, marker, selector) {
+  const from = css.indexOf(marker);
+  assert.ok(from >= 0, `marker not found: ${marker}`);
+  const open = css.indexOf(selector + ' {', from);
+  assert.ok(open >= 0, `${selector} block not found after ${marker}`);
+  const body = css.slice(open, css.indexOf('}', open));
+  return [...body.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map((m) => m[1]);
+}
+
 test('app.css defines light-theme overrides for every surface token', () => {
   const css = read('public/css/app.css');
-  for (const t of ['--bg', '--bg-pane', '--text', '--border', '--info', '--prompt', '--accent'])
-    assert.match(css, new RegExp(`\\[data-theme="light"\\][^}]*${t}:`, 's'), t);
+  // Every token in the dark surface block, parsed rather than listed, so a
+  // token added there without a light value fails here.
+  const surface = tokensOfBlock(css, '/* ---- Surface tokens (dark default) ---- */', ':root');
+  assert.ok(surface.length >= 10, 'surface block parsed: ' + surface.join(' '));
+  const light = new Set(tokensOfBlock(css, '/* ---- Surface tokens (dark default) ---- */', '[data-theme="light"]'));
+  const missing = surface.filter((t) => !light.has(t));
+  assert.deepStrictEqual(missing, [], 'surface tokens without a [data-theme="light"] value');
 });
 
 // ---- Side-stripe guard (value-based) ----
@@ -198,6 +214,7 @@ function controllerOf(rel) {
 const HEAD_LINKS = [
   '<link rel="icon" href="/assets/favicon.ico">',
   '<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">',
+  '<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">',
   '<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">',
   '<link rel="manifest" href="/assets/site.webmanifest">'
 ];

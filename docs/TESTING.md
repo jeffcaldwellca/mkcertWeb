@@ -46,12 +46,14 @@ checks that keep the frontend inside the rules in
 - no external URLs, CDN links or Font Awesome in any page;
 - no side-stripe accents (coloured `border-left`/`border-right`/`border-inline-*`
   bars or inset side shadows) in CSS, HTML or JS;
-- every page's skeleton: icon and manifest links in `<head>`, `core.js` first,
+- every page's skeleton: the icon links (`favicon.ico`, 32×32, 16×16, apple-touch)
+  and the manifest in `<head>`, `core.js` first,
   then `shell.js` (except login), the page controller last, `<header id="shell">`
   and `<main>`;
 - the shared design-language block is byte-identical in `public/css/app.css` and
   `docs/assets/styles.css`;
-- light-theme overrides exist for every surface token;
+- every token in the dark surface `:root` block of `app.css` (read from the
+  file, not a fixed list) has a `[data-theme="light"]` value;
 - delete, archive and restore reload the list on a stale-list 404;
 - `/favicon.ico` and the web manifest point at files that exist.
 
