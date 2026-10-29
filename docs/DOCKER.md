@@ -37,6 +37,36 @@ docker run -d \
 > `/home/nodejs/.local/share/mkcert` holds the root CA — without them,
 > both are lost every time the container is recreated.
 
+## Running as a Custom UID
+
+The image runs as `nodejs` (UID/GID 1001) by default. To run it as another
+user (e.g. `user: "2000:2000"` in compose, or `--user 2000:2000`), bind-mount
+all four data directories from host paths owned by that UID — the
+directories baked into the image belong to UID 1001 and aren't writable by
+anyone else:
+
+```yaml
+services:
+  mkcert-web-ui:
+    image: jeffcaldwellca/mkcertweb:latest
+    user: "2000:2000"
+    volumes:
+      - /etc/mkcert/certificates:/app/certificates
+      - /etc/mkcert/data:/app/data
+      - /etc/mkcert/config:/app/config
+      - /etc/mkcert/ca:/home/nodejs/.local/share/mkcert
+```
+
+```bash
+sudo mkdir -p /etc/mkcert/{certificates,data,config,ca}
+sudo chown -R 2000:2000 /etc/mkcert
+```
+
+The image sets `CAROOT=/home/nodejs/.local/share/mkcert`, so mkcert finds the
+CA directory regardless of `HOME`. (Before v4.4.3, a UID with no passwd
+entry got `HOME=/` and CA generation failed with a permission error; the
+workaround was to set `HOME=/home/nodejs`.)
+
 ## Configuration
 
 ### Using .env File

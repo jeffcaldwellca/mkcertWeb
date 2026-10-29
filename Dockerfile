@@ -103,6 +103,12 @@ EXPOSE 3000 3443
 # Operators should set AUTH_PASSWORD/AUTH_PASSWORD_HASH and SESSION_SECRET
 # explicitly for production use.
 ENV NODE_ENV=production
+# Pin mkcert's CA directory instead of deriving it from $HOME. When the
+# container runs as a UID with no passwd entry (e.g. `user: "2000:2000"`),
+# Docker sets HOME=/ and mkcert would try to create /.local/share/mkcert,
+# failing with EACCES (issue #54). This is the path the mkcert_ca volume
+# mounts, so it's unchanged for the default nodejs user.
+ENV CAROOT=/home/nodejs/.local/share/mkcert
 ENV PORT=3000
 ENV HTTPS_PORT=3443
 ENV ENABLE_HTTPS=false
