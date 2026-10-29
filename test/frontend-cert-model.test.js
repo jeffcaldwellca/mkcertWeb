@@ -33,9 +33,9 @@ test('groupCertificates orders groups and items', () => {
 
 test('groupCertificates omits empty groups, sorts null last then by name', () => {
   const groups = m.groupCertificates([
-    { name: 'b', folder: 'f', expiry: null },
-    { name: 'a', folder: 'f', expiry: null },
-    { name: 'c', folder: 'f', expiry: inDays(100) },
+    { name: 'b', folder: '2026-01-02', expiry: null },
+    { name: 'a', folder: '2026-01-02', expiry: null },
+    { name: 'c', folder: '2026-01-02', expiry: inDays(100) },
   ], now);
   assert.deepStrictEqual(groups.map((g) => g.id), ['healthy']);
   assert.deepStrictEqual(groups[0].items.map((c) => c.name), ['c', 'a', 'b']);
@@ -135,4 +135,52 @@ test('certKey distinguishes archived from active', () => {
   const groups = m.groupCertificates([active, archived], now);
   assert.strictEqual(m.resolveSelection(groups, m.parseHash(m.formatHash(m.certKey(archived)))), '2026-01-02/archive/a');
   assert.strictEqual(m.resolveSelection(groups, m.parseHash(m.formatHash(m.certKey(active)))), '2026-01-02/a');
+});
+
+test('scep certs are view-only and group as READ-ONLY', () => {
+  const loc = m.locationOf({ name: 's', folder: 'scep' });
+  assert.deepStrictEqual(loc, { folderParam: 'scep', label: 'SCEP', readOnly: true, viewOnly: true, isRootCA: false });
+  const groups = m.groupCertificates([{ name: 's', folder: 'scep', canEdit: true, expiry: inDays(5) }], now);
+  assert.deepStrictEqual(groups.map((g) => g.id), ['readonly']);
+  assert.strictEqual(groups[0].label, 'READ-ONLY');
+});
+
+test('uploaded certs keep their location and are view-only', () => {
+  assert.deepStrictEqual(m.locationOf({ name: 'u', folder: 'uploaded' }),
+    { folderParam: 'uploaded', label: 'Uploaded', readOnly: true, viewOnly: true, isRootCA: false });
+});
+
+test('any other non-date folder is view-only, labelled by its name', () => {
+  assert.deepStrictEqual(m.locationOf({ name: 'x', folder: 'foo' }),
+    { folderParam: 'foo', label: 'foo', readOnly: true, viewOnly: true, isRootCA: false });
+  // near-misses of the date pattern are not date folders
+  assert.strictEqual(m.locationOf({ name: 'x', folder: '2026-1-02' }).viewOnly, true);
+  assert.strictEqual(m.locationOf({ name: 'x', folder: '2026-01-02-old' }).viewOnly, true);
+});
+
+test('date folders stay editable; the other branches are not view-only', () => {
+  assert.deepStrictEqual(m.locationOf({ name: 'd', folder: '2026-01-02' }),
+    { folderParam: '2026-01-02', label: '2026-01-02', readOnly: false, viewOnly: false, isRootCA: false });
+  assert.strictEqual(m.locationOf({ isInterfaceSSL: true }).viewOnly, false);
+  assert.strictEqual(m.locationOf({ name: 'mkcert-rootCA' }).viewOnly, false);
+  assert.strictEqual(m.locationOf({ name: 'l' }).viewOnly, false);
+});
+
+test('scep + archived groups as archived and stays view-only', () => {
+  const cert = { name: 's', folder: 'scep', isArchived: true, expiry: inDays(5) };
+  assert.deepStrictEqual(m.groupCertificates([cert], now).map((g) => g.id), ['archived']);
+  assert.strictEqual(m.locationOf(cert).viewOnly, true);
+});
+
+test('archivedTwinOf finds the archived cert sharing an active cert\'s folder + name', () => {
+  const active = { name: 'x', folder: '2026-01-02' };
+  const archived = { name: 'x', folder: '2026-01-02', isArchived: true };
+  const other = [{ name: 'x', folder: '2026-01-03', isArchived: true }, { name: 'y', folder: '2026-01-02', isArchived: true }];
+  assert.strictEqual(m.archivedTwinOf(active, [active, archived, ...other]), archived);
+  assert.strictEqual(m.archivedTwinOf(active, [active, ...other]), null);
+  // only active certs have an archived twin
+  assert.strictEqual(m.archivedTwinOf(archived, [archived, active]), null);
+  // another active copy is not an archived twin
+  assert.strictEqual(m.archivedTwinOf(active, [active, { name: 'x', folder: '2026-01-02' }]), null);
+  assert.strictEqual(m.archivedTwinOf(null, [archived]), null);
 });

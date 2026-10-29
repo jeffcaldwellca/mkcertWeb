@@ -12,23 +12,29 @@
     return cert.name === 'mkcert-rootCA' || !!(cert.cert && cert.cert.filename === 'mkcert-rootCA.pem');
   }
 
+  // Per-cert routes accept only interface-ssl, legacy and YYYY-MM-DD folders.
+  const DATE_FOLDER = /^\d{4}-\d{2}-\d{2}$/;
+  const VIEW_ONLY_LABELS = { uploaded: 'Uploaded', scep: 'SCEP' };
+
   // Where a cert lives, and whether the server lets the UI act on it.
+  // viewOnly: every per-cert route rejects the folder (uploaded, scep, …),
+  // so not even downloads or notes work from here.
   function locationOf(cert) {
     const isRootCA = isRootCAName(cert);
     if (cert.isInterfaceSSL) {
-      return { folderParam: 'interface-ssl', label: 'Interface SSL', readOnly: true, isRootCA };
+      return { folderParam: 'interface-ssl', label: 'Interface SSL', readOnly: true, viewOnly: false, isRootCA };
     }
-    // Every per-cert route rejects the uploaded folder, so it is view-only.
-    if (cert.folder === 'uploaded') {
-      return { folderParam: 'uploaded', label: 'Uploaded', readOnly: true, isRootCA };
+    if (cert.folder && !DATE_FOLDER.test(cert.folder)) {
+      const label = VIEW_ONLY_LABELS[cert.folder] || cert.folder;
+      return { folderParam: cert.folder, label, readOnly: true, viewOnly: true, isRootCA };
     }
     if (cert.folder) {
-      return { folderParam: cert.folder, label: cert.folder, readOnly: false, isRootCA };
+      return { folderParam: cert.folder, label: cert.folder, readOnly: false, viewOnly: false, isRootCA };
     }
     if (isRootCA) {
-      return { folderParam: 'root-ca', label: 'Root CA', readOnly: true, isRootCA };
+      return { folderParam: 'root-ca', label: 'Root CA', readOnly: true, viewOnly: false, isRootCA };
     }
-    return { folderParam: 'legacy', label: 'Legacy', readOnly: cert.canEdit === false, isRootCA };
+    return { folderParam: 'legacy', label: 'Legacy', readOnly: cert.canEdit === false, viewOnly: false, isRootCA };
   }
 
   // Archived and active certs can share folder + name, so the key marks archived ones.
@@ -36,13 +42,26 @@
     return locationOf(cert).folderParam + '/' + (cert.isArchived ? 'archive/' : '') + cert.name;
   }
 
+  // The cert in the same folder with the same name on the other side of the
+  // archive (archived <-> active), if any.
+  function twinOf(cert, certs, wantArchived) {
+    const folder = locationOf(cert).folderParam;
+    return (certs || []).find((c) => !!c.isArchived === wantArchived && c.name === cert.name &&
+      locationOf(c).folderParam === folder) || null;
+  }
+
   // The active cert sharing an archived cert's folder + name, if any.
-  // Deleting the archived copy would also remove it on the server.
+  // Restoring the archived copy then swaps the two.
   function activeTwinOf(cert, certs) {
     if (!cert || !cert.isArchived) return null;
-    const folder = locationOf(cert).folderParam;
-    return (certs || []).find((c) => !c.isArchived && c.name === cert.name &&
-      locationOf(c).folderParam === folder) || null;
+    return twinOf(cert, certs, false);
+  }
+
+  // The archived cert sharing an active cert's folder + name, if any.
+  // The server refuses to archive the active copy while it exists.
+  function archivedTwinOf(cert, certs) {
+    if (!cert || cert.isArchived) return null;
+    return twinOf(cert, certs, true);
   }
 
   function classify(cert, now) {
@@ -135,7 +154,7 @@
   }
 
   return {
-    ATTENTION_DAYS, locationOf, certKey, activeTwinOf, classify, groupCertificates, metaLine,
+    ATTENTION_DAYS, locationOf, certKey, activeTwinOf, archivedTwinOf, classify, groupCertificates, metaLine,
     matchesQuery, parseQuickGenerate, resolveSelection, parseHash, formatHash
   };
 });

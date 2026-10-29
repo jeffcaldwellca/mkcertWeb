@@ -186,26 +186,29 @@
     const loc = model.locationOf(cert);
     const c = model.classify(cert, now);
 
-    // Only offer what the server can do. Uploaded certs are rejected by every
-    // per-cert route; downloads and pfx never look inside archive/.
-    const viewOnly = loc.folderParam === 'uploaded';
-    const twin = model.activeTwinOf(cert, state.certs);
+    // Only offer what the server can do. Every per-cert route rejects
+    // view-only folders (uploaded, scep, …); downloads and pfx never look
+    // inside archive/.
+    const viewOnly = loc.viewOnly;
+    const archivedTwin = model.archivedTwinOf(cert, state.certs);
     const actions = [];
     const notes = [];
     if (!viewOnly && !cert.isArchived) actions.push(actionBtn('bundle', '↓ bundle'));
     if (cert.key && !loc.readOnly && !cert.isArchived) actions.push(actionBtn('pfx', 'pfx'));
-    if (!loc.readOnly && !cert.isArchived) actions.push(actionBtn('archive', 'archive'));
-    if (cert.isArchived && !viewOnly) {
-      actions.push(actionBtn('restore', 'restore'));
-      // Deleting an archived copy also removes a same-named active cert.
-      actions.push(actionBtn('delete', 'delete', 'btn--danger',
-        twin ? ' disabled aria-describedby="cert-delete-note"' : ''));
-      if (twin) {
-        notes.push('<p class="text-muted note-text" id="cert-delete-note">restore or rename the active "' +
-          esc(cert.name) + '" first — deleting would also remove it</p>');
+    if (!loc.readOnly && !cert.isArchived) {
+      // The server refuses to archive over an archived copy of the same name.
+      actions.push(actionBtn('archive', 'archive', '',
+        archivedTwin ? ' disabled aria-describedby="cert-archive-note"' : ''));
+      if (archivedTwin) {
+        notes.push('<p class="text-muted note-text" id="cert-archive-note">an archived "' +
+          esc(cert.name) + '" already exists here — delete it or restore it (swap) first</p>');
       }
     }
-    if (viewOnly) notes.push('<p class="text-muted note-text">uploaded certificates are view-only here</p>');
+    if (cert.isArchived && !viewOnly) {
+      actions.push(actionBtn('restore', 'restore'));
+      actions.push(actionBtn('delete', 'delete', 'btn--danger'));
+    }
+    if (viewOnly) notes.push('<p class="text-muted note-text">certificates in ' + esc(loc.label) + ' are view-only here</p>');
 
     const created = cert.cert && cert.cert.modified ? new Date(cert.cert.modified) : null;
     const meta = [statusPill(c.state, c.daysLeft)];
@@ -430,9 +433,9 @@
       case 'download-cert': if (cert.cert) downloadCert(folder, cert.cert.filename); break;
       case 'download-key': if (cert.key) downloadKey(folder, cert.key.filename); break;
       case 'pfx': generatePFX(folder, cert.name); break;
-      case 'archive': archiveCertificate(folder, cert.name); break;
-      case 'restore': restoreCertificate(folder, cert.name); break;
-      case 'delete': if (!model.activeTwinOf(cert, state.certs)) deleteCertificate(folder, cert.name); break;
+      case 'archive': if (!model.archivedTwinOf(cert, state.certs)) archiveCertificate(folder, cert.name); break;
+      case 'restore': restoreCertificate(folder, cert.name, !!model.activeTwinOf(cert, state.certs)); break;
+      case 'delete': deleteCertificate(folder, cert.name, !!model.activeTwinOf(cert, state.certs)); break;
       case 'edit-note':
       case 'save-note':
       case 'cancel-note': {
@@ -502,12 +505,22 @@
     (h1 || current || filterEl).focus();
   }
 
-  async function deleteCertificate(folder, certName) {
+  // The server answers 409 TWIN_EXISTS when the list was stale and an
+  // archived/active copy of the same name appeared in the meantime. The
+  // handlers reload and keep the cert the user acted on selected.
+  function isTwinConflict(err) {
+    return !!(err && err.status === 409 && err.body && err.body.code === 'TWIN_EXISTS');
+  }
+
+  // Delete is only offered on archived certs; ?archived=true makes the server
+  // delete the archive copy alone, never a same-named active cert.
+  async function deleteCertificate(folder, certName, hasActiveTwin) {
     const ok = await confirmDialog(
-      'Permanently delete the archived "' + certName + '" and its key? This cannot be undone.', 'delete', true);
+      'permanently delete the archived "' + certName + '" and its key?' +
+      (hasActiveTwin ? ' the active "' + certName + '" is not affected.' : ''), 'delete', true);
     if (!ok) return;
     try {
-      await state.api.del('/certificates/' + enc(folder) + '/' + enc(certName));
+      await state.api.del('/certificates/' + enc(folder) + '/' + enc(certName) + '?archived=true');
       toast('certificate "' + certName + '" deleted permanently', 'ok');
       await load();
       focusAfterChange();
@@ -531,20 +544,42 @@
       selectMoved(folder, certName, true);
       focusAfterChange();
     } catch (err) {
+      if (isTwinConflict(err)) {
+        await load();
+        toast('an archived "' + certName + '" already exists here — reloaded', 'err');
+        selectMoved(folder, certName, false);
+        focusAfterChange();
+        return;
+      }
       toast('failed to archive certificate: ' + err.message, 'err');
     }
   }
 
-  async function restoreCertificate(folder, certName) {
-    const ok = await confirmDialog('Restore the certificate "' + certName + '" from the archive?', 'restore', false);
+  // With an active twin, restore swaps the two copies (server ?swap=true).
+  // Either way the active key then holds the restored cert, so select it.
+  async function restoreCertificate(folder, certName, hasActiveTwin) {
+    const ok = hasActiveTwin
+      ? await confirmDialog('swap with the active "' + certName + '"? the active copy moves to the archive' +
+          ' and this archived copy becomes active.', 'swap', true)
+      : await confirmDialog('Restore the certificate "' + certName + '" from the archive?', 'restore', false);
     if (!ok) return;
     try {
-      await state.api.post('/certificates/' + enc(folder) + '/' + enc(certName) + '/restore');
-      toast('certificate "' + certName + '" restored', 'ok');
+      const body = await state.api.post('/certificates/' + enc(folder) + '/' + enc(certName) + '/restore' +
+        (hasActiveTwin ? '?swap=true' : ''));
+      toast(body.swapped
+        ? 'certificate "' + certName + '" swapped with the active copy'
+        : 'certificate "' + certName + '" restored', 'ok');
       await load();
       selectMoved(folder, certName, false);
       focusAfterChange();
     } catch (err) {
+      if (isTwinConflict(err)) {
+        await load();
+        toast('an active "' + certName + '" exists — reloaded; try again', 'err');
+        selectMoved(folder, certName, true);
+        focusAfterChange();
+        return;
+      }
       toast('failed to restore certificate: ' + err.message, 'err');
     }
   }
