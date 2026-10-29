@@ -174,7 +174,7 @@ h1, h2, h3 { margin: 0; }
   display: flex; flex-direction: column; gap: 12px; padding: 16px;
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg-raised);
 }
-.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; }
 .chip {
   display: inline-block; font-size: 12px; padding: 4px 9px; border-radius: var(--radius);
   background: var(--hover); border: 1px solid var(--border-strong);
