@@ -369,3 +369,15 @@ textarea.input { min-height: 96px; padding: 8px 10px; resize: vertical; line-hei
 .codeblock--scroll { max-height: 50vh; overflow: auto; }
 .kv--cron { grid-template-columns: max-content 1fr; }
 .is-filtered-out { display: none !important; }
+
+/* ---- Login page (no shell) ---- */
+.login-wrap {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+}
+.login-card { width: 100%; max-width: 380px; gap: 16px; }
+.login-card form { display: flex; flex-direction: column; gap: 14px; margin: 0; }
+.login-card .brand { padding: 0; }
+.login-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+.login-or { text-align: center; color: var(--text-muted); font-size: 11px; }
+a.btn { text-decoration: none; justify-content: center; text-align: center; }
+.login-card .page-title { flex: 0 0 auto; }
