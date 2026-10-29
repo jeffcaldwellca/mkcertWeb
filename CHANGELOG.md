@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
 ## [5.0.0] - 2026-10-29
 
 ### Highlights
@@ -162,6 +164,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - helmet's default `upgrade-insecure-requests` CSP directive can leave the page
   unstyled when it's opened over plain HTTP from another machine on the LAN.
   Use HTTPS or a TLS-terminating proxy.
+- `GET /api/scep/enterprise-ca/status` (and the SCEP page) always reports the
+  enterprise CA as disabled, even when `ENTERPRISE_CA_*` is set and manual
+  enrollment uses it.
+- With `CERT_MONITOR_UPLOADED=true` (the default) the monitor scans
+  `certificates/uploaded/` twice, so an expiring uploaded certificate is
+  listed and alerted twice. Set it to `false` when uploads live under
+  `certificates/`.
+- `NTFY_PRIORITY` (`ntfy.priority`) is shown on the notifications page but not
+  used: alerts go out at `high`, or `urgent` when a certificate is critical.
+  `HOST`, `THEME_PRIMARY_COLOR` and `THEME_DARK_MODE` are also read but have no
+  effect.
+- Some 5xx responses still put error details (file paths or command stderr)
+  in the `error` field for authenticated users, for example certificate
+  generation, root CA and SCEP failures. A follow-up will sanitise them
+  centrally in `apiResponse.serverError` and log the details instead.
 
 ## [4.4.3] - 2026-10-29
 

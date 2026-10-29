@@ -94,7 +94,7 @@ To run it as a service, use the systemd unit in
 app as `www-data` with the code in `/opt/mkcert-web-ui` owned by root and
 read-only to the service. Before the first start, create the directories it
 writes to with
-`sudo install -d -o www-data -g www-data certificates config data ssl`. The CA
+`cd /opt/mkcert-web-ui && sudo install -d -o www-data -g www-data certificates config data ssl`. The CA
 lives in `/var/lib/mkcert-web-ui/ca` (`StateDirectory` + `CAROOT`). When
 upgrading from an older unit, copy the existing `rootCA.pem` and
 `rootCA-key.pem` there first, or mkcert creates a new CA. If you use the
@@ -217,8 +217,14 @@ At runtime the app creates `certificates/`, `config/`, `data/` and (with HTTPS)
 npm install
 npm run dev          # restart on change
 npm test             # all tests
-npm run https-dev    # dev server with HTTPS on 3443
+npm run https-dev    # dev server with HTTPS on 3443 (creates ssl/ with mkcert)
 ```
+
+These use mkcert's default CA directory (`mkcert -CAROOT`); `https-dev` signs its
+certificate with that CA and mkcert creates one there if none exists. To keep
+your real CA out of it, prefix the command with a scratch `CAROOT`, for example
+`CAROOT=/tmp/mkcert-scratch-ca npm run https-dev` (see
+[CONTRIBUTING.md](CONTRIBUTING.md#development-setup)).
 
 There is no build step. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
 architecture, design and security rules, and [docs/TESTING.md](docs/TESTING.md)
