@@ -3,7 +3,7 @@
 A secure, modern web interface for managing SSL certificates using the mkcert CLI tool. Generate, download, and manage local development certificates with enterprise-grade security and an intuitive web interface.
 
 > 🖥️ **Landing page:** a terminal-themed project page lives in [`/docs`](docs/) and is published via GitHub Pages (Settings → Pages → Deploy from branch → `main` / `/docs`).
-> 🎨 **Design:** the landing page and dashboard share one visual language (aqua-phosphor accent, system-mono, 4px shape). The shared token block lives in both stylesheets; `scripts/check-shared-tokens.sh` verifies they stay in sync.
+> 🎨 **Design:** the landing page and dashboard share one visual language (aqua-phosphor accent, system-mono, 4px shape). The shared token block lives in both `public/css/app.css` and `docs/assets/styles.css`; `scripts/check-shared-tokens.sh` verifies they stay in sync.
 
 ## ✨ Key Features
 
@@ -15,14 +15,14 @@ A secure, modern web interface for managing SSL certificates using the mkcert CL
 - **📧 Email Notifications**: Automated SMTP alerts for expiring certificates
 - **📊 Certificate Monitoring**: Automatic monitoring with configurable warning periods
 - **📝 Certificate Notes**: Attach a free-text note to any certificate card to document what it's for (stored in `data/certificate-notes.json`)
-- **🎨 Modern UI**: Dark/light themes with responsive design
+- **🎨 Modern UI**: Split-pane dashboard (list on the left, detail on the right) with dark/light themes, and a layout that collapses for narrow screens
 - **🐳 Docker Ready**: Complete containerization with docker-compose
 
 ## 📷 Screenshots
 
 ![mkcert Web UI Interface](public/assets/screenshot.png)
 
-*Modern web interface showing certificate generation and management features*
+*Split-pane certificates page: quick generate and the certificate list on the left, the selected certificate's details on the right (dark theme)*
 
 ## 🚀 Quick Start
 
