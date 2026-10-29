@@ -81,6 +81,14 @@ text-transform: uppercase; letter-spacing: 1.5px;` applied to display/section
 headings on both surfaces. (Hero/large display headings may scale letter-spacing
 up proportionally.)
 
+**State styling (shared, added 2026-10-29 at the owner's request):** no side-stripe
+accents. Cards, list items, toasts, banners, alerts and code blocks never get a
+`border-left`/`border-right` (or `border-inline-*`) colour bar, and never get an inset
+side box-shadow. Show selection and status with a full 1px outline tinted at ~45%
+plus a tinted fill, coloured text, a status dot, or an uppercase status tag. The
+dashboard enforces this in `test/frontend-guards.test.js` (`findSideStripes`). See
+also `2026-10-29-split-pane-redesign-design.md` → Decisions → "State styling".
+
 **Button language (shared):** primary = accent fill + `--accent-contrast` text +
 `--glow`, `--radius`; secondary = 1px border, accent or neutral text, no glow,
 `--radius`; focus-visible = visible accent outline/inverse (never `outline:none`
