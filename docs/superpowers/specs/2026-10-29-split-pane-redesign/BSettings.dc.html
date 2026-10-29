@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mkcert Split Pane — Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0e13}
+a{color:#2cf5b8}a:hover{color:#8cf5d4}
+.tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;color:#9aa5b1;text-decoration:none;font-size:13px;border-bottom:2px solid transparent;box-sizing:border-box}
+.tab:hover{color:#e6edf3}
+.item{display:flex;align-items:center;gap:10px;min-height:38px;padding:0 14px;border-radius:6px;text-decoration:none;color:#d6dde6;font-size:13px}
+.item:hover{background:#131a22}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-radius:4px;font-size:12px;box-sizing:border-box}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px}
+.key{font-size:11px;color:#6e7a87}
+.input{min-height:38px;box-sizing:border-box;background:#070a0e;border:1px solid #242c36;border-radius:4px;padding:0 10px;color:#e6edf3;font-family:inherit;font-size:13px;width:100%}
+.input:focus{outline:none;border-color:rgba(44,245,184,0.6);box-shadow:0 0 0 3px rgba(44,245,184,0.08)}
+.switch{display:flex;align-items:center;gap:12px;min-height:44px;font-size:13px;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 960px; display: flex; flex-direction: column; background: #0a0e13; color: #d6dde6; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px">
+
+  <!-- Top bar -->
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 0 24px; border-bottom: 1px solid #1c232c; background: #0d1218">
+    <div style="font-weight: 700; font-size: 16px; color: #2cf5b8; text-shadow: 0 0 10px rgba(44,245,184,0.35); padding: 12px 0"><span style="color: #ff6b6b">&gt;</span> mkcert<span style="color: #8b96a3; font-weight: 400">_web</span></div>
+    <nav aria-label="Primary" style="display: flex; flex-wrap: wrap; flex: 1 1 400px">
+      <a class="tab" href="#">certificates</a>
+      <a class="tab" href="#">root-ca</a>
+      <a class="tab" href="#">scep</a>
+      <a class="tab" href="#">notifications</a>
+      <a class="tab" href="#" style="color: #2cf5b8; border-bottom-color: #2cf5b8">settings</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: #9aa5b1">
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>mkcert</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>CA</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>openssl</span>
+      <span style="color: #2c3540">|</span>
+      <span>admin@devbox</span>
+      <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">logout</button>
+    </div>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; min-height: 0">
+
+    <!-- Section list -->
+    <nav aria-label="Settings sections" style="flex: 1 1 260px; max-width: 100%; box-sizing: border-box; border-right: 1px solid #1c232c; background: #0c1116; padding: 12px 8px 16px; display: flex; flex-direction: column; gap: 2px">
+      <label style="display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 4px 6px 8px; padding: 0 10px; border: 1px solid #1c232c; border-radius: 4px; color: #8b96a3">
+        <span>/</span>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Find a setting</span>
+        <input type="search" placeholder="find setting…" style="all: unset; flex: 1; min-width: 0; font-family: inherit; font-size: 12px; color: #e6edf3">
+      </label>
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+        <div style="padding: 12px 14px 4px; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">{{g.label}}</div>
+        <sc-for list="{{g.items}}" as="i" hint-placeholder-count="3">
+          <a class="item" href="#" style="{{i.style}}">
+            <span style="flex: 1">{{i.name}}</span>
+            <span style="{{i.dot}}"></span>
+          </a>
+        </sc-for>
+      </sc-for>
+    </nav>
+
+    <!-- Form -->
+    <section aria-label="Email notification settings" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+      <div style="padding: 22px 32px 18px; border-bottom: 1px solid #1c232c; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+        <div style="flex: 1 1 300px">
+          <div style="font-size: 12px; color: #8b96a3">settings / alerts</div>
+          <h1 style="margin: 2px 0 0; font-size: 22px; font-weight: 600; color: #e6edf3"><span style="color: #ff6b6b">$</span> email</h1>
+        </div>
+        <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">verify smtp</button>
+        <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">send test</button>
+      </div>
+
+      <form style="flex: 1; padding: 22px 32px; display: flex; flex-direction: column; gap: 26px; max-width: 880px">
+        <label class="switch">
+          <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #2cf5b8">
+          <span style="flex: 1">Enable email notifications</span>
+          <span class="key">email.enabled</span>
+        </label>
+
+        <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px">
+          <legend style="padding: 0; margin-bottom: 14px; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">SMTP SERVER</legend>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px">
+            <label class="field" style="grid-column: span 2"><span class="field-top"><span>Host</span><span class="key">email.smtp.host</span></span><input class="input" type="text" placeholder="[SMTP HOST]"></label>
+            <label class="field"><span class="field-top"><span>Port</span><span class="key">email.smtp.port</span></span><input class="input" type="number" value="587"></label>
+            <label class="field"><span class="field-top"><span>Username</span><span class="key">email.smtp.auth.user</span></span><input class="input" type="text" placeholder="[SMTP USER]"></label>
+            <label class="field"><span class="field-top"><span>Password</span><span class="key">email.smtp.auth.pass</span></span><input class="input" type="password" value="••••••••••••"></label>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px 28px">
+            <label class="switch"><input type="checkbox" style="width: 18px; height: 18px; accent-color: #2cf5b8"><span>Use SSL (port 465)</span></label>
+            <label class="switch"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #2cf5b8"><span>Reject unauthorized TLS</span><span style="font-size: 11px; color: #4ade80">recommended</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px">
+          <legend style="padding: 0; margin-bottom: 14px; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">MESSAGE</legend>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px">
+            <label class="field"><span class="field-top"><span>From</span><span class="key">email.from</span></span><input class="input" type="email" placeholder="[FROM ADDRESS]"></label>
+            <label class="field"><span class="field-top"><span>To</span><span class="key">email.to</span></span><input class="input" type="text" placeholder="[RECIPIENTS, comma-separated]"></label>
+            <label class="field" style="grid-column: 1 / -1"><span class="field-top"><span>Subject</span><span class="key">email.subject</span></span><input class="input" type="text" value="[mkcert] Certificate expiry warning"></label>
+          </div>
+        </fieldset>
+
+        <div style="border: 1px solid #1c232c; border-radius: 6px; background: #070a0e">
+          <div style="padding: 8px 12px; border-bottom: 1px solid #1c232c; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">LAST TEST</div>
+          <pre style="margin: 0; padding: 12px 14px; font-family: inherit; font-size: 12px; line-height: 1.8; color: #9aa5b1; white-space: pre-wrap"><span style="color: #ff6b6b">$</span> verify smtp
+<span style="color: #4ade80">ok</span>   connected · STARTTLS · auth accepted (212ms)
+<span style="color: #ff6b6b">$</span> send test
+<span style="color: #4ade80">ok</span>   queued for 2 recipients · 250 2.0.0 accepted</pre>
+        </div>
+      </form>
+
+      <div style="position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 32px; border-top: 1px solid #1c232c; background: #0d1218">
+        <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: #fbbf24"><span style="width: 7px; height: 7px; border-radius: 999px; background: #fbbf24"></span>2 unsaved changes</span>
+        <span style="flex: 1"></span>
+        <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">discard</button>
+        <button class="btn" type="submit" style="background: #2cf5b8; color: #04140f; font-weight: 700">save changes</button>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dot = (on) => 'width: 7px; height: 7px; border-radius: 999px; box-sizing: border-box; ' + (on ? 'background: #4ade80' : 'border: 1.5px solid #6e7a87');
+    const groups = [
+      { label: 'SERVER', items: [['server', true], ['paths', true]] },
+      { label: 'ACCESS', items: [['basic auth', true], ['oidc sso', false], ['rate limits', true]] },
+      { label: 'ALERTS', items: [['email', true, true], ['ntfy', true], ['webhook', false], ['monitoring', true]] },
+      { label: 'APPEARANCE', items: [['theme', true]] }
+    ].map((g) => ({
+      label: g.label,
+      items: g.items.map(([name, on, active]) => ({
+        name,
+        dot: dot(on),
+        style: active ? 'background: rgba(44,245,184,0.08); box-shadow: inset 2px 0 0 #2cf5b8; color: #2cf5b8' : ''
+      }))
+    }));
+    return { groups };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mkcert Split Pane — SCEP</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0a0e13}
+a{color:#2cf5b8}a:hover{color:#8cf5d4}
+.tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;color:#9aa5b1;text-decoration:none;font-size:13px;border-bottom:2px solid transparent;box-sizing:border-box}
+.tab:hover{color:#e6edf3}
+.item{display:flex;flex-direction:column;gap:4px;padding:10px 14px;border-radius:6px;text-decoration:none;color:#d6dde6}
+.item:hover{background:#131a22}
+.btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-radius:4px;font-size:12px;box-sizing:border-box}
+.subtab{all:unset;cursor:pointer;min-height:36px;padding:0 4px;display:inline-flex;align-items:center;font-size:13px;color:#9aa5b1;border-bottom:2px solid transparent}
+.copy{all:unset;cursor:pointer;font-size:11px;color:#9aa5b1;padding:2px 6px;border:1px solid #242c36;border-radius:3px}
+.copy:hover{color:#2cf5b8;border-color:rgba(44,245,184,0.4)}
+.trow{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(170px,1.2fr) 110px 110px 90px 80px;gap:14px;align-items:center;padding:0 16px;min-height:44px;border-bottom:1px solid #1c232c;font-size:12px}
+</style>
+</helmet>
+<div style="min-height: 960px; display: flex; flex-direction: column; background: #0a0e13; color: #d6dde6; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px">
+
+  <!-- Top bar -->
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 0 24px; border-bottom: 1px solid #1c232c; background: #0d1218">
+    <div style="font-weight: 700; font-size: 16px; color: #2cf5b8; text-shadow: 0 0 10px rgba(44,245,184,0.35); padding: 12px 0"><span style="color: #ff6b6b">&gt;</span> mkcert<span style="color: #8b96a3; font-weight: 400">_web</span></div>
+    <nav aria-label="Primary" style="display: flex; flex-wrap: wrap; flex: 1 1 400px">
+      <a class="tab" href="#">certificates</a>
+      <a class="tab" href="#">root-ca</a>
+      <a class="tab" href="#" style="color: #2cf5b8; border-bottom-color: #2cf5b8">scep</a>
+      <a class="tab" href="#">notifications</a>
+      <a class="tab" href="#">settings</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: #9aa5b1">
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>mkcert</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>CA</span>
+      <span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span>openssl</span>
+      <span style="color: #2c3540">|</span>
+      <span>admin@devbox</span>
+      <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">logout</button>
+    </div>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; min-height: 0">
+
+    <!-- Left pane: service config -->
+    <section aria-label="SCEP service" style="flex: 1 1 340px; max-width: 100%; box-sizing: border-box; border-right: 1px solid #1c232c; display: flex; flex-direction: column; background: #0c1116">
+      <div style="padding: 16px; border-bottom: 1px solid #1c232c; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; justify-content: space-between; align-items: center">
+          <span style="font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">SERVICE</span>
+          <span style="font-size: 11px; color: #4ade80; border: 1px solid rgba(74,222,128,0.35); border-radius: 999px; padding: 1px 8px">● running</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #8b96a3"><span>service url</span><button class="copy" type="button">copy</button></div>
+            <code style="font-family: inherit; font-size: 12px; color: #8cc8ff; background: #070a0e; border: 1px solid #1c232c; border-radius: 4px; padding: 7px 9px; word-break: break-all">https://devbox:3443/scep</code>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #8b96a3"><span>GetCACert</span><button class="copy" type="button">copy</button></div>
+            <code style="font-family: inherit; font-size: 12px; color: #8cc8ff; background: #070a0e; border: 1px solid #1c232c; border-radius: 4px; padding: 7px 9px; word-break: break-all">/scep?operation=GetCACert</code>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #8b96a3"><span>GetCACaps</span><button class="copy" type="button">copy</button></div>
+            <code style="font-family: inherit; font-size: 12px; color: #8cc8ff; background: #070a0e; border: 1px solid #1c232c; border-radius: 4px; padding: 7px 9px; word-break: break-all">/scep?operation=GetCACaps</code>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 14px 16px; border-bottom: 1px solid #1c232c; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">ENTERPRISE CA</span>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="width: 7px; height: 7px; border-radius: 999px; background: #4ade80"></span><span style="flex: 1">mkcert root@devbox</span><span style="color: #8b96a3">RSA 2048</span></div>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; padding: 4px 8px 16px; display: flex; flex-direction: column; gap: 2px">
+        <div style="display: flex; justify-content: space-between; padding: 14px 14px 6px; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3"><span>TEMPLATES</span><span>4</span></div>
+        <sc-for list="{{templates}}" as="t" hint-placeholder-count="4">
+          <a class="item" href="#">
+            <span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1; color: #e6edf3">{{t.name}}</span><span style="font-size: 11px; color: #8b96a3">{{t.issued}} issued</span></span>
+            <span style="font-size: 11px; color: #8b96a3">{{t.desc}}</span>
+          </a>
+        </sc-for>
+      </div>
+      <div style="margin: 0 16px 16px; padding: 10px 12px; border: 1px dashed #2c3540; border-radius: 4px; font-size: 11px; line-height: 1.6; color: #9aa5b1">Simplified SCEP for dev &amp; test. Use a full-featured SCEP server in production.</div>
+    </section>
+
+    <!-- Right pane -->
+    <section aria-label="SCEP management" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+      <div style="padding: 22px 32px 0; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid #1c232c">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+          <h1 style="margin: 0; flex: 1 1 260px; font-size: 22px; font-weight: 600; color: #e6edf3"><span style="color: #ff6b6b">$</span> scep</h1>
+          <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">⟳ refresh</button>
+          <button class="btn" type="button" style="border: 1px solid #242c36; color: #d6dde6">mdm guide</button>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12px; color: #9aa5b1">
+          <span>3 active challenges</span><span>2 certificates issued</span><span>key size 2048 (RSA)</span>
+        </div>
+        <div role="tablist" aria-label="SCEP sections" style="display: flex; gap: 22px">
+          <button class="subtab" role="tab" aria-selected="true" type="button" style="color: #2cf5b8; border-bottom-color: #2cf5b8">challenges</button>
+          <button class="subtab" role="tab" aria-selected="false" type="button">issued</button>
+          <button class="subtab" role="tab" aria-selected="false" type="button">manual enroll</button>
+          <button class="subtab" role="tab" aria-selected="false" type="button">mdm setup</button>
+        </div>
+      </div>
+
+      <div style="padding: 24px 32px; display: flex; flex-direction: column; gap: 22px">
+
+        <!-- New challenge -->
+        <form style="display: flex; flex-direction: column; gap: 10px">
+          <span style="font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">NEW CHALLENGE PASSWORD</span>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid rgba(44,245,184,0.35); border-radius: 4px; background: #070a0e; padding: 6px 6px 6px 12px; box-shadow: 0 0 0 3px rgba(44,245,184,0.06)">
+            <span style="color: #ff6b6b">$</span><span style="color: #8b96a3">challenge new --id</span>
+            <label style="flex: 1 1 180px; display: flex"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Identifier</span><input type="text" value="ipad-floor3-07" style="all: unset; flex: 1; min-width: 0; color: #2cf5b8; font-family: inherit; font-size: 13px"></label>
+            <label style="display: flex; align-items: center; gap: 8px; color: #8b96a3">--ttl
+              <select style="min-height: 30px; background: #0d1218; color: #d6dde6; border: 1px solid #242c36; border-radius: 4px; font-family: inherit; font-size: 12px; padding: 0 6px">
+                <option>1h</option><option>2h</option><option>24h</option><option>7d</option>
+              </select>
+            </label>
+            <button class="btn" type="submit" style="background: #2cf5b8; color: #04140f; font-weight: 700">run ↵</button>
+          </div>
+        </form>
+
+        <!-- Just created -->
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(74,222,128,0.35); background: rgba(74,222,128,0.06); border-radius: 4px; font-size: 12px">
+          <span style="color: #4ade80">✓ created</span>
+          <span style="color: #9aa5b1">tablet-floor2-04</span>
+          <code style="font-family: inherit; font-size: 14px; letter-spacing: 0.06em; color: #e6edf3; background: #070a0e; border: 1px solid #1c232c; border-radius: 4px; padding: 4px 10px">K7QF-29XM-PL4D</code>
+          <button class="copy" type="button">copy</button>
+          <span style="flex: 1"></span>
+          <span style="color: #9aa5b1">shown once · expires in 59m</span>
+        </div>
+
+        <!-- Active challenges -->
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.08em; color: #8b96a3"><span>ACTIVE CHALLENGES · 3</span><span>auto-pruned on expiry</span></div>
+          <div style="border: 1px solid #1c232c; border-radius: 6px; overflow-x: auto; background: #0d1218">
+            <div style="min-width: 760px">
+              <div class="trow" style="min-height: 36px; font-size: 11px; letter-spacing: 0.06em; color: #8b96a3"><span>IDENTIFIER</span><span>PASSWORD</span><span>CREATED</span><span>EXPIRES</span><span>STATE</span><span></span></div>
+              <sc-for list="{{challenges}}" as="c" hint-placeholder-count="3">
+                <div class="trow">
+                  <span style="color: #e6edf3">{{c.id}}</span>
+                  <span style="color: #9aa5b1; letter-spacing: 0.06em">{{c.pw}}</span>
+                  <span style="color: #9aa5b1">{{c.created}}</span>
+                  <span style="{{c.expStyle}}">{{c.expires}}</span>
+                  <span style="{{c.stateStyle}}">{{c.state}}</span>
+                  <button class="btn" type="button" style="min-height: 28px; padding: 0 8px; color: #f87171; border: 1px solid rgba(248,113,113,0.35)">revoke</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <!-- Issued preview -->
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 11px; letter-spacing: 0.08em; color: #8b96a3">RECENT ENROLLMENTS</div>
+          <div style="font-size: 12px; line-height: 1.9; color: #9aa5b1">
+            <div><span style="color: #8b96a3">2026-10-28 11:07</span>  <span style="color: #4ade80">ok  </span>  LAPTOP-042.corp.local · Computer · via challenge laptop-042</div>
+            <div><span style="color: #8b96a3">2026-10-12 09:30</span>  <span style="color: #4ade80">ok  </span>  vpn.corp.local · WiFi · via challenge vpn-gw</div>
+            <div><span style="color: #8b96a3">2026-10-11 17:52</span>  <span style="color: #f87171">fail</span>  ipad-floor3-02 · challenge expired</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const templates = [
+      { name: 'User', desc: 'client authentication', issued: 0 },
+      { name: 'M365User', desc: 'Microsoft 365 · requires UPN', issued: 0 },
+      { name: 'Computer', desc: 'machine authentication', issued: 1 },
+      { name: 'WiFi', desc: 'wireless (802.1X) authentication', issued: 1 }
+    ];
+    const tone = { pending: '#8cc8ff', expiring: '#fbbf24' };
+    const challenges = [
+      { id: 'tablet-floor2-04', pw: '••••-••••-PL4D', created: '10-29 10:14', expires: '59m', state: 'pending' },
+      { id: 'kiosk-lobby-01', pw: '••••-••••-8RTA', created: '10-29 08:02', expires: '6m', state: 'expiring' },
+      { id: 'mbp-design-11', pw: '••••-••••-Q2ZC', created: '10-28 16:40', expires: '5d 6h', state: 'pending' }
+    ].map((c) => ({
+      ...c,
+      expStyle: 'color: ' + (c.state === 'expiring' ? '#fbbf24' : '#9aa5b1'),
+      stateStyle: 'justify-self: start; font-size: 11px; padding: 1px 8px; border-radius: 999px; color: ' + tone[c.state] + '; border: 1px solid ' + tone[c.state] + '59'
+    }));
+    return { templates, challenges };
+  }
+}
+</script>
+</body>
+</html>
