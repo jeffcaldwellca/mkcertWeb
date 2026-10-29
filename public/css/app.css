@@ -124,14 +124,15 @@ h1, h2, h3 { margin: 0; }
 
 /* ---- Command bar ---- */
 .cmdbar {
-  display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-height: 40px; padding: 4px 10px;
   border: 1px solid var(--accent-glow); border-radius: var(--radius); background: var(--bg-inset);
   box-shadow: 0 0 0 3px var(--accent-wash); color: var(--text-muted);
 }
 .cmdbar .prompt { color: var(--prompt); }
 .cmdbar input {
-  all: unset; flex: 1; min-width: 0; color: var(--accent); font: inherit;
+  all: unset; flex: 1 1 140px; min-width: 0; color: var(--accent); font: inherit;
 }
+.cmdbar .select { width: auto; }
 .cmdbar:focus-within { border-color: var(--accent); }
 
 /* ---- List ---- */
