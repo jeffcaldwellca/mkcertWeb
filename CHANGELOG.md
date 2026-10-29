@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **CA generation failed when running as a custom UID (#54).** With e.g.
+  `user: "2000:2000"`, the UID has no passwd entry, Docker sets `HOME=/`, and
+  mkcert tried to create `/.local/share/mkcert`. The image now sets
+  `CAROOT=/home/nodejs/.local/share/mkcert`, so the CA path no longer depends
+  on `HOME`. `docs/DOCKER.md` documents running as a custom UID.
+
 ### Security
 
 - **Dependency updates for four advisories.** `npm audit` is clean again:
