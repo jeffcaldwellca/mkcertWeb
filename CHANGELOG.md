@@ -35,6 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   probe `/api/health` instead of `/`; change any custom health check the same
   way. Set `TRUST_PROXY` to your reverse proxy's address as the container sees
   it (see [docs/DOCKER.md](docs/DOCKER.md#https-and-reverse-proxies)).
+- [ ] **`docker run`:** add `-v mkcert_config:/app/config` so settings saved in
+  the UI (`config/settings.json`) survive recreating the container, as
+  `docker-compose.yml` and `npm run docker:run` now do.
 - [ ] **systemd:** the unit moved to `deploy/mkcert-web-ui.service` and keeps
   the CA in `/var/lib/mkcert-web-ui/ca`. Before starting it, copy the existing
   `rootCA.pem` and `rootCA-key.pem` there (or mkcert creates a new CA), then
