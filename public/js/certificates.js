@@ -169,8 +169,9 @@
     return '<span class="pill pill--muted">expiry unknown</span>';
   }
 
-  function actionBtn(action, label, extra) {
-    return '<button class="btn' + (extra ? ' ' + extra : '') + '" type="button" data-action="' + action + '">' + label + '</button>';
+  function actionBtn(action, label, extra, attrs) {
+    return '<button class="btn' + (extra ? ' ' + extra : '') + '" type="button" data-action="' + action + '"' +
+      (attrs || '') + '>' + label + '</button>';
   }
 
   function renderDetail(cert, now) {
@@ -182,15 +183,26 @@
     const loc = model.locationOf(cert);
     const c = model.classify(cert, now);
 
-    // Current rules from the legacy card: pfx needs a key and an editable cert;
-    // archive only for editable, non-archived; restore + delete only for archived.
-    const actions = [actionBtn('bundle', '↓ bundle')];
-    if (cert.key && !loc.readOnly) actions.push(actionBtn('pfx', 'pfx'));
+    // Only offer what the server can do. Uploaded certs are rejected by every
+    // per-cert route; downloads and pfx never look inside archive/.
+    const viewOnly = loc.folderParam === 'uploaded';
+    const twin = model.activeTwinOf(cert, state.certs);
+    const actions = [];
+    const notes = [];
+    if (!viewOnly && !cert.isArchived) actions.push(actionBtn('bundle', '↓ bundle'));
+    if (cert.key && !loc.readOnly && !cert.isArchived) actions.push(actionBtn('pfx', 'pfx'));
     if (!loc.readOnly && !cert.isArchived) actions.push(actionBtn('archive', 'archive'));
-    if (cert.isArchived) {
+    if (cert.isArchived && !viewOnly) {
       actions.push(actionBtn('restore', 'restore'));
-      actions.push(actionBtn('delete', 'delete', 'btn--danger'));
+      // Deleting an archived copy also removes a same-named active cert.
+      actions.push(actionBtn('delete', 'delete', 'btn--danger',
+        twin ? ' disabled aria-describedby="cert-delete-note"' : ''));
+      if (twin) {
+        notes.push('<p class="text-muted note-text" id="cert-delete-note">restore or rename the active "' +
+          esc(cert.name) + '" first — deleting would also remove it</p>');
+      }
     }
+    if (viewOnly) notes.push('<p class="text-muted note-text">uploaded certificates are view-only here</p>');
 
     const created = cert.cert && cert.cert.modified ? new Date(cert.cert.modified) : null;
     const meta = [statusPill(c.state, c.daysLeft)];
@@ -208,8 +220,8 @@
 
     const panels = {
       overview: overviewHtml(cert, loc, c, created, now),
-      files: filesHtml(cert),
-      notes: notesHtml(cert, loc)
+      files: filesHtml(cert, !viewOnly && !cert.isArchived),
+      notes: notesHtml(cert, loc, viewOnly)
     };
 
     detailEl.innerHTML =
@@ -219,6 +231,7 @@
           actions.join('') +
         '</div>' +
         '<div class="meta-row">' + meta.join('') + '</div>' +
+        notes.join('') +
         '<div class="subtabs" role="tablist" aria-label="Certificate sections">' + tabs + '</div>' +
       '</div>' +
       TABS.map((t) =>
@@ -279,6 +292,7 @@
       '</div>';
   }
 
+  // action is null when the file can't be downloaded from here.
   function fileCard(title, file, action) {
     return '<div class="card"><div class="section-label">' + title + '</div>' +
       '<dl class="kv">' +
@@ -286,17 +300,17 @@
         '<dt>size</dt><dd>' + esc(formatFileSize(file.size)) + '</dd>' +
         '<dt>modified</dt><dd>' + esc(fmtDate(file.modified ? new Date(file.modified) : null)) + '</dd>' +
       '</dl>' +
-      '<div class="row">' + actionBtn(action, '↓ download') + '</div></div>';
+      (action ? '<div class="row">' + actionBtn(action, '↓ download') + '</div>' : '') + '</div>';
   }
 
-  function filesHtml(cert) {
+  function filesHtml(cert, downloadable) {
     const cards = [];
-    if (cert.cert) cards.push(fileCard('certificate', cert.cert, 'download-cert'));
+    if (cert.cert) cards.push(fileCard('certificate', cert.cert, downloadable ? 'download-cert' : null));
     else cards.push('<div class="card"><div class="section-label">certificate</div><p class="text-muted">missing</p></div>');
     if (cert.key && cert.key.type === 'p12-bundle') {
       cards.push('<div class="card"><div class="section-label">private key</div><p class="text-muted">The private key is inside the .p12 bundle.</p></div>');
     } else if (cert.key) {
-      cards.push(fileCard('private key', cert.key, 'download-key'));
+      cards.push(fileCard('private key', cert.key, downloadable ? 'download-key' : null));
     } else {
       cards.push('<div class="card"><div class="section-label">private key</div><p class="text-muted">missing</p></div>');
     }
@@ -305,11 +319,17 @@
 
   // ------------------------------------------------------------------ notes
 
-  function notesHtml(cert, loc) {
+  // readOnly: the notes route rejects this folder, so show the note only.
+  function notesHtml(cert, loc, readOnly) {
+    const note = certNotes.get(model.certKey(cert)) || '';
+    if (readOnly) {
+      return '<div class="card"><div class="section-label">notes</div>' +
+        (note ? '<p class="note-text">' + esc(note) + '</p>' : '<p class="text-muted">No note.</p>') + '</div>';
+    }
     return '<div class="card"><div class="section-label">notes</div>' +
       '<div class="certificate-notes" data-key="' + esc(model.certKey(cert)) + '" data-folder="' + esc(loc.folderParam) +
       '" data-name="' + esc(cert.name) + '">' +
-      renderNoteContent(certNotes.get(model.certKey(cert)) || '') +
+      renderNoteContent(note) +
       '</div></div>';
   }
 
@@ -409,7 +429,7 @@
       case 'pfx': generatePFX(folder, cert.name); break;
       case 'archive': archiveCertificate(folder, cert.name); break;
       case 'restore': restoreCertificate(folder, cert.name); break;
-      case 'delete': deleteCertificate(folder, cert.name); break;
+      case 'delete': if (!model.activeTwinOf(cert, state.certs)) deleteCertificate(folder, cert.name); break;
       case 'edit-note':
       case 'save-note':
       case 'cancel-note': {
@@ -481,7 +501,7 @@
 
   async function deleteCertificate(folder, certName) {
     const ok = await confirmDialog(
-      'Permanently delete "' + certName + '"? This cannot be undone.', 'delete', true);
+      'Permanently delete the archived "' + certName + '" and its key? This cannot be undone.', 'delete', true);
     if (!ok) return;
     try {
       await state.api.del('/certificates/' + enc(folder) + '/' + enc(certName));

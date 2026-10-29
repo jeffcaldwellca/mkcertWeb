@@ -41,9 +41,36 @@ test('groupCertificates omits empty groups, sorts null last then by name', () =>
   assert.deepStrictEqual(groups[0].items.map((c) => c.name), ['c', 'a', 'b']);
 });
 
-test('uploaded certs with a folder are not read-only (ruling 1)', () => {
-  const groups = m.groupCertificates([{ name: 'u', folder: '2026-01-02', canEdit: false, expiry: inDays(5) }], now);
+test('dated-folder certs stay editable and group by expiry (ruling 12)', () => {
+  const groups = m.groupCertificates([{ name: 'd', folder: '2026-01-02', canEdit: false, expiry: inDays(5) }], now);
   assert.deepStrictEqual(groups.map((g) => g.id), ['attention']);
+});
+
+test('uploaded certs are read-only (ruling 12)', () => {
+  const loc = m.locationOf({ name: 'u', folder: 'uploaded' });
+  assert.strictEqual(loc.readOnly, true);
+  assert.strictEqual(loc.folderParam, 'uploaded');
+  assert.strictEqual(loc.label, 'Uploaded');
+  // uploaded -> READ-ONLY, even when expiring
+  const groups = m.groupCertificates([{ name: 'u', folder: 'uploaded', canEdit: false, expiry: inDays(5) }], now);
+  assert.deepStrictEqual(groups.map((g) => g.id), ['readonly']);
+});
+
+test('uploaded + archived certs group as archived (ruling 12)', () => {
+  const groups = m.groupCertificates([{ name: 'u', folder: 'uploaded', isArchived: true, expiry: inDays(5) }], now);
+  assert.deepStrictEqual(groups.map((g) => g.id), ['archived']);
+});
+
+test('activeTwinOf finds the active cert sharing an archived cert\'s folder + name (ruling 13)', () => {
+  const archived = { name: 'x', folder: '2026-01-02', isArchived: true };
+  const active = { name: 'x', folder: '2026-01-02' };
+  const other = [{ name: 'x', folder: '2026-01-03' }, { name: 'y', folder: '2026-01-02' }];
+  assert.strictEqual(m.activeTwinOf(archived, [archived, active, ...other]), active);
+  assert.strictEqual(m.activeTwinOf(archived, [archived, ...other]), null);
+  // only archived certs have a twin to worry about
+  assert.strictEqual(m.activeTwinOf(active, [archived, active]), null);
+  // another archived copy is not an active twin
+  assert.strictEqual(m.activeTwinOf(archived, [archived, { name: 'x', folder: '2026-01-02', isArchived: true }]), null);
 });
 
 test('locationOf matches existing folder rules', () => {

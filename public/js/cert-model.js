@@ -12,11 +12,15 @@
     return cert.name === 'mkcert-rootCA' || !!(cert.cert && cert.cert.filename === 'mkcert-rootCA.pem');
   }
 
-  // Same branching as the legacy public/script.js folder logic.
+  // Where a cert lives, and whether the server lets the UI act on it.
   function locationOf(cert) {
     const isRootCA = isRootCAName(cert);
     if (cert.isInterfaceSSL) {
       return { folderParam: 'interface-ssl', label: 'Interface SSL', readOnly: true, isRootCA };
+    }
+    // Every per-cert route rejects the uploaded folder, so it is view-only.
+    if (cert.folder === 'uploaded') {
+      return { folderParam: 'uploaded', label: 'Uploaded', readOnly: true, isRootCA };
     }
     if (cert.folder) {
       return { folderParam: cert.folder, label: cert.folder, readOnly: false, isRootCA };
@@ -30,6 +34,15 @@
   // Archived and active certs can share folder + name, so the key marks archived ones.
   function certKey(cert) {
     return locationOf(cert).folderParam + '/' + (cert.isArchived ? 'archive/' : '') + cert.name;
+  }
+
+  // The active cert sharing an archived cert's folder + name, if any.
+  // Deleting the archived copy would also remove it on the server.
+  function activeTwinOf(cert, certs) {
+    if (!cert || !cert.isArchived) return null;
+    const folder = locationOf(cert).folderParam;
+    return (certs || []).find((c) => !c.isArchived && c.name === cert.name &&
+      locationOf(c).folderParam === folder) || null;
   }
 
   function classify(cert, now) {
@@ -122,7 +135,7 @@
   }
 
   return {
-    ATTENTION_DAYS, locationOf, certKey, classify, groupCertificates, metaLine,
+    ATTENTION_DAYS, locationOf, certKey, activeTwinOf, classify, groupCertificates, metaLine,
     matchesQuery, parseQuickGenerate, resolveSelection, parseHash, formatHash
   };
 });
