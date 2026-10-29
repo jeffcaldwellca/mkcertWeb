@@ -135,6 +135,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Security
 
+- **5xx responses no longer leak server internals.** Several error bodies
+  (certificate generation, root CA info/install/uninstall/generate, archive,
+  restore, delete, downloads, SCEP, notification tests, monitoring, upload)
+  echoed `error.message`, mkcert/openssl stderr or the command line, which can
+  include absolute paths, the CA directory and the home directory, to anyone
+  who could call the route (everyone when `ENABLE_AUTH` is off).
+  `NODE_ENV=development` also put the raw message and stack in every 500.
+  Every 500 now returns a fixed message and a `ref`; the full error is logged
+  under that `ref`. Notification tests and CA install/uninstall/generate add a
+  short sanitised `reason` (e.g. `ECONNREFUSED`). Toasts show the reason and
+  the ref. Unexpected upload failures are now a 500 (they were a 400 with the
+  fs error), and a file that can't be saved is reported without the fs error.
+  A guard test keeps error details out of 5xx bodies.
 - **`ENABLE_OIDC=true` without `ENABLE_AUTH=true` left the settings API and
   `mkcert -uninstall` open to anyone.** Those guards accepted the OIDC flag as
   "authentication enabled", but without `ENABLE_AUTH` there is no login at all
@@ -179,10 +192,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   used: alerts go out at `high`, or `urgent` when a certificate is critical.
   `HOST`, `THEME_PRIMARY_COLOR` and `THEME_DARK_MODE` are also read but have no
   effect.
-- Some 5xx responses still put error details (file paths or command stderr)
-  in the `error` field for authenticated users, for example certificate
-  generation, root CA and SCEP failures. A follow-up will sanitise them
-  centrally in `apiResponse.serverError` and log the details instead.
 
 ## [4.4.3] - 2026-10-29
 

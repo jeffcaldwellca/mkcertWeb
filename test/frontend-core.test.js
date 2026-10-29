@@ -87,6 +87,32 @@ test('error message comes from body.error', async () => {
   });
 });
 
+test('formatApiError adds the reason and the ref when present', () => {
+  assert.strictEqual(core.formatApiError({ error: 'Failed to archive certificate' }, 500), 'Failed to archive certificate');
+  assert.strictEqual(core.formatApiError({ error: 'Failed to archive certificate', ref: '1a2b3c4d' }, 500),
+    'Failed to archive certificate · ref 1a2b3c4d');
+  assert.strictEqual(core.formatApiError({ error: 'SMTP verification failed', reason: 'ECONNREFUSED', ref: '0badf00d' }, 500),
+    'SMTP verification failed (ECONNREFUSED) · ref 0badf00d');
+  assert.strictEqual(core.formatApiError({ message: 'Nope' }, 400), 'Nope');
+  assert.strictEqual(core.formatApiError({}, 502), 'HTTP 502');
+  assert.strictEqual(core.formatApiError(null, 500), 'HTTP 500');
+});
+
+test('api client error message carries the reason and ref of a 5xx body', async () => {
+  const f = fakeFetch([
+    { status: 200, body: { csrfToken: 't1' } },
+    { status: 500, body: { success: false, error: 'SMTP verification failed', reason: 'ECONNREFUSED', ref: 'deadbeef' } }
+  ]);
+  const api = core.createApiClient({ fetchImpl: f });
+  await assert.rejects(() => api.post('/email/verify', {}), err => {
+    assert.strictEqual(err.message, 'SMTP verification failed (ECONNREFUSED) · ref deadbeef');
+    assert.strictEqual(err.ref, 'deadbeef');
+    assert.strictEqual(err.reason, 'ECONNREFUSED');
+    assert.strictEqual(err.status, 500);
+    return true;
+  });
+});
+
 test('upload sends FormData without Content-Type', async () => {
   const f = fakeFetch([
     { status: 200, body: { csrfToken: 't1' } },

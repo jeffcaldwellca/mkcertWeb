@@ -178,7 +178,7 @@ class NtfyService {
       return { success: true, message: 'Test NTFY notification sent successfully', ...result };
     } catch (error) {
       console.error('Failed to send test NTFY notification:', error.message);
-      throw new Error(`Failed to send test NTFY notification: ${error.message}`);
+      throw new Error(`Failed to send test NTFY notification: ${error.message}`, { cause: error });
     }
   }
 }

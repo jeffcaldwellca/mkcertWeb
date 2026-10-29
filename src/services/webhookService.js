@@ -165,7 +165,7 @@ class WebhookService {
       return { success: true, message: 'Test webhook notification sent successfully', ...result };
     } catch (error) {
       console.error('Failed to send test webhook notification:', error.message);
-      throw new Error(`Failed to send test webhook notification: ${error.message}`);
+      throw new Error(`Failed to send test webhook notification: ${error.message}`, { cause: error });
     }
   }
 }

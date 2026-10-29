@@ -466,9 +466,11 @@ fs.ensureDirSync(CERT_DIR);
 
 // Centralized error-handling middleware. asyncHandler forwards all async
 // route errors here so error formatting lives in one place.
+// serverError logs the full error under a reference ID; the body carries
+// only a fixed message and that ID.
 app.use((err, req, res, next) => {
-  console.error(err.stack || err);
   if (res.headersSent) {
+    console.error(err.stack || err);
     return next(err);
   }
   apiResponse.serverError(res, 'Internal server error', err);

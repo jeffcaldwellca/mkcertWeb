@@ -196,10 +196,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
               format: format
             });
           } catch (error) {
-            console.error('Certificate generation error:', error);
-            return apiResponse.serverError(res, 
-              `Certificate generation failed: ${error.error || error.message}`
-            );
+            return apiResponse.serverError(res, 'Certificate generation failed', error);
           }
         case 'caroot':
           fullCommand = 'mkcert -CAROOT';
@@ -366,8 +363,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         path: rootCAPath
       });
     } catch (error) {
-      console.error('Error getting root CA info:', error);
-      apiResponse.serverError(res, 'Failed to get root CA information: ' + error.message);
+      apiResponse.serverError(res, 'Failed to get root CA information', error);
     }
   }));
 
@@ -435,12 +431,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         if (fsSync.existsSync(pfxFile)) fsSync.unlinkSync(pfxFile);
       });
     } catch (error) {
-      console.error('PFX generation error:', error);
       if (fsSync.existsSync(pfxFile)) {
         try { fsSync.unlinkSync(pfxFile); } catch (_) {}
       }
       // The raw error embeds the openssl command line (absolute server paths); keep it in the log only.
-      return apiResponse.serverError(res, 'failed to generate PFX');
+      return apiResponse.serverError(res, 'failed to generate PFX', error);
     } finally {
       if (passFile && fsSync.existsSync(passFile)) {
         try { fsSync.unlinkSync(passFile); } catch (_) {}
@@ -503,8 +498,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
 
       apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
     } catch (error) {
-      console.error('Archive error:', error);
-      apiResponse.serverError(res, `Failed to archive certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to archive certificate', error);
     }
   }));
 
@@ -583,8 +577,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         scope
       });
     } catch (error) {
-      console.error('Delete error:', error);
-      apiResponse.serverError(res, `Failed to delete certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to delete certificate', error);
     }
   }));
 
@@ -662,13 +655,12 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
           swapped: true
         });
       } catch (error) {
-        console.error('Restore swap error:', error);
         if (error.rollbackFailures) {
           console.error('Restore swap rollback incomplete:', error.rollbackFailures);
           return apiResponse.serverError(res,
-            `Failed to swap certificate ${certname} and could not fully roll back; check its archive folder for .swap-* files`);
+            `Failed to swap certificate ${certname} and could not fully roll back; check its archive folder for .swap-* files`, error);
         }
-        return apiResponse.serverError(res, `Failed to swap certificate: ${error.message}`);
+        return apiResponse.serverError(res, 'Failed to swap certificate', error);
       }
     }
 
@@ -679,8 +671,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
 
       apiResponse.success(res, { message: `Certificate ${certname} restored successfully`, swapped: false });
     } catch (error) {
-      console.error('Restore error:', error);
-      apiResponse.serverError(res, `Failed to restore certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to restore certificate', error);
     }
   }));
 
@@ -752,8 +743,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(filePath, filename);
     } catch (error) {
-      console.error('Download error:', error);
-      apiResponse.serverError(res, `Failed to download certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download certificate', error);
     }
   }));
 
@@ -796,8 +786,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(filePath, filename);
     } catch (error) {
-      console.error('Download error:', error);
-      apiResponse.serverError(res, `Failed to download key: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download key', error);
     }
   }));
 
@@ -875,10 +864,10 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       // Once headers are sent we can't 500; the best we can do is destroy
       // the socket so the client sees an aborted download.
       archive.on('error', (err) => {
-        console.error('Archive stream error:', err);
         if (!res.headersSent) {
-          return apiResponse.serverError(res, `Bundle stream failed: ${err.message}`);
+          return apiResponse.serverError(res, 'Bundle stream failed', err);
         }
+        console.error('Archive stream error:', err);
         try { res.destroy(err); } catch (_) {}
       });
       archive.on('warning', (err) => {
@@ -892,9 +881,10 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
 
       await archive.finalize();
     } catch (error) {
-      console.error('Bundle download error:', error);
       if (!res.headersSent) {
-        apiResponse.serverError(res, `Failed to download bundle: ${error.message}`);
+        apiResponse.serverError(res, 'Failed to download bundle', error);
+      } else {
+        console.error('Bundle download error:', error);
       }
     }
   }));
@@ -913,8 +903,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(rootCAPath, 'mkcert-rootCA.pem');
     } catch (error) {
-      console.error('Root CA download error:', error);
-      apiResponse.serverError(res, `Failed to download root CA: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download root CA', error);
     }
   }));
 

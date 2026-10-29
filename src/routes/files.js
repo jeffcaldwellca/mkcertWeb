@@ -45,6 +45,7 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       try {
         security.validateFilename(file.originalname);
       } catch (err) {
+        err.expose = true; // our own validation message, safe to show
         return cb(err);
       }
       cb(null, file.originalname);
@@ -64,7 +65,7 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       if (hasAllowedExtension) {
         cb(null, true);
       } else {
-        cb(new Error('Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed'));
+        cb(Object.assign(new Error('Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed'), { expose: true }));
       }
     }
   });
@@ -152,7 +153,9 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
           type: type
         });
       } catch (moveError) {
-        results.errors.push(`Failed to save ${fileName}: ${moveError.message}`);
+        // The fs error names server paths; keep it in the log.
+        console.error(`Failed to save upload ${fileName}:`, moveError);
+        results.errors.push(`Failed to save ${fileName}`);
       }
     }
 
@@ -190,7 +193,12 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       }
     }
     
-    return apiResponse.badRequest(res, error.message || 'File upload failed');
+    // Multer's own errors and our validation errors (expose) are written for
+    // the user; anything else (fs, staging) may name server paths.
+    if (error instanceof multer.MulterError || error.expose === true) {
+      return apiResponse.badRequest(res, error.message || 'File upload failed');
+    }
+    return apiResponse.serverError(res, 'File upload failed', error);
   });
 
   return router;

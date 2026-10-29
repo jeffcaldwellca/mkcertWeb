@@ -17,6 +17,20 @@ checks that the index matches the routes in the source.
 
 Errors use `{ "success": false, "error": "<message>" }`. Some errors add a
 machine-readable `code` (`CSRF_INVALID`, `TWIN_EXISTS`, `SWAP_INCOMPLETE`).
+
+A `500` carries a fixed message and a reference ID, never the underlying error
+(no paths, stderr, command lines or stack traces, whatever `NODE_ENV` is):
+
+```json
+{ "success": false, "error": "Failed to archive certificate", "ref": "3f9c1a0e" }
+```
+
+The server log has the full error on a line that starts with the same
+`[ref 3f9c1a0e]`, plus the method and path. Where the cause helps an admin
+act (the email, ntfy and webhook tests and SMTP verify; root CA install,
+uninstall and generate), the body also has a short `reason`: an error code
+such as `ECONNREFUSED`, `EAUTH`, `ETIMEDOUT` or `ENOENT`, or else one line of
+the error with absolute paths replaced by `<path>` (at most 120 characters).
 Download routes (`/api/download/*`, `/api/generate/pfx/*`,
 `/api/settings/export`, `GET /scep`) send a file instead.
 

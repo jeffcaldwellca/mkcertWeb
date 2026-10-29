@@ -49,7 +49,9 @@ test('password-PFX failure returns a generic error with no server paths', async 
     assert.ok(!text.includes(process.cwd()), 'body must not contain cwd');
     assert.ok(!/\//.test(JSON.parse(text).error), 'error must contain no path');
     assert.ok(!text.includes('openssl') && !text.includes('/tmp'), 'no command line or temp path');
-    assert.ok(logged.some(l => l.includes('PFX generation error')), 'full error still logged server-side');
+    const { ref } = JSON.parse(text);
+    assert.match(ref, /^[0-9a-f]{8}$/);
+    assert.ok(logged.some(l => l.includes(ref) && l.includes(leaky)), 'full error still logged server-side under the ref');
   } finally {
     console.error = origErr;
     await app.close();

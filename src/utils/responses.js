@@ -1,5 +1,83 @@
 // HTTP response utilities to eliminate code duplication
+const crypto = require('crypto');
+const os = require('os');
+const path = require('path');
+const util = require('util');
+
 const isDevelopment = process.env.NODE_ENV === 'development';
+
+const REASON_MAX = 120;
+
+// Directories to hide in a public reason, longest first: CAROOT (set, and
+// mkcert's defaults), the working directory and the home directory.
+function privateDirs() {
+  const home = os.homedir();
+  const dataHome = process.env.XDG_DATA_HOME || (home && path.join(home, '.local', 'share'));
+  const dirs = [
+    process.env.CAROOT,
+    home && path.join(home, 'Library', 'Application Support', 'mkcert'),
+    dataHome && path.join(dataHome, 'mkcert'),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'mkcert'),
+    process.cwd(),
+    home
+  ];
+  return [...new Set(dirs.filter((d) => typeof d === 'string' && d.length > 1))]
+    .sort((a, b) => b.length - a.length);
+}
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// The rest of a path after a known directory: up to whitespace, a quote or
+// punctuation that ends a path in an error message.
+const PATH_TAIL = `[^\\s'"\`),;:]*`;
+const UNIX_PATH = /(^|[\s'"`(=\[])\/[^\s'"`),;:\]]+/g;
+const WINDOWS_PATH = /\b[A-Za-z]:\\[^\s'"`),;:]*/g;
+
+function stripPaths(text) {
+  let out = text;
+  for (const dir of privateDirs()) {
+    out = out.replace(new RegExp(escapeRegExp(dir) + PATH_TAIL, 'g'), '<path>');
+  }
+  return out.replace(UNIX_PATH, '$1<path>').replace(WINDOWS_PATH, '<path>');
+}
+
+const lines = (v) => (typeof v === 'string' ? v.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : []);
+
+function errorCode(err) {
+  for (let e = err, depth = 0; e && typeof e === 'object' && depth < 5; e = e.cause, depth++) {
+    // A system errno names the failure precisely (nodemailer reports a
+    // refused connection as code ESOCKET with errno ECONNREFUSED).
+    if (Number.isInteger(e.errno) && e.errno < 0) {
+      try { return util.getSystemErrorName(e.errno); } catch (_) { /* unknown errno */ }
+    }
+    if (typeof e.originalCode === 'string' && /^E[A-Z0-9_]+$/.test(e.originalCode)) return e.originalCode;
+    if (typeof e.code === 'string' && /^E[A-Z0-9_]+$/.test(e.code)) return e.code;
+  }
+  return null;
+}
+
+/**
+ * A short, safe reason for an admin-actionable failure (notification tests,
+ * CA install/uninstall/generate): the error code (ECONNREFUSED, EAUTH,
+ * ENOENT, ...) when there is one; otherwise the last line of a child
+ * process's stderr (its fatal error) or the first line of the message, with
+ * absolute paths, the working/home directories and CAROOT replaced by
+ * <path>, at most 120 characters. Returns undefined when there is nothing.
+ * Not for generate, file or download errors: those get the fixed message.
+ */
+function publicReason(err) {
+  if (err === null || err === undefined) return undefined;
+  const code = errorCode(err);
+  if (code) return code;
+  let line;
+  if (typeof err === 'string') line = lines(err)[0];
+  else {
+    const stderr = lines(err.stderr);
+    line = stderr.length ? stderr[stderr.length - 1] : lines(typeof err.message === 'string' ? err.message : err.error)[0];
+  }
+  if (!line) return undefined;
+  const safe = stripPaths(line);
+  return safe.length > REASON_MAX ? safe.slice(0, REASON_MAX - 1) + '…' : safe;
+}
 
 /**
  * Standard API response helpers
@@ -47,16 +125,18 @@ const apiResponse = {
   },
 
   /**
-   * Send an internal server error (500)
+   * Send an internal server error (500). The body is the caller's fixed
+   * message plus a short reference ID; the full `originalError` goes to the
+   * server log under that ID, never into the response. `extra.reason` (from
+   * publicReason) is the only detail that may reach the client.
    */
-  serverError: (res, error = 'Internal server error', originalError = null) => {
-    const response = { 
-      success: false, 
-      error: isDevelopment && originalError ? originalError.message : error 
-    };
-    if (isDevelopment && originalError?.stack) {
-      response.stack = originalError.stack;
-    }
+  serverError: (res, error = 'Internal server error', originalError = null, extra = {}) => {
+    const ref = crypto.randomBytes(4).toString('hex');
+    const req = res.req;
+    const where = req && req.method ? `${req.method} ${String(req.originalUrl || req.url || '').split('?')[0]} ` : '';
+    console.error(`[ref ${ref}] ${where}500 ${error}`, ...(originalError != null ? [originalError] : []));
+    const response = { success: false, error, ref };
+    if (extra && typeof extra.reason === 'string' && extra.reason) response.reason = extra.reason;
     return res.status(500).json(response);
   }
 };
@@ -107,6 +187,7 @@ const validateRequest = (validators) => {
 
 module.exports = {
   apiResponse,
+  publicReason,
   asyncHandler,
   validateRequest
 };

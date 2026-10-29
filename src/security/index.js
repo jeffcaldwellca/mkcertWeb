@@ -109,7 +109,9 @@ function runTool(tool, args = [], options = {}) {
         if (error.code === 'ETIMEDOUT') {
           return reject({ error: 'Command timed out after 30 seconds', stderr });
         }
-        return reject({ error: error.message, stderr });
+        // Keep a string errno code (ENOENT: tool not found) for publicReason.
+        const code = typeof error.code === 'string' ? { code: error.code } : {};
+        return reject({ error: error.message, stderr, ...code });
       }
       resolve({ stdout, stderr });
     });

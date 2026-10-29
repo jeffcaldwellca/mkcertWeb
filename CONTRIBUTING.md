@@ -47,7 +47,14 @@ CSRF, rate limiters, then the routers in `src/routes/` and a final `/api/*` 404.
 | `src/utils/` | certificate parsing and grouping, PKCS#7/SCEP, enterprise CA, response helpers |
 
 API responses are `{ success: true, ...data }` or `{ success: false, error }`
-(`src/utils/responses.js`). New routes must also be added to the `GET /api`
+(`src/utils/responses.js`). **Never put `error.message`, stderr, a stack or a
+command line in a response** — use
+`apiResponse.serverError(res, 'Fixed message', err[, { reason: publicReason(err) }])`,
+which logs the full error under a reference ID and returns the fixed message
+with that `ref`. Add `reason` only where it helps an admin act (notification
+tests, CA install/uninstall/generate), never for generate, file or download
+errors. `test/error-leak-guard.test.js` enforces this for `src/routes/` and
+`server.js`. New routes must also be added to the `GET /api`
 index in `src/routes/system.js`; `test/api-index.test.js` fails otherwise. The
 full route list is in [docs/API.md](docs/API.md).
 

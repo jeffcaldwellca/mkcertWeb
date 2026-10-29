@@ -46,7 +46,7 @@ class EmailService {
       return { success: true, message: 'SMTP connection verified successfully' };
     } catch (error) {
       console.error('SMTP verification failed:', error.message);
-      throw new Error(`SMTP verification failed: ${error.message}`);
+      throw new Error(`SMTP verification failed: ${error.message}`, { cause: error });
     }
   }
 
@@ -82,7 +82,7 @@ class EmailService {
       };
     } catch (error) {
       console.error('Failed to send certificate expiry notification:', error.message);
-      throw new Error(`Failed to send email: ${error.message}`);
+      throw new Error(`Failed to send email: ${error.message}`, { cause: error });
     }
   }
 
@@ -111,7 +111,7 @@ class EmailService {
       };
     } catch (error) {
       console.error('Failed to send test email:', error.message);
-      throw new Error(`Failed to send test email: ${error.message}`);
+      throw new Error(`Failed to send test email: ${error.message}`, { cause: error });
     }
   }
 

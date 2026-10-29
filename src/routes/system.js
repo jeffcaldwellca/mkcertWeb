@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs-extra');
 const { runTool, executeCommand } = require('../security');
-const { apiResponse, asyncHandler } = require('../utils/responses');
+const { apiResponse, asyncHandler, publicReason } = require('../utils/responses');
 // Read from package.json rather than npm_package_version: the Docker image
 // starts with `node server.js`, so npm never sets that variable.
 const { version: APP_VERSION } = require('../../package.json');
@@ -166,7 +166,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       const result = await runTool('mkcert', ['-install']);
       apiResponse.success(res, { output: result.stdout }, 'CA installed successfully');
     } catch (err) {
-      apiResponse.serverError(res, err.error || err.message || 'Install failed');
+      apiResponse.serverError(res, 'Failed to install the root CA', err, { reason: publicReason(err) });
     }
   }));
 
@@ -176,16 +176,16 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
   router.post('/api/generate-ca', requireAuth, rateLimiters.cliRateLimiter, asyncHandler(async (req, res) => {
     try {
       await runTool('mkcert', ['-help']);
-    } catch (_) {
-      return apiResponse.serverError(res, 'mkcert is not installed or not on PATH');
+    } catch (err) {
+      return apiResponse.serverError(res, 'mkcert is not installed or not on PATH', err, { reason: publicReason(err) });
     }
 
     let caRoot;
     try {
       const result = await runTool('mkcert', ['-CAROOT']);
       caRoot = result.stdout.trim();
-    } catch (_) {
-      return apiResponse.serverError(res, 'Failed to read mkcert CA root directory');
+    } catch (err) {
+      return apiResponse.serverError(res, 'Failed to read mkcert CA root directory', err, { reason: publicReason(err) });
     }
 
     const caKeyPath  = path.join(caRoot, 'rootCA-key.pem');
@@ -233,10 +233,8 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     const created = await fs.pathExists(caKeyPath) && await fs.pathExists(caCertPath);
     if (!created) {
       if (installError) {
-        const message = installError.error || installError.message || 'Unknown error';
-        const detail  = installError.stderr ? installError.stderr.trim() : null;
-        console.error('Error generating Root CA:', message, detail || '');
-        return apiResponse.serverError(res, detail ? `${message} — ${detail}` : message);
+        return apiResponse.serverError(res, 'Failed to generate the root CA', installError,
+          { reason: publicReason(installError) });
       }
       return apiResponse.serverError(res, 'mkcert -install ran but CA files were not created');
     }
@@ -250,7 +248,8 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
     }
     apiResponse.success(res, {
       caRoot, caExists: true, action: 'generated', trustStoreInstalled, caCopiedToPublic,
-      output: installResult ? installResult.stdout : (installError.stderr || ''),
+      // stdout only: on a trust-store failure stderr (logged above) can hold paths.
+      output: installResult ? installResult.stdout : '',
       publicCACertPath: publicCertPath
     }, trustStoreInstalled
       ? 'Root CA generated and installed successfully'
@@ -274,7 +273,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       const result = await runTool('mkcert', ['-uninstall']);
       apiResponse.success(res, { output: result.stdout }, 'CA uninstalled');
     } catch (err) {
-      apiResponse.serverError(res, err.error || err.message || 'Uninstall failed');
+      apiResponse.serverError(res, 'Failed to uninstall the root CA', err, { reason: publicReason(err) });
     }
   }));
 

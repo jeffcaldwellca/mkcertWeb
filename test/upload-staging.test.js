@@ -70,3 +70,49 @@ test('a rejected upload leaves no staging files behind', async () => {
   assert.deepStrictEqual(fs.readdirSync(tmp).filter((f) => f !== 'certificates'), []);
   assert.deepStrictEqual(stagingDirs(), before);
 });
+
+test('a rejected file type keeps its 400 message', async () => {
+  const res = await upload({ 'notes.txt': 'not a cert' });
+  assert.strictEqual(res.status, 400);
+  assert.match((await res.json()).error, /Only certificate files/);
+});
+
+test('an unexpected upload failure is a generic 500 with a ref, not the fs error', async () => {
+  const realMkdtemp = fs.mkdtempSync;
+  fs.mkdtempSync = () => {
+    throw Object.assign(new Error(`ENOSPC: no space left on device, mkdtemp '${privateTmp}/x'`), { code: 'ENOSPC' });
+  };
+  const origErr = console.error;
+  console.error = () => {};
+  try {
+    const res = await upload({ 'site.pem': 'CERT' });
+    const text = await res.text();
+    assert.strictEqual(res.status, 500, text);
+    const body = JSON.parse(text);
+    assert.strictEqual(body.error, 'File upload failed');
+    assert.match(body.ref, /^[0-9a-f]{8}$/);
+    assert.ok(!text.includes('/') && !text.includes('ENOSPC'), text);
+  } finally {
+    fs.mkdtempSync = realMkdtemp;
+    console.error = origErr;
+  }
+});
+
+test('a file that cannot be saved is reported without the fs error text', async () => {
+  const realCopy = fs.promises.copyFile;
+  fs.promises.copyFile = async (from, to) => {
+    throw Object.assign(new Error(`EACCES: permission denied, copyfile '${from}' -> '${to}'`), { code: 'EACCES' });
+  };
+  const origErr = console.error;
+  console.error = () => {};
+  try {
+    const res = await upload({ 'locked.pem': 'CERT' });
+    const text = await res.text();
+    const body = JSON.parse(text);
+    assert.deepStrictEqual(body.errors, ['Failed to save locked.pem']);
+    assert.ok(!text.includes(tmp) && !text.includes(privateTmp), text);
+  } finally {
+    fs.promises.copyFile = realCopy;
+    console.error = origErr;
+  }
+});

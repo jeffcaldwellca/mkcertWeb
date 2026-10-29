@@ -610,7 +610,9 @@
       let body = {};
       try { body = await res.json(); } catch (_) { /* not JSON */ }
       if (res.status === 401 && body.redirectTo) location.href = body.redirectTo;
-      const err = new Error(body.error || ('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : '')));
+      const err = new Error(body.error
+        ? core.formatApiError(body, res.status)
+        : 'HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
       err.status = res.status;
       err.body = body;
       throw err;

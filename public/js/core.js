@@ -12,6 +12,16 @@
     return String(value).replace(/[&<>"']/g, c => ESCAPES[c]);
   }
 
+  // The toast text for an error body: the server's fixed message, then the
+  // sanitised reason and the reference ID (which matches the server log).
+  function formatApiError(body, status) {
+    const b = body || {};
+    let text = b.error || b.message || 'HTTP ' + status;
+    if (b.reason) text += ' (' + b.reason + ')';
+    if (b.ref) text += ' · ref ' + b.ref;
+    return text;
+  }
+
   function createApiClient(options = {}) {
     const fetchImpl = options.fetchImpl || ((...a) => fetch(...a));
     const base = options.base === undefined ? '/api' : options.base;
@@ -56,9 +66,11 @@
       }
       if (!response.ok) {
         if (response.status === 401 && body.redirectTo) onRedirect(body.redirectTo);
-        const err = new Error(body.error || body.message || 'HTTP ' + response.status);
+        const err = new Error(formatApiError(body, response.status));
         err.status = response.status;
         err.body = body;
+        if (body.ref) err.ref = body.ref;
+        if (body.reason) err.reason = body.reason;
         throw err;
       }
       return body;
@@ -172,5 +184,5 @@
 
   ensureToastRegions();
 
-  return { escapeHtml, createApiClient, resolveInitialTheme, initTheme, toggleTheme, toast };
+  return { escapeHtml, formatApiError, createApiClient, resolveInitialTheme, initTheme, toggleTheme, toast };
 });

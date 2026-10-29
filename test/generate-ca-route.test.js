@@ -145,5 +145,7 @@ test('generate-ca still fails when mkcert -install errors without creating the C
 
   assert.strictEqual(status, 500);
   assert.strictEqual(body.success, false);
-  assert.match(body.error, /permission denied/);
+  assert.strictEqual(body.error, 'Failed to generate the root CA');
+  assert.match(body.reason, /permission denied/);
+  assert.match(body.ref, /^[0-9a-f]{8}$/);
 });

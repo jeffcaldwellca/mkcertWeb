@@ -28,6 +28,7 @@ Run `npm test` before every commit.
 | Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect | `auth-state`, `oidc-logout`, `https-redirect` |
 | SCEP: GetCACaps, enrollment authorisation, CSR name checks, enterprise CA calls and identity checks | `scep-*`, `enterprise-ca-*` |
 | Monitoring, notes store, response helpers, health version | `monitoring-*`, `notes-store`, `responses`, `health-version` |
+| 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, upload) | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |
 | Landing page console | `console-commands` |
 
 **Frontend modules.** The UMD modules in `public/js/` load in Node, so their
@@ -52,6 +53,12 @@ checks that keep the frontend inside the rules in
 - light-theme overrides exist for every surface token;
 - delete, archive and restore reload the list on a stale-list 404;
 - `/favicon.ico` and the web manifest point at files that exist.
+
+**Server guard** (`error-leak-guard.test.js`): no `serverError(…)` or
+`res.status(5xx).json|send(…)` in `src/routes/*.js` or `server.js` builds its
+body from an error object (`err.message`, `.stderr`, `.stack`, `${err}`, …);
+the optional `reason` must come from `publicReason(err)`. It has a self-test
+with positive and negative samples.
 
 ## Running a throwaway server
 
