@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mkcert Web UI — style guide</title>
+<link rel="stylesheet" href="css/app.css">
+<script>
+  if (location.search.indexOf('theme=light') !== -1) document.documentElement.setAttribute('data-theme', 'light');
+</script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="brand" href="#"><span class="prompt">&gt;</span> mkcert<span class="sub">_web</span></a>
+    <nav class="nav-tabs" aria-label="Primary">
+      <a class="nav-tab" href="#" aria-current="page">certificates</a>
+      <a class="nav-tab" href="#">root-ca</a>
+      <a class="nav-tab" href="#">settings</a>
+    </nav>
+    <div class="status-dots">
+      <span><span class="dot dot--ok"></span>mkcert</span>
+      <span><span class="dot dot--warn"></span>CA</span>
+      <span><span class="dot dot--err"></span>openssl</span>
+      <span><span class="dot dot--off"></span>scep</span>
+      <a class="nav-tab" href="?theme=light">light</a>
+      <a class="nav-tab" href="?theme=dark">dark</a>
+    </div>
+  </header>
+  <div class="panes">
+    <section class="pane-list" aria-label="List">
+      <form style="padding:16px;display:flex;flex-direction:column;gap:10px">
+        <label class="section-label" for="qg">quick generate</label>
+        <div class="cmdbar"><span class="prompt">$</span><span>mkcert</span><input id="qg" type="text" value="app.dev.local *.app.dev.local"></div>
+        <div style="display:flex;gap:8px"><select class="select" aria-label="Format"><option>pem</option><option>p12</option></select><button class="btn btn--primary" type="submit">run</button></div>
+      </form>
+      <div class="list-group">
+        <div class="section-label"><span>needs attention</span><span>2</span></div>
+        <a class="list-item" href="#" aria-current="true"><span style="display:flex;gap:8px;align-items:center"><span class="dot dot--warn"></span><span class="name" style="flex:1">*.staging.internal</span><span style="color:var(--info);font-size:11px">CRT</span></span><span class="meta">expires in 20d · 2 SANs</span></a>
+        <a class="list-item" href="#"><span style="display:flex;gap:8px;align-items:center"><span class="dot dot--err"></span><span class="name" style="flex:1">vpn.corp.local</span><span style="color:var(--info);font-size:11px">PEM</span></span><span class="meta">expired 17d ago</span></a>
+        <div class="section-label"><span>healthy</span><span>1</span></div>
+        <a class="list-item" href="#"><span style="display:flex;gap:8px;align-items:center"><span class="dot dot--ok"></span><span class="name" style="flex:1">localhost</span></span><span class="meta">442d left</span></a>
+      </div>
+    </section>
+    <section class="pane-detail" aria-label="Detail">
+      <div class="detail-head">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+          <h1 class="page-title"><span class="prompt">$</span> *.staging.internal</h1>
+          <button class="btn" type="button">download</button>
+          <button class="btn btn--ghost" type="button">archive</button>
+          <button class="btn btn--danger" type="button">delete</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span class="pill pill--warn">expires in 20 days</span><span class="pill pill--ok">ok</span>
+          <span class="pill pill--err">expired</span><span class="pill pill--muted">uploaded</span>
+        </div>
+        <div class="subtabs" role="tablist" aria-label="Sections">
+          <button class="subtab" role="tab" aria-selected="true" type="button">overview</button>
+          <button class="subtab" role="tab" aria-selected="false" type="button">files</button>
+        </div>
+      </div>
+      <div style="padding:24px 32px;display:flex;flex-direction:column;gap:16px">
+        <div class="banner banner--ok">ok banner</div>
+        <div class="banner banner--warn">warn banner</div>
+        <div class="banner banner--err">error banner</div>
+        <div class="card-grid">
+          <div class="card">
+            <div class="section-label">subject alt names · 2</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip">*.staging.internal</span><span class="chip">staging.internal</span></div>
+            <dl class="kv"><dt>key</dt><dd>RSA 2048</dd><dt>serial</dt><dd>7a:31:e0:5c</dd></dl>
+            <div class="meter" aria-hidden="true"><span style="width:60%"></span></div>
+          </div>
+          <div class="card">
+            <div class="field"><label for="f1">hostname</label><input class="input" id="f1" type="text" placeholder="example.local"><span class="field-key">server.hostname</span></div>
+            <div class="field"><label for="f2">enabled</label><input class="switch" id="f2" type="checkbox" checked></div>
+          </div>
+        </div>
+        <pre class="codeblock"><span class="c"># nginx</span>
+<span class="k">ssl_certificate</span> <span class="s">/certs/a.crt</span>;</pre>
+        <div class="log"><div><span class="ts">2026-10-29 08:00</span> <span class="lvl-warn">warn</span> monitor: expires in 20d</div><div><span class="ts">2026-03-02</span> <span class="lvl-info">info</span> downloaded</div></div>
+        <div class="empty">nothing here yet</div>
+        <div class="toast-stack" style="position:static"><div class="toast toast--ok">saved</div><div class="toast toast--err">failed</div><div class="toast toast--info">fyi</div></div>
+        <dialog class="dialog" style="position:static;display:block"><strong>confirm delete?</strong></dialog>
+      </div>
+      <div class="sticky-footer"><button class="btn btn--primary" type="button">save</button><button class="btn" type="button">cancel</button></div>
+    </section>
+  </div>
+</div>
+</body>
+</html>
