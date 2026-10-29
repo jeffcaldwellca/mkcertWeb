@@ -116,7 +116,8 @@ restart, and the settings page only works with `ENABLE_AUTH=true`.
 | `PORT` / `HTTPS_PORT` | `3000` / `3443` | Listening ports |
 | `ENABLE_HTTPS` | `false` | Also serve HTTPS with an mkcert certificate for `SSL_DOMAIN` |
 | `SSL_DOMAIN` | `localhost` | Name on the HTTPS certificate |
-| `FORCE_HTTPS` | `false` | With `ENABLE_HTTPS=true`, answer every plain-HTTP request with a 301 to the HTTPS port, except `/api/health` and `/scep`. `X-Forwarded-Proto: https` counts only from a trusted proxy (loopback or private address) |
+| `FORCE_HTTPS` | `false` | With `ENABLE_HTTPS=true`, answer every plain-HTTP request with a 301 to the HTTPS port, except `/api/health` and `/scep`. `X-Forwarded-Proto: https` counts only from a trusted proxy (`TRUST_PROXY`) |
+| `TRUST_PROXY` | `loopback,linklocal,uniquelocal` | Which proxies may set `X-Forwarded-For` / `X-Forwarded-Proto` (client IP for rate limits, HTTPS detection). `true`, `false`, a hop count, or comma-separated addresses, CIDRs or `loopback`/`linklocal`/`uniquelocal`. The default trusts every private-LAN client; set `loopback` or your proxy's address (see [docs/DOCKER.md](docs/DOCKER.md#https-and-reverse-proxies)). Environment only |
 | `THEME_MODE` | `light` (`dark` in Docker) | Default theme for new browsers |
 | `ENABLE_AUTH` | `false` | Require a login |
 | `AUTH_USERNAME` | `admin` | Login name |

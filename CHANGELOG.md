@@ -60,6 +60,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   and `rootCA-key.pem` from the service user's old mkcert directory there
   first, or mkcert creates a new CA (see `deploy/README.md`).
 
+### Added
+
+- `TRUST_PROXY` environment variable: which proxies may set
+  `X-Forwarded-For` / `X-Forwarded-Proto` (`true`, `false`, a hop count, or
+  addresses, CIDRs and `loopback`/`linklocal`/`uniquelocal`). The default is
+  the previous hard-coded `loopback,linklocal,uniquelocal`, so existing
+  proxy-container setups keep working; that default trusts every private-LAN
+  client, so set `loopback` or your proxy's address (see `docs/DOCKER.md`).
+
 ### Changed
 
 - Accessibility: focus returns to a sensible place after every re-render;

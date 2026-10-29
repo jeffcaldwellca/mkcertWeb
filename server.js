@@ -139,10 +139,10 @@ if (ENABLE_HTTPS && FORCE_HTTPS) {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Trust the first proxy hop if one is in front of us (so req.secure/req.ip work
-// correctly and rate-limiting buckets per-client rather than per-proxy).
-// Safe default for LAN/reverse-proxy deployments; tighten if you know better.
-app.set('trust proxy', 'loopback,linklocal,uniquelocal');
+// Which proxies may set X-Forwarded-For/-Proto (req.ip for rate limiting,
+// req.secure for FORCE_HTTPS). TRUST_PROXY, default
+// 'loopback,linklocal,uniquelocal'; see src/config/trustProxy.js.
+app.set('trust proxy', config.server.trustProxy);
 
 // Session configuration
 app.use(session({

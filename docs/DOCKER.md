@@ -120,9 +120,24 @@ home directory.
   there (301). `/api/health` (the health check) and `/scep` are not
   redirected, and nothing is redirected if the HTTPS server failed to start.
 - Behind a reverse proxy, terminate TLS at the proxy and forward to port 3000.
-  The app trusts `X-Forwarded-*` (including `X-Forwarded-Proto`, which
-  `FORCE_HTTPS` checks) only from loopback, link-local and private addresses.
-  Note that this includes every client on a private LAN, not only your proxy.
+  `TRUST_PROXY` decides whose `X-Forwarded-For` (the client IP used for rate
+  limits) and `X-Forwarded-Proto` (which `FORCE_HTTPS` checks) the app
+  believes. The default, `loopback,linklocal,uniquelocal`, trusts every
+  loopback, link-local and private address. That keeps a proxy container on a
+  Docker network working, but it also trusts **every client on a private
+  LAN**, which can then fake its IP to dodge rate limits or claim HTTPS to
+  skip the redirect. Narrow it to your proxy:
+
+  | Setup | `TRUST_PROXY` |
+  |---|---|
+  | Proxy on the same host (published port, host networking) | `loopback` |
+  | Proxy container on a compose network | the proxy's IP or the network's subnet, e.g. `172.18.0.0/16` (`docker network inspect <net>`) |
+  | Proxy elsewhere on the LAN | its exact IP, e.g. `192.168.1.10` |
+  | No proxy | `false` |
+
+  It also accepts `true` (trust everyone; never on a reachable port) or a hop
+  count. It is read from the environment only (not the settings page), and an
+  invalid value stops the server at startup.
 - The Content-Security-Policy includes `upgrade-insecure-requests`, so browsers
   load the page's scripts and styles over HTTPS. Reaching the UI over plain HTTP
   from another machine (for example `http://192.168.1.20:3000`) can leave the
