@@ -203,9 +203,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         case 'caroot':
           fullCommand = 'mkcert -CAROOT';
           break;
-        case 'list':
-          fullCommand = 'ls -la *.pem 2>/dev/null || echo "No certificates found"';
-          break;
         default:
           return apiResponse.badRequest(res, 'Invalid command');
       }
@@ -441,7 +438,8 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       if (fsSync.existsSync(pfxFile)) {
         try { fsSync.unlinkSync(pfxFile); } catch (_) {}
       }
-      return apiResponse.serverError(res, `Failed to generate PFX: ${error.message || error.error || 'unknown error'}`);
+      // The raw error embeds the openssl command line (absolute server paths); keep it in the log only.
+      return apiResponse.serverError(res, 'failed to generate PFX');
     } finally {
       if (passFile && fsSync.existsSync(passFile)) {
         try { fsSync.unlinkSync(passFile); } catch (_) {}

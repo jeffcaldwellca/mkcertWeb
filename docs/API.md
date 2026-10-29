@@ -119,8 +119,7 @@ Each entry has `name`, `cert` and `key` (file objects with `filename`, `size`,
 | `install-ca` | Returns a note without running anything when the CA files already exist; otherwise `mkcert -install`. | `output`, `command`, `warning?` |
 | `uninstall-ca` | `mkcert -uninstall`. Needs authentication enabled (403 otherwise) and `"confirm": true` (400 otherwise). | `output`, `command` |
 
-`list` is also accepted but currently fails with 500 (it builds an `ls` command
-that the command allowlist rejects).
+Any other value, including the removed `list`, gets `400 Invalid command`.
 
 **`POST /api/upload`.** Accepts `.pem`, `.crt`, `.key`, `.p12` and `.pfx`, up to
 10 MB each, and saves them to `certificates/uploaded/` (`UPLOADED_CERTS_DIR`).
@@ -130,7 +129,7 @@ Bad file types, bad names and oversized files return 400. Uploaded certificates
 are listed but the per-certificate routes above reject the `uploaded` folder.
 
 **`POST …/generate/pfx`.** Exports `<certname>.pem` + `<certname>-key.pem` from
-the active (not archived) folder. Without a password the PFX has an empty one.
+the active (not archived) folder. Without a password the PFX has an empty one. A failure returns `500` with the generic error `failed to generate PFX`; the details are logged on the server only.
 Known issue: a non-empty password currently fails with 500.
 
 ### Archived and active copies ("twins")

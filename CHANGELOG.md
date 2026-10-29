@@ -105,6 +105,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - The UI no longer offers actions the server always rejects: buttons for
   uploaded and SCEP certificates, and download/bundle/PFX for archived ones.
 - Command bars and card grids no longer overflow narrow screens.
+- The settings footer said saved settings override `.env`; it is the other way
+  round (environment variables that are set win), and now says so.
+- SCEP page: removed the `ENTERPRISE_CA_ORGANIZATION` and
+  `ENTERPRISE_CA_ORGANIZATIONAL_UNIT` variables (nothing reads them) and the
+  claim that challenges are configured through environment variables; they are
+  created on the page. Key size and M365 key usage text now match the code.
+- Webhook and ntfy test hints said "save, then test"; settings apply after a
+  restart, so they now say to restart first.
+- The upload dialog and file picker advertised `.cer`, `.p7b` and `.p7c`, which
+  the server rejects; they now list `.pem`, `.crt`, `.key`, `.p12` and `.pfx`.
+- A failed PFX export with a password no longer returns the openssl command
+  line and absolute server paths in the 500 body; it returns
+  `failed to generate PFX` and logs the details.
+- `POST /api/execute` no longer has the `list` command, which always failed
+  with 500; it now gets the same 400 as any unknown command.
 
 ### Removed
 

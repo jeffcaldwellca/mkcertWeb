@@ -290,7 +290,7 @@ const createSystemRoutes = (config, rateLimiters, requireAuth) => {
       },
       certificates: {
         'GET /api/certificates': 'List all certificates',
-        'POST /api/execute': 'Run an mkcert command (generate, caroot, list, install-ca, uninstall-ca)',
+        'POST /api/execute': 'Run an mkcert command (generate, caroot, install-ca, uninstall-ca)',
         'POST /api/upload': 'Upload certificate and key files',
         'POST /api/certificates/:folder/:certname/archive': 'Archive a certificate',
         'POST /api/certificates/:folder/:certname/restore': 'Restore an archived certificate (?swap=true|false)',
