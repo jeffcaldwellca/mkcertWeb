@@ -341,3 +341,11 @@ textarea.input { min-height: 96px; padding: 8px 10px; resize: vertical; line-hei
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---- Data table (SCEP page) ---- */
+.data-table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th, .data-table td { padding: 9px 12px; text-align: start; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.data-table th { font-size: 11px; font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.data-table td.path { overflow-wrap: anywhere; color: var(--text-muted); }
+.codeblock--wrap { white-space: pre-wrap; overflow-wrap: anywhere; }

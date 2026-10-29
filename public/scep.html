@@ -1,1018 +1,195 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SCEP Service - mkcert Web UI</title>
-  <link rel="stylesheet" href="styles.css">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <style>
-    /* SCEP-specific styles that extend the main theme */
-    .scep-config {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 15px;
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-      font-size: 14px;
-      margin: 10px 0;
-      color: var(--text-color);
-      word-break: break-all;
-    }
-
-    .scep-url {
-      background: var(--card-bg-secondary);
-      border: 1px solid var(--border-color);
-      border-left: 4px solid var(--primary-color);
-      border-radius: 8px;
-      padding: 15px;
-      margin: 15px 0;
-    }
-
-    .scep-url strong {
-      color: var(--primary-color);
-      display: block;
-      margin-bottom: 8px;
-    }
-
-    .scep-url code {
-      color: var(--secondary-color);
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-      font-size: 14px;
-      word-break: break-all;
-    }
-
-    .challenge-form {
-      display: grid;
-      gap: 20px;
-      max-width: 500px;
-    }
-
-    .challenge-form .btn {
-      justify-self: start;
-      width: auto;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .form-group label {
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: var(--primary-color);
-    }
-
-    .form-group input,
-    .form-group select {
-      padding: 12px;
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      background: var(--input-bg);
-      color: var(--text-color);
-      font-size: 14px;
-      transition: all 0.3s ease;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 5px var(--glow-primary);
-    }
-
-    .certificate-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      background: var(--card-bg);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .certificate-table th,
-    .certificate-table td {
-      padding: 12px 16px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .certificate-table th {
-      background: var(--card-bg-secondary);
-      font-weight: 600;
-      color: var(--primary-color);
-    }
-
-    .certificate-table td {
-      color: var(--text-color);
-    }
-
-    .certificate-table code {
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
-      color: var(--secondary-color);
-      font-size: 12px;
-    }
-
-    .status-indicator {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-right: 8px;
-    }
-
-    .status-active {
-      background: var(--success-color);
-      box-shadow: 0 0 5px var(--success-color);
-    }
-
-    .status-expired {
-      background: var(--error-color);
-      box-shadow: 0 0 5px var(--error-color);
-    }
-
-    /* Card styling for SCEP-specific content containers */
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 1.5rem;
-      box-shadow: inset 0 1px 0 var(--glow-primary);
-      transition: all 0.3s ease;
-    }
-
-    /* Section h3 styling to match site theme */
-    section h3 {
-      color: var(--primary-color);
-      margin-bottom: 1rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--border-color);
-      font-size: 1.2rem;
-      font-weight: 600;
-      text-shadow: 0 0 5px var(--glow-primary);
-    }
-
-    section h3 i {
-      margin-right: 0.5rem;
-      color: var(--secondary-color);
-    }
-
-    /* Section h4 styling for nested headings */
-    section h4 {
-      color: var(--text-color);
-      margin-top: 1rem;
-      margin-bottom: 0.5rem;
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    section h5 {
-      color: var(--text-color);
-      margin-top: 1rem;
-      margin-bottom: 0.5rem;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    /* Validation feedback styling */
-    .validation-feedback {
-      margin-top: 0.5rem;
-      font-size: 0.875rem;
-      padding: 0.5rem;
-      border-radius: 4px;
-    }
-
-    .validation-feedback.valid {
-      color: var(--success-color);
-      background: rgba(0, 255, 65, 0.1);
-      border: 1px solid rgba(0, 255, 65, 0.3);
-    }
-
-    .validation-feedback.invalid {
-      color: var(--error-color);
-      background: rgba(255, 0, 65, 0.1);
-      border: 1px solid rgba(255, 0, 65, 0.3);
-    }
-
-    /* Navigation styles to match main page */
-    .nav-link {
-      color: var(--primary-color);
-      text-decoration: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      transition: all 0.3s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .nav-link:hover {
-      background: var(--button-hover-bg);
-      transform: translateY(-1px);
-    }
-
-    .nav-link.active {
-      background: var(--primary-color);
-      color: var(--card-bg);
-    }
-
-    .nav-link i {
-      font-size: 16px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>scep · mkcert Web UI</title>
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <button class="theme-toggle" id="theme-toggle">
-        <i class="fas fa-sun"></i> Light Mode
-      </button>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h1><i class="fas fa-satellite-dish"></i> SCEP Service</h1>
-          <p>Simple Certificate Enrollment Protocol for mkcert</p>
-        </div>
-        <div id="auth-controls" style="display: none;">
-          <span id="username-display" style="margin-right: 15px; color: var(--secondary-color);"></span>
-          <button id="logout-btn" class="btn btn-logout">
-            <i class="fas fa-sign-out-alt"></i> Logout
-          </button>
-        </div>
-      </div>
-    </header>
+<div class="app">
+  <header id="shell"></header>
 
-    <!-- Navigation -->
-    <nav style="background: var(--secondary-bg); padding: 10px 0; margin: 20px 0; border-radius: 8px; border: 1px solid var(--border-color);">
-      <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-        <a href="/" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-          <i class="fas fa-home"></i> Certificate Manager
-        </a>
-        <a href="/scep.html" style="text-decoration: none; padding: 8px 16px; border-radius: 4px; background: var(--primary-color); color: var(--accent-contrast);">
-          <i class="fas fa-satellite-dish"></i> SCEP Service
-        </a>
-        <a href="/settings.html" style="color: var(--text-color); text-decoration: none; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border-color); transition: all 0.3s;">
-          <i class="fas fa-cog"></i> Settings
-        </a>
+  <main class="panes">
+    <section class="pane-list" aria-label="SCEP service">
+      <div class="pane-section">
+        <div class="section-label"><span>service</span><span id="service-pill" class="pill pill--muted">loading…</span></div>
+        <div class="field">
+          <div class="row spread"><span class="field-key">service url</span><button class="btn btn--ghost" type="button" data-copy="scep-service-url">copy</button></div>
+          <pre class="codeblock codeblock--wrap" id="scep-service-url">loading…</pre>
+        </div>
+        <div class="field">
+          <div class="row spread"><span class="field-key">GetCACert</span><button class="btn btn--ghost" type="button" data-copy="get-ca-cert-url">copy</button></div>
+          <pre class="codeblock codeblock--wrap" id="get-ca-cert-url">loading…</pre>
+        </div>
+        <div class="field">
+          <div class="row spread"><span class="field-key">GetCACaps</span><button class="btn btn--ghost" type="button" data-copy="get-ca-caps-url">copy</button></div>
+          <pre class="codeblock codeblock--wrap" id="get-ca-caps-url">loading…</pre>
+        </div>
       </div>
-    </nav>
 
-    <section>
-      <h2><i class="fas fa-info-circle"></i> SCEP Service Overview</h2>
-      <p>
-        SCEP (Simple Certificate Enrollment Protocol) allows devices to automatically request and receive certificates from this mkcert Web UI service.
-        This implementation provides a simplified SCEP server that generates certificates using mkcert.
-      </p>
-      
-      <div class="alert alert-info" style="margin-top:20px; animation: none;">
-        <strong>Note:</strong> This is a simplified SCEP implementation designed for development and testing environments. 
-        For production use, consider a full-featured SCEP server.
+      <div class="pane-section" id="enterprise-ca-status" aria-live="polite">
+        <h2 class="section-label">enterprise ca</h2>
+        <p class="empty">loading…</p>
       </div>
+
+      <div class="list-group" aria-label="Certificate templates">
+        <h2 class="section-label"><span>templates</span><span id="template-count"></span></h2>
+        <div id="certificate-templates"><p class="empty">loading…</p></div>
+      </div>
+
+      <p class="note-text text-muted pane-section">Simplified SCEP for dev &amp; test. Use a full-featured SCEP server in production.</p>
     </section>
 
-    <section>
-      <h3><i class="fas fa-cog"></i> SCEP Configuration</h3>
-      <p>Use these URLs to configure SCEP clients:</p>
-      
-      <div class="scep-url">
-        <strong>SCEP Service URL:</strong>
-        <code id="scep-service-url">Loading...</code>
-      </div>
-      
-      <div class="scep-url">
-        <strong>Get CA Certificate:</strong>
-        <code id="get-ca-cert-url">Loading...</code>
-      </div>
-      
-      <div class="scep-url">
-        <strong>Get CA Capabilities:</strong>
-        <code id="get-ca-caps-url">Loading...</code>
-      </div>
-
-      <button type="button" id="refresh-scep-config-btn" class="btn btn-secondary" style="margin-top: 15px;">
-        <i class="fas fa-sync-alt"></i> Refresh Configuration
-      </button>
-    </section>
-
-    <!-- Enterprise CA Status Section -->
-    <section>
-      <h3><i class="fas fa-building"></i> Enterprise CA Status</h3>
-      <div id="enterprise-ca-status" class="card">
-        <div class="loading">
-          <i class="fas fa-spinner fa-spin"></i> Checking Enterprise CA status...
-        </div>
-      </div>
-    </section>
-
-    <!-- Certificate Templates Section -->
-    <section>
-      <h3><i class="fas fa-clipboard-list"></i> Certificate Templates</h3>
-      <div id="certificate-templates" class="card">
-        <div class="loading">
-          <i class="fas fa-spinner fa-spin"></i> Loading certificate templates...
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h3><i class="fas fa-ticket-alt"></i> Challenge Password Management</h3>
-      <p>Generate challenge passwords for SCEP clients:</p>
-      
-      <div class="challenge-form">
-        <div class="form-group">
-          <label for="challenge-identifier">Identifier:</label>
-          <input type="text" id="challenge-identifier" placeholder="Enter unique identifier (e.g., device-001)">
-        </div>
-        
-        <div class="form-group">
-          <label for="challenge-expires">Expires In:</label>
-          <select id="challenge-expires">
-            <option value="3600">1 Hour</option>
-            <option value="7200">2 Hours</option>
-            <option value="86400">24 Hours</option>
-            <option value="604800">7 Days</option>
-          </select>
-        </div>
-        
-        <button type="button" id="generate-challenge-btn" class="btn btn-primary">
-          <i class="fas fa-key"></i> Generate Challenge Password
-        </button>
-      </div>
-
-      <div id="challenge-result" style="margin-top: 20px;"></div>
-    </section>
-
-    <section>
-      <h3><i class="fas fa-list"></i> Active Challenge Passwords</h3>
-      <div id="challenges-list">
-        <div class="loading">
-          <i class="fas fa-spinner fa-spin"></i> Loading challenges...
-        </div>
-      </div>
-      <button type="button" id="refresh-challenges-btn" class="btn btn-secondary">
-        <i class="fas fa-sync-alt"></i> Refresh Challenges
-      </button>
-    </section>
-
-    <section>
-      <h3><i class="fas fa-flask"></i> Manual Certificate Generation</h3>
-      <p>Generate certificates using SCEP workflow with Enterprise CA support:</p>
-      
-      <div class="challenge-form">
-        <div class="form-group">
-          <label for="cert-common-name">Common Name (Domain):</label>
-          <input type="text" id="cert-common-name" placeholder="Enter domain (e.g., user.example.com)">
-          <small class="help-text">Primary domain name or identity for the certificate</small>
-        </div>
-
-        <div class="form-group">
-          <label for="cert-template">Certificate Template:</label>
-          <select id="cert-template" class="form-select">
-            <option value="User">User - Client Authentication</option>
-            <option value="M365User">M365 User - Microsoft 365 Integration</option>
-            <option value="Computer">Computer - Machine Authentication</option>
-            <option value="WiFi">WiFi - Wireless Authentication</option>
-          </select>
-          <small class="help-text">Choose template based on certificate usage</small>
-        </div>
-
-        <div class="form-group" id="cert-upn-group" style="display: none;">
-          <label for="cert-upn">User Principal Name (UPN):</label>
-          <input type="email" id="cert-upn" placeholder="user@domain.com">
-          <small class="help-text">Required for M365 User certificates</small>
-          <div id="cert-upn-validation" class="validation-feedback"></div>
-        </div>
-
-        <div class="form-group">
-          <label for="cert-san">Subject Alternative Names (optional):</label>
-          <textarea id="cert-san" placeholder="subdomain.example.com&#10;192.168.1.100" rows="2"></textarea>
-          <small class="help-text">Additional domains or IPs. One per line.</small>
-        </div>
-        
-        <div class="form-group">
-          <label for="cert-challenge">Challenge Password (optional):</label>
-          <input type="password" id="cert-challenge" placeholder="Enter challenge password or leave empty">
-          <small class="help-text">SCEP challenge password (optional if configured globally)</small>
-        </div>
-        
-        <button type="button" id="generate-scep-cert-btn" class="btn btn-success">
-          <i class="fas fa-satellite-dish"></i> Generate SCEP Certificate
-        </button>
-      </div>
-
-      <div id="cert-result" style="margin-top: 20px;"></div>
-    </section>
-
-    <section>
-      <h3><i class="fas fa-certificate"></i> SCEP Certificates</h3>
-      <div id="scep-certificates">
-        <div class="loading">
-          <i class="fas fa-spinner fa-spin"></i> Loading SCEP certificates...
-        </div>
-      </div>
-      <button type="button" id="refresh-scep-certs-btn" class="btn btn-secondary">
-        <i class="fas fa-sync-alt"></i> Refresh Certificates
-      </button>
-    </section>
-
-    <!-- Integration Guide Section -->
-    <section>
-      <h3><i class="fas fa-book"></i> Enterprise Integration Guide</h3>
-      
-      <div class="alert alert-info">
-        <h4><i class="fas fa-mobile-alt"></i> MDM Integration</h4>
-        <p>Configure your Mobile Device Management system to use this SCEP service:</p>
-        <div class="scep-config">
-          <strong>SCEP URL:</strong> <span id="mdm-scep-url">Loading...</span><br>
-          <strong>Challenge:</strong> Configure via environment variables<br>
-          <strong>Supported Templates:</strong> User, Computer, WiFi, M365User<br>
-          <strong>Key Size:</strong> 2048 bits (RSA)
-        </div>
-        <p><strong>Compatible with:</strong> Microsoft Intune, VMware Workspace ONE, Cisco Meraki, Apple Profile Manager</p>
-      </div>
-
-      <div class="alert alert-info">
-        <h4><i class="fas fa-cloud"></i> Microsoft 365 Integration</h4>
-        <p>For hybrid Azure AD environments, use the M365User template:</p>
-        <div class="scep-config">
-          <strong>Template:</strong> M365User<br>
-          <strong>UPN Format:</strong> user@domain.com<br>
-          <strong>Subject Alternative Name:</strong> Automatically includes UPN<br>
-          <strong>Key Usage:</strong> Digital Signature, Key Encipherment, Client Authentication
-        </div>
-        <h5>Required Environment Variables:</h5>
-        <div class="scep-config">
-          ENTERPRISE_CA_ENABLED=true<br>
-          ENTERPRISE_CA_CERT_PATH=/path/to/ca.crt<br>
-          ENTERPRISE_CA_KEY_PATH=/path/to/ca.key<br>
-          ENTERPRISE_CA_ORGANIZATION="Your Organization"<br>
-          ENTERPRISE_CA_ORGANIZATIONAL_UNIT="IT Department"
-        </div>
-      </div>
-
-      <div class="alert alert-info">
-        <h4><i class="fas fa-cogs"></i> API Endpoints</h4>
-        <div class="scep-config">
-          <strong>GET</strong> /scep?operation=GetCACert - Retrieve CA certificate<br>
-          <strong>POST</strong> /scep?operation=PKIOperation - Process certificate requests<br>
-          <strong>POST</strong> /api/scep/certificate - Manual certificate generation<br>
-          <strong>GET</strong> /api/scep/enterprise-ca/status - Enterprise CA status<br>
-          <strong>GET</strong> /api/scep/templates - Available certificate templates<br>
-          <strong>POST</strong> /api/scep/validate-upn - UPN validation for M365
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <script>
-    // Theme system integration (copied from main script.js)
-    const themeToggle = document.getElementById('theme-toggle');
-    const body = document.body;
-    const icon = themeToggle.querySelector('i');
-    const text = themeToggle.lastChild;
-
-    // Load saved theme or default to dark
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    body.setAttribute('data-theme', savedTheme);
-    updateThemeButton(savedTheme);
-
-    themeToggle.addEventListener('click', function() {
-      const currentTheme = body.getAttribute('data-theme');
-      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-      
-      body.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      updateThemeButton(newTheme);
-    });
-
-    function updateThemeButton(theme) {
-      if (theme === 'light') {
-        icon.className = 'fas fa-moon';
-        text.textContent = ' Dark Mode';
-      } else {
-        icon.className = 'fas fa-sun';
-        text.textContent = ' Light Mode';
-      }
-    }
-
-    // CSRF token cache + helper for SCEP management POSTs
-    let csrfToken = null;
-    async function fetchCSRFToken() {
-      try {
-        const r = await fetch('/api/csrf-token');
-        const j = await r.json();
-        if (j && j.csrfToken) csrfToken = j.csrfToken;
-      } catch (e) { console.error('Failed to fetch CSRF token:', e); }
-    }
-    async function authedFetch(url, options = {}) {
-      const method = (options.method || 'GET').toUpperCase();
-      const mutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
-      const headers = { ...(options.headers || {}) };
-      if (mutating) {
-        if (!csrfToken) await fetchCSRFToken();
-        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-      }
-      let res = await fetch(url, { ...options, headers });
-      if (mutating && res.status === 403) {
-        try {
-          const body = await res.clone().json();
-          if (body && body.code === 'CSRF_INVALID') {
-            await fetchCSRFToken();
-            if (csrfToken) {
-              headers['X-CSRF-Token'] = csrfToken;
-              res = await fetch(url, { ...options, headers });
-            }
-          }
-        } catch (_) { /* not JSON */ }
-      }
-      return res;
-    }
-
-    // Authentication check. /api/auth/status returns
-    // { authenticated, username, authEnabled } — no nested user object.
-    async function checkAuth() {
-      try {
-        const response = await fetch('/api/auth/status');
-        const result = await response.json();
-
-        if (result.authenticated) {
-          const authControls = document.getElementById('auth-controls');
-          const usernameDisplay = document.getElementById('username-display');
-
-          if (authControls && usernameDisplay) {
-            usernameDisplay.textContent = result.username
-              ? `Logged in as: ${result.username}`
-              : 'Authenticated';
-            authControls.style.display = 'block';
-          }
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      }
-    }
-
-    // Logout functionality
-    document.getElementById('logout-btn')?.addEventListener('click', async function(e) {
-      e.preventDefault();
-      try {
-        const response = await authedFetch('/api/auth/logout', { method: 'POST' });
-        if (response.ok) {
-          const data = await response.json().catch(() => ({}));
-          window.location.href = data.redirectTo || '/login';
-        }
-      } catch (error) {
-        console.error('Logout error:', error);
-        window.location.href = '/login';
-      }
-    });
-
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', function() {
-      checkAuth();
-      loadSCEPConfig();
-      loadChallenges();
-      loadSCEPCertificates();
-      loadEnterpriseCAStatus();
-      loadCertificateTemplates();
-      setupTemplateHandling();
-
-      // Button wiring (CSP ships script-src-attr 'none', so no inline onclick)
-      document.getElementById('refresh-scep-config-btn')?.addEventListener('click', loadSCEPConfig);
-      document.getElementById('generate-challenge-btn')?.addEventListener('click', generateChallenge);
-      document.getElementById('refresh-challenges-btn')?.addEventListener('click', loadChallenges);
-      document.getElementById('generate-scep-cert-btn')?.addEventListener('click', generateSCEPCertificate);
-      document.getElementById('refresh-scep-certs-btn')?.addEventListener('click', loadSCEPCertificates);
-    });
-
-    // Setup template change handling
-    function setupTemplateHandling() {
-      const templateSelect = document.getElementById('cert-template');
-      const upnGroup = document.getElementById('cert-upn-group');
-      const upnInput = document.getElementById('cert-upn');
-
-      templateSelect.addEventListener('change', function() {
-        if (this.value === 'M365User') {
-          upnGroup.style.display = 'block';
-          upnInput.required = true;
-        } else {
-          upnGroup.style.display = 'none';
-          upnInput.required = false;
-          upnInput.value = '';
-        }
-      });
-
-      // UPN validation
-      upnInput.addEventListener('blur', validateUPNInput);
-    }
-
-    // Validate UPN input
-    async function validateUPNInput() {
-      const upnInput = document.getElementById('cert-upn');
-      const upnValidation = document.getElementById('cert-upn-validation');
-      const upn = upnInput.value.trim();
-
-      if (!upn) {
-        upnValidation.innerHTML = '';
-        return;
-      }
-
-      try {
-        const response = await authedFetch('/api/scep/validate-upn', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ upn })
-        });
-
-        const data = await response.json();
-        
-        if (data.valid) {
-          upnValidation.innerHTML = '<span style="color: var(--success-color);"><i class="fas fa-check-circle"></i> Valid UPN format</span>';
-        } else {
-          upnValidation.innerHTML = '<span style="color: var(--error-color);"><i class="fas fa-exclamation-circle"></i> Invalid UPN format</span>';
-        }
-      } catch (error) {
-        upnValidation.innerHTML = '<span style="color: var(--warning-color);"><i class="fas fa-question-circle"></i> Could not validate UPN</span>';
-      }
-    }
-
-    // Load Enterprise CA status
-    async function loadEnterpriseCAStatus() {
-      try {
-        const response = await fetch('/api/scep/enterprise-ca/status');
-        if (!response.ok) throw new Error('Failed to load Enterprise CA status');
-        
-        const status = await response.json();
-        const statusDiv = document.getElementById('enterprise-ca-status');
-        
-        let statusHtml = `
-          <div class="scep-config">
-            <strong>Status:</strong> <span class="status-indicator ${getStatusClass(status.status)}"></span>${status.status}<br>
-            <strong>Enabled:</strong> ${status.enabled ? 'Yes' : 'No'}<br>
-            <strong>Fallback to mkcert:</strong> ${status.fallbackToMkcert ? 'Yes' : 'No'}<br>
-        `;
-
-        if (status.configuration) {
-          statusHtml += `
-            <strong>Configuration:</strong><br>
-            &nbsp;&nbsp;CA Cert Path: ${status.configuration.caCertPath || 'Not configured'}<br>
-            &nbsp;&nbsp;Organization: ${status.configuration.organization}<br>
-            &nbsp;&nbsp;Country: ${status.configuration.country}<br>
-          `;
-        }
-
-        if (status.caDetails && !status.caDetails.error) {
-          statusHtml += `
-            <strong>CA Details:</strong><br>
-            &nbsp;&nbsp;Subject: ${status.caDetails.subject}<br>
-            &nbsp;&nbsp;Valid To: ${status.caDetails.validTo}<br>
-          `;
-        }
-
-        statusHtml += '</div>';
-        statusDiv.innerHTML = statusHtml;
-        
-      } catch (error) {
-        console.error('Error loading Enterprise CA status:', error);
-        document.getElementById('enterprise-ca-status').innerHTML = `
-          <div class="alert alert-error">
-            <i class="fas fa-exclamation-triangle"></i> Failed to load Enterprise CA status
+    <section class="pane-detail" aria-label="SCEP management">
+      <div class="detail-head">
+        <div class="row spread">
+          <h1 class="page-title"><span class="prompt">$</span> scep</h1>
+          <div class="row">
+            <button class="btn" type="button" id="refresh-btn">⟳ refresh</button>
+            <button class="btn" type="button" data-tab-link="mdm">mdm guide</button>
           </div>
-        `;
-      }
-    }
+        </div>
+        <div class="meta-row">
+          <span id="stat-challenges">… active challenges</span>
+          <span id="stat-certs">… certificates issued</span>
+          <span>key size 2048 (RSA)</span>
+        </div>
+        <div class="subtabs" role="tablist" aria-label="SCEP sections">
+          <button class="subtab" type="button" role="tab" id="scep-tab-challenges" data-tab="challenges" aria-controls="scep-panel-challenges" aria-selected="true" tabindex="0">challenges</button>
+          <button class="subtab" type="button" role="tab" id="scep-tab-issued" data-tab="issued" aria-controls="scep-panel-issued" aria-selected="false" tabindex="-1">issued</button>
+          <button class="subtab" type="button" role="tab" id="scep-tab-enroll" data-tab="enroll" aria-controls="scep-panel-enroll" aria-selected="false" tabindex="-1">manual enroll</button>
+          <button class="subtab" type="button" role="tab" id="scep-tab-mdm" data-tab="mdm" aria-controls="scep-panel-mdm" aria-selected="false" tabindex="-1">mdm setup</button>
+        </div>
+      </div>
 
-    // Load Certificate Templates
-    async function loadCertificateTemplates() {
-      try {
-        const response = await fetch('/api/scep/templates');
-        if (!response.ok) throw new Error('Failed to load certificate templates');
-        
-        const data = await response.json();
-        const templatesDiv = document.getElementById('certificate-templates');
-        
-        let templatesHtml = '<div class="scep-config">';
-        
-        data.available.forEach(template => {
-          templatesHtml += `
-            <div style="margin-bottom: 15px; border-left: 3px solid var(--primary-color); padding-left: 10px;">
-              <strong>${template.name}:</strong> ${template.description}<br>
-              <small>Key Usage: ${template.keyUsage.join(', ')}</small><br>
-              <small>Extended Key Usage: ${template.extendedKeyUsage.join(', ')}</small>
-            </div>
-          `;
-        });
-        
-        templatesHtml += '</div>';
-        templatesDiv.innerHTML = templatesHtml;
-        
-      } catch (error) {
-        console.error('Error loading certificate templates:', error);
-        document.getElementById('certificate-templates').innerHTML = `
-          <div class="alert alert-error">
-            <i class="fas fa-exclamation-triangle"></i> Failed to load certificate templates
+      <div class="detail-body" role="tabpanel" id="scep-panel-challenges" aria-labelledby="scep-tab-challenges" tabindex="0">
+        <form id="challenge-form" class="field">
+          <h2 class="section-label">new challenge password</h2>
+          <div class="cmdbar">
+            <span class="prompt">$</span><span>challenge new --id</span>
+            <label class="sr-only" for="challenge-identifier">Identifier</label>
+            <input type="text" id="challenge-identifier" placeholder="device-001" autocomplete="off" spellcheck="false">
+            <label for="challenge-expires">--ttl</label>
+            <select class="select" id="challenge-expires">
+              <option value="3600">1h</option>
+              <option value="7200">2h</option>
+              <option value="86400">24h</option>
+              <option value="604800">7d</option>
+            </select>
+            <button class="btn btn--primary" type="submit" id="generate-challenge-btn">run ↵</button>
           </div>
-        `;
-      }
-    }
+        </form>
 
-    // Get status CSS class
-    function getStatusClass(status) {
-      switch (status) {
-        case 'active': return 'status-active';
-        case 'disabled': return 'status-expired';
-        default: return 'status-expired';
-      }
-    }
+        <div id="challenge-result" aria-live="polite"></div>
 
-    // Load SCEP configuration
-    async function loadSCEPConfig() {
-      try {
-        const response = await fetch('/api/scep/config');
-        if (!response.ok) throw new Error('Failed to load SCEP config');
-        
-        const data = await response.json();
-        const config = data; // Config properties are directly in the response
-        
-        document.getElementById('scep-service-url').textContent = config.scepUrl;
-        document.getElementById('get-ca-cert-url').textContent = config.getCACertUrl;
-        document.getElementById('get-ca-caps-url').textContent = config.getCACapsUrl;
-        
-        // Also populate MDM integration guide
-        const mdmUrlElement = document.getElementById('mdm-scep-url');
-        if (mdmUrlElement) {
-          mdmUrlElement.textContent = config.scepUrl;
-        }
-        
-      } catch (error) {
-        console.error('Error loading SCEP config:', error);
-        showAlert('Failed to load SCEP configuration', 'error');
-      }
-    }
+        <div class="card">
+          <h2 class="section-label"><span id="challenges-label">active challenges</span><span>auto-pruned on expiry</span></h2>
+          <div id="challenges-list"><p class="empty">loading…</p></div>
+        </div>
 
-    // Generate challenge password
-    async function generateChallenge() {
-      const identifier = document.getElementById('challenge-identifier').value;
-      const expiresIn = document.getElementById('challenge-expires').value;
-      
-      if (!identifier) {
-        showAlert('Please enter an identifier', 'warning');
-        return;
-      }
+        <div id="recent-enrollments"></div>
+      </div>
 
-      try {
-        const response = await authedFetch('/api/scep/challenge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier, expiresIn: parseInt(expiresIn) })
-        });
+      <div class="detail-body" role="tabpanel" id="scep-panel-issued" aria-labelledby="scep-tab-issued" tabindex="0" hidden>
+        <div class="card">
+          <h2 class="section-label">scep certificates</h2>
+          <div id="scep-certificates"><p class="empty">loading…</p></div>
+        </div>
+      </div>
 
-        if (!response.ok) throw new Error('Failed to generate challenge');
-        
-        const data = await response.json();
-        const challenge = data; // Challenge properties are directly in the response
-        
-        const resultDiv = document.getElementById('challenge-result');
-        resultDiv.innerHTML = `
-          <div class="alert alert-success">
-            <strong><i class="fas fa-check-circle"></i> Challenge Password Generated!</strong><br>
-            <div class="scep-config" style="margin-top: 10px;">
-              <strong>Identifier:</strong> ${challenge.identifier}<br>
-              <strong>Password:</strong> <code>${challenge.challengePassword}</code><br>
-              <strong>Expires:</strong> ${new Date(challenge.expiresAt).toLocaleString()}
-            </div>
+      <div class="detail-body" role="tabpanel" id="scep-panel-enroll" aria-labelledby="scep-tab-enroll" tabindex="0" hidden>
+        <form id="enroll-form" class="card" novalidate>
+          <h2 class="section-label">manual certificate generation</h2>
+          <p class="text-muted">Generate a certificate through the SCEP workflow, with Enterprise CA support.</p>
+
+          <div class="field">
+            <label for="cert-common-name">common name (domain)</label>
+            <input class="input" type="text" id="cert-common-name" placeholder="user.example.com" autocomplete="off" spellcheck="false">
+            <span class="field-key">Primary domain name or identity for the certificate</span>
           </div>
-        `;
-        
-        // Clear form and refresh challenges
-        document.getElementById('challenge-identifier').value = '';
-        setTimeout(loadChallenges, 1000);
-        
-      } catch (error) {
-        console.error('Error generating challenge:', error);
-        showAlert('Failed to generate challenge password', 'error');
-      }
-    }
 
-    // Load active challenges
-    async function loadChallenges() {
-      try {
-        const response = await fetch('/api/scep/challenges');
-        if (!response.ok) throw new Error('Failed to load challenges');
-        
-        const data = await response.json();
-        const challenges = data.challenges; // Challenges array is directly in the response
-        
-        const listDiv = document.getElementById('challenges-list');
-        
-        if (challenges.length === 0) {
-          listDiv.innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle"></i> No active challenge passwords found.
-            </div>
-          `;
-          return;
-        }
-        
-        let html = `
-          <table class="certificate-table">
-            <thead>
-              <tr>
-                <th><i class="fas fa-tag"></i> Identifier</th>
-                <th><i class="fas fa-heartbeat"></i> Status</th>
-                <th><i class="fas fa-calendar-times"></i> Expires At</th>
-                <th><i class="fas fa-check"></i> Used</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        challenges.forEach(challenge => {
-          const isExpired = challenge.expired;
-          const statusClass = isExpired ? 'status-expired' : 'status-active';
-          const statusText = isExpired ? 'Expired' : 'Active';
-          
-          html += `
-            <tr>
-              <td>${challenge.identifier}</td>
-              <td><span class="status-indicator ${statusClass}"></span>${statusText}</td>
-              <td>${new Date(challenge.expiresAt).toLocaleString()}</td>
-              <td>${challenge.used ? 'Yes' : 'No'}</td>
-            </tr>
-          `;
-        });
-        
-        html += '</tbody></table>';
-        listDiv.innerHTML = html;
-        
-      } catch (error) {
-        console.error('Error loading challenges:', error);
-        document.getElementById('challenges-list').innerHTML = `
-          <div class="alert alert-error">
-            <i class="fas fa-exclamation-triangle"></i> Error loading challenges.
+          <div class="field">
+            <label for="cert-template">certificate template</label>
+            <select class="select" id="cert-template">
+              <option value="User">User - Client Authentication</option>
+              <option value="M365User">M365 User - Microsoft 365 Integration</option>
+              <option value="Computer">Computer - Machine Authentication</option>
+              <option value="WiFi">WiFi - Wireless Authentication</option>
+            </select>
+            <span class="field-key">Choose a template based on certificate usage</span>
           </div>
-        `;
-      }
-    }
 
-    // Generate SCEP certificate with enterprise CA support
-    async function generateSCEPCertificate() {
-      const commonName = document.getElementById('cert-common-name').value;
-      const challengePassword = document.getElementById('cert-challenge').value;
-      const template = document.getElementById('cert-template').value;
-      const upn = document.getElementById('cert-upn').value;
-      const sanText = document.getElementById('cert-san').value;
-      
-      if (!commonName) {
-        showAlert('Please enter a common name (domain)', 'warning');
-        return;
-      }
-
-      // Validate UPN for M365User template
-      if (template === 'M365User' && !upn) {
-        showAlert('UPN is required for M365 User certificates', 'warning');
-        return;
-      }
-
-      try {
-        const payload = { 
-          commonName,
-          template
-        };
-        
-        if (challengePassword) {
-          payload.challengePassword = challengePassword;
-        }
-        
-        if (upn) {
-          payload.upn = upn;
-        }
-        
-        // Parse subject alternative names
-        if (sanText.trim()) {
-          payload.subjectAltNames = sanText.split('\n')
-            .map(san => san.trim())
-            .filter(san => san.length > 0);
-        }
-
-        const response = await authedFetch('/api/scep/certificate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Failed to generate certificate');
-        }
-        
-        const data = await response.json();
-        
-        const resultDiv = document.getElementById('cert-result');
-        resultDiv.innerHTML = `
-          <div class="alert alert-success">
-            <strong><i class="fas fa-check-circle"></i> Certificate Generated Successfully!</strong><br>
-            <div class="scep-config" style="margin-top: 10px;">
-              <strong>Common Name:</strong> ${data.commonName}<br>
-              <strong>Template:</strong> ${data.template}<br>
-              ${data.upn ? `<strong>UPN:</strong> ${data.upn}<br>` : ''}
-              <strong>Method:</strong> ${data.method}<br>
-              <strong>Enterprise Mode:</strong> ${data.enterpriseMode ? 'Yes' : 'No'}<br>
-              <strong>Message:</strong> ${data.message}
-            </div>
+          <div class="field" id="cert-upn-group" hidden>
+            <label for="cert-upn">user principal name (upn)</label>
+            <input class="input" type="email" id="cert-upn" placeholder="user@domain.com" autocomplete="off" spellcheck="false" aria-describedby="cert-upn-validation">
+            <span class="field-key">Required for M365 User certificates</span>
+            <span id="cert-upn-validation" role="status"></span>
           </div>
-        `;
-        
-        // Clear form and refresh certificates
-        document.getElementById('cert-common-name').value = '';
-        document.getElementById('cert-challenge').value = '';
-        document.getElementById('cert-upn').value = '';
-        document.getElementById('cert-san').value = '';
-        setTimeout(loadSCEPCertificates, 1000);
-        
-      } catch (error) {
-        console.error('Error generating certificate:', error);
-        showAlert(`Failed to generate certificate: ${error.message}`, 'error');
-      }
-    }
 
-    // Load SCEP certificates
-    async function loadSCEPCertificates() {
-      try {
-        const response = await fetch('/api/scep/certificates');
-        if (!response.ok) throw new Error('Failed to load SCEP certificates');
-        
-        const data = await response.json();
-        const certificates = data.certificates; // Certificates array is directly in the response
-        
-        const listDiv = document.getElementById('scep-certificates');
-        
-        if (certificates.length === 0) {
-          listDiv.innerHTML = `
-            <div class="alert alert-info">
-              <i class="fas fa-info-circle"></i> No SCEP certificates found.
-            </div>
-          `;
-          return;
-        }
-        
-        let html = `
-          <table class="certificate-table">
-            <thead>
-              <tr>
-                <th><i class="fas fa-globe"></i> Common Name</th>
-                <th><i class="fas fa-calendar-plus"></i> Created</th>
-                <th><i class="fas fa-calendar-edit"></i> Modified</th>
-                <th><i class="fas fa-folder"></i> Path</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        certificates.forEach(cert => {
-          html += `
-            <tr>
-              <td>
-                <span class="status-indicator status-active"></span>
-                <strong>${cert.commonName}</strong>
-              </td>
-              <td>${new Date(cert.created).toLocaleString()}</td>
-              <td>${new Date(cert.modified).toLocaleString()}</td>
-              <td><code>${cert.path}</code></td>
-            </tr>
-          `;
-        });
-        
-        html += '</tbody></table>';
-        listDiv.innerHTML = html;
-        
-      } catch (error) {
-        console.error('Error loading SCEP certificates:', error);
-        document.getElementById('scep-certificates').innerHTML = `
-          <div class="alert alert-error">
-            <i class="fas fa-exclamation-triangle"></i> Error loading SCEP certificates.
+          <div class="field">
+            <label for="cert-san">subject alternative names (optional)</label>
+            <textarea class="input" id="cert-san" rows="2" placeholder="subdomain.example.com&#10;192.168.1.100" spellcheck="false"></textarea>
+            <span class="field-key">Additional domains or IPs, one per line</span>
           </div>
-        `;
-      }
-    }
 
-    // Show alert helper function
-    function showAlert(message, type = 'info') {
-      // Create temporary alert
-      const alertDiv = document.createElement('div');
-      alertDiv.className = `alert alert-${type}`;
-      alertDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${message}`;
-      
-      // Insert at top of container
-      const container = document.querySelector('.container');
-      container.insertBefore(alertDiv, container.firstChild.nextSibling);
-      
-      // Remove after 5 seconds
-      setTimeout(() => {
-        if (alertDiv.parentNode) {
-          alertDiv.parentNode.removeChild(alertDiv);
-        }
-      }, 5000);
-    }
-  </script>
+          <div class="field">
+            <label for="cert-challenge">challenge password (optional)</label>
+            <input class="input" type="password" id="cert-challenge" placeholder="leave empty if not required" autocomplete="off">
+            <span class="field-key">SCEP challenge password (optional if configured globally)</span>
+          </div>
+
+          <div class="row"><button class="btn btn--primary" type="submit" id="generate-scep-cert-btn">generate scep certificate</button></div>
+        </form>
+        <div id="cert-result" aria-live="polite"></div>
+      </div>
+
+      <div class="detail-body" role="tabpanel" id="scep-panel-mdm" aria-labelledby="scep-tab-mdm" tabindex="0" hidden>
+        <div class="card">
+          <h2 class="section-label">mdm integration</h2>
+          <p class="text-muted">Configure your Mobile Device Management system to use this SCEP service.</p>
+          <dl class="kv">
+            <dt>scep url</dt><dd id="mdm-scep-url">loading…</dd>
+            <dt>challenge</dt><dd>Configure via environment variables</dd>
+            <dt>templates</dt><dd>User, Computer, WiFi, M365User</dd>
+            <dt>key size</dt><dd>2048 bits (RSA)</dd>
+          </dl>
+          <p class="text-muted">Compatible with Microsoft Intune, VMware Workspace ONE, Cisco Meraki, Apple Profile Manager.</p>
+        </div>
+
+        <div class="card">
+          <h2 class="section-label">microsoft 365 integration</h2>
+          <p class="text-muted">For hybrid Azure AD environments, use the M365User template.</p>
+          <dl class="kv">
+            <dt>template</dt><dd>M365User</dd>
+            <dt>upn format</dt><dd>user@domain.com</dd>
+            <dt>san</dt><dd>Automatically includes the UPN</dd>
+            <dt>key usage</dt><dd>Digital Signature, Key Encipherment, Client Authentication</dd>
+          </dl>
+          <h3 class="section-label">required environment variables</h3>
+<pre class="codeblock">ENTERPRISE_CA_ENABLED=true
+ENTERPRISE_CA_CERT_PATH=/path/to/ca.crt
+ENTERPRISE_CA_KEY_PATH=/path/to/ca.key
+ENTERPRISE_CA_ORGANIZATION="Your Organization"
+ENTERPRISE_CA_ORGANIZATIONAL_UNIT="IT Department"</pre>
+        </div>
+
+        <div class="card">
+          <h2 class="section-label">api endpoints</h2>
+<pre class="codeblock">GET  /scep?operation=GetCACert        retrieve CA certificate
+POST /scep?operation=PKIOperation     process certificate requests
+POST /api/scep/certificate            manual certificate generation
+GET  /api/scep/enterprise-ca/status   enterprise CA status
+GET  /api/scep/templates              available certificate templates
+POST /api/scep/validate-upn           UPN validation for M365</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/scep.js"></script>
 </body>
 </html>
