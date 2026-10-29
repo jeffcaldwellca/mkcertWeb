@@ -116,7 +116,7 @@ restart, and the settings page only works with `ENABLE_AUTH=true`.
 | `PORT` / `HTTPS_PORT` | `3000` / `3443` | Listening ports |
 | `ENABLE_HTTPS` | `false` | Also serve HTTPS with an mkcert certificate for `SSL_DOMAIN` |
 | `SSL_DOMAIN` | `localhost` | Name on the HTTPS certificate |
-| `FORCE_HTTPS` | `false` | With `ENABLE_HTTPS=true`, answer every plain-HTTP request with a 301 to the HTTPS port, except `/api/health` and `/scep`. `X-Forwarded-Proto: https` counts only from a trusted proxy (`TRUST_PROXY`) |
+| `FORCE_HTTPS` | `false` | With `ENABLE_HTTPS=true`, redirect every plain-HTTP request to the HTTPS port (301 for GET/HEAD, 308 for other methods), except `/api/health` and `/scep`. `X-Forwarded-Proto: https` counts only from a trusted proxy (`TRUST_PROXY`) |
 | `TRUST_PROXY` | `loopback,linklocal,uniquelocal` | Which proxies may set `X-Forwarded-For` / `X-Forwarded-Proto` (client IP for rate limits, HTTPS detection). `true`, `false`, a hop count, or comma-separated addresses, CIDRs or `loopback`/`linklocal`/`uniquelocal`. The default trusts every private-LAN client; set `loopback` or your proxy's address (see [docs/DOCKER.md](docs/DOCKER.md#https-and-reverse-proxies)). Environment only |
 | `THEME_MODE` | `light` (`dark` in Docker) | Default theme for new browsers |
 | `ENABLE_AUTH` | `false` | Require a login |
@@ -163,6 +163,10 @@ response envelope, rate-limit tiers and the archive/restore rules.
 
 ## Security
 
+With `ENABLE_AUTH` off, every route is open to anyone who can reach the server,
+including issuing and deleting certificates and generating or installing the
+root CA. See [What is protected without `ENABLE_AUTH`](docs/API.md#what-is-protected-without-enable_auth).
+
 - **Authentication:** passwords are bcrypt-hashed at startup and compared in
   constant time; the session ID is rotated at login. OIDC uses discovery, the
   `state` parameter, PKCE when the provider supports it, and RP-initiated logout.
@@ -176,6 +180,8 @@ response envelope, rate-limit tiers and the archive/restore rules.
 - **Commands:** only `mkcert` and `openssl` run, through `execFile` (no shell)
   with an argument allowlist; file names and paths are validated against
   traversal.
+- **Errors:** a 500 carries a fixed message and a `ref`, never paths, stderr
+  or stack traces; the server log has the full error under the same `ref`.
 - **Guarded operations:** the settings API is disabled unless `ENABLE_AUTH=true`, secrets
   are masked in responses, `mkcert -uninstall` needs `ENABLE_AUTH=true` plus explicit
   confirmation, and SCEP enrollment needs a one-time challenge password unless

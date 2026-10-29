@@ -509,12 +509,9 @@ async function startServer() {
 
     // Always start the HTTP server (it redirects once HTTPS is up, with FORCE_HTTPS)
     const httpServer = http.createServer(app);
+    // Redirects are announced only once HTTPS is actually listening.
     httpServer.listen(PORT, () => {
-      if (ENABLE_HTTPS && FORCE_HTTPS) {
-        console.log(`🔄 HTTP server running on http://localhost:${PORT} (redirects to HTTPS)`);
-      } else {
-        console.log(`🌐 HTTP server running on http://localhost:${PORT}`);
-      }
+      console.log(`🌐 HTTP server running on http://localhost:${PORT}`);
     });
     
     // Start HTTPS server if enabled
@@ -535,8 +532,8 @@ async function startServer() {
           console.log(`📁 Certificate storage: ${CERT_DIR}`);
           
           if (FORCE_HTTPS) {
+            console.log(`🔄 HTTP requests on port ${PORT} now redirect to HTTPS (except /api/health and /scep)`);
             console.log(`\n🌟 Access the application at: https://localhost:${HTTPS_PORT}`);
-            console.log(`   (HTTP requests will be redirected to HTTPS)`);
           } else {
             console.log(`\n🌟 Application available at:`);
             console.log(`   HTTP:  http://localhost:${PORT}`);
@@ -552,6 +549,9 @@ async function startServer() {
       } catch (sslError) {
         console.error(`❌ Failed to start HTTPS server:`, sslError);
         console.log(`🔄 Falling back to HTTP only...`);
+        if (FORCE_HTTPS) {
+          console.warn(`⚠ FORCE_HTTPS is set, but HTTPS is not running: plain-HTTP requests are NOT redirected and are served over HTTP.`);
+        }
         console.log(`📁 Certificate storage: ${CERT_DIR}`);
       }
     } else {

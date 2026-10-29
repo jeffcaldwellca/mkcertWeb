@@ -136,11 +136,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   with 500; it now gets the same 400 as any unknown command.
 - `FORCE_HTTPS=true` redirected almost nothing: the redirect was registered
   after the static files and every route, so only unknown paths reached it.
-  It now runs first, so pages, assets and API calls over plain HTTP get a 301
-  to the HTTPS port. Only `/api/health` and `/scep` are exempt, and nothing is
-  redirected until the HTTPS server is listening. "Already HTTPS" means a TLS
-  connection, or `X-Forwarded-Proto: https` from a trusted proxy (`trust
-  proxy`); the header from any other client is ignored.
+  It now runs first, so pages, assets and API calls over plain HTTP are
+  redirected to the HTTPS port: 301 for GET and HEAD, 308 for other methods
+  (a 301 turned a POST into a GET). Only `/api/health` and `/scep` are
+  exempt, and nothing is redirected until the HTTPS server is listening.
+  "Already HTTPS" means a TLS connection, or `X-Forwarded-Proto: https` from
+  a trusted proxy (`TRUST_PROXY`); the header from any other client is
+  ignored. The startup log mentions the redirect only once HTTPS is
+  listening, and warns when HTTPS failed to start so redirects are off.
+- `.env.example` and `examples/*.env` had comments on the same line as
+  values. dotenv strips them, but `docker run --env-file` keeps them, so
+  `CERT_MONITOR_UPLOADED=false   # …` was read as true. Comments are now on
+  their own line.
 
 ### Security
 

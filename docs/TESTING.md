@@ -25,7 +25,7 @@ Run `npm test` before every commit.
 | Root CA generation | `generate-ca-route` |
 | Removed 5.0 endpoints stay 404; `GET /api` lists exactly the declared routes | `removed-endpoints`, `api-index` |
 | Security: CSRF, CSP and headers, input hardening, settings masking and allowlist, rate-limit status | `csrf`, `security-headers`, `input-hardening`, `settings-security`, `rate-limit-status` |
-| Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect | `auth-state`, `oidc-logout`, `https-redirect` |
+| Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect (301/308, startup log), `TRUST_PROXY` parsing | `auth-state`, `oidc-logout`, `https-redirect`, `trust-proxy` |
 | SCEP: GetCACaps, enrollment authorisation, CSR name checks, enterprise CA calls and identity checks | `scep-*`, `enterprise-ca-*` |
 | Monitoring, notes store, response helpers, health version | `monitoring-*`, `notes-store`, `responses`, `health-version` |
 | 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, upload) | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |
@@ -59,6 +59,10 @@ checks that keep the frontend inside the rules in
 body from an error object (`err.message`, `.stderr`, `.stack`, `${err}`, …);
 the optional `reason` must come from `publicReason(err)`. It has a self-test
 with positive and negative samples.
+
+**Env-file guard** (`env-file-comments.test.js`): no variable line in
+`.env.example` or `examples/*.env` (commented out or not) has an inline
+`# comment`, which `docker run --env-file` would read as part of the value.
 
 ## Running a throwaway server
 

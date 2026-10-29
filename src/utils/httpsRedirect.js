@@ -39,7 +39,8 @@ function buildHttpsRedirectUrl(host, url, httpsPort) {
 const EXEMPT_PATHS = new Set(['/scep', '/api/health']);
 
 /**
- * Express middleware that answers plain-HTTP requests with a 301 to the same
+ * Express middleware that answers plain-HTTP requests with a 301 (GET, HEAD)
+ * or 308 (other methods, which keeps the method and body) to the same
  * URL on the HTTPS port. Register it before static files and routes.
  *
  * "Already HTTPS" is req.secure only: with the app's `trust proxy` setting it
@@ -57,7 +58,8 @@ function createHttpsRedirect({ httpsPort, isActive = () => true }) {
     if (req.secure) return next();
     if (EXEMPT_PATHS.has(req.path)) return next();
     const target = buildHttpsRedirectUrl(req.get('host'), req.originalUrl, httpsPort);
-    if (target) return res.redirect(301, target);
+    // 301 for GET/HEAD; 308 for the rest, so a POST isn't replayed as a GET.
+    if (target) return res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, target);
     // No Host header to redirect to: fail loudly rather than crash.
     return res.status(400).send('Missing Host header');
   };

@@ -86,6 +86,16 @@ session secret, sessions end on every restart.
 To serve on another host port, change the `ports:` mapping (for example
 `"8080:3000"`); `PORT` is the port inside the container.
 
+Two things use the ports inside the container, not the published ones:
+
+- The `HEALTHCHECK` (Dockerfile and compose) probes
+  `http://localhost:3000/api/health`. If you change `PORT`, override the
+  health check too.
+- The `FORCE_HTTPS` redirect sends browsers to `https://<host>:<HTTPS_PORT>`,
+  using the internal `HTTPS_PORT`. If you remap it, for example
+  `-p 8443:3443`, set `HTTPS_PORT=8443` and map `8443:8443`, or terminate TLS
+  at a reverse proxy instead.
+
 ## Running as another UID
 
 To run as a different user (for example `user: "2000:2000"`), bind-mount the
@@ -117,8 +127,9 @@ home directory.
 - `ENABLE_HTTPS=true` makes the app also listen on 3443 with an mkcert
   certificate for `SSL_DOMAIN`, created in `/app/ssl` at startup and signed by
   the container's CA. Add `FORCE_HTTPS=true` to redirect plain-HTTP requests
-  there (301). `/api/health` (the health check) and `/scep` are not
-  redirected, and nothing is redirected if the HTTPS server failed to start.
+  there (301 for GET/HEAD, 308 for other methods so a POST stays a POST).
+  `/api/health` (the health check) and `/scep` are not redirected, and nothing
+  is redirected if the HTTPS server failed to start (the log warns).
 - Behind a reverse proxy, terminate TLS at the proxy and forward to port 3000.
   `TRUST_PROXY` decides whose `X-Forwarded-For` (the client IP used for rate
   limits) and `X-Forwarded-Proto` (which `FORCE_HTTPS` checks) the app

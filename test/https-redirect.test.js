@@ -94,6 +94,21 @@ test('FORCE_HTTPS: GET /, /api/status and assets over HTTP are 301 to https on t
   }, PUBLIC_CLIENT);
 });
 
+test('FORCE_HTTPS: GET and HEAD get 301; other methods get 308 so the method and body survive', async () => {
+  await withRedirectApp({}, async (app) => {
+    const headers = { host: 'certs.dev.local:3000' };
+    for (const method of ['GET', 'HEAD']) {
+      const res = await request(app.url + '/api/status', { method, headers });
+      assert.strictEqual(res.statusCode, 301, method);
+    }
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+      const res = await request(app.url + '/api/certificates/x/y/archive', { method, headers });
+      assert.strictEqual(res.statusCode, 308, method);
+      assert.strictEqual(res.headers.location, 'https://certs.dev.local:3443/api/certificates/x/y/archive', method);
+    }
+  }, PUBLIC_CLIENT);
+});
+
 test('FORCE_HTTPS: a loopback client is redirected too (a reverse proxy on the same host)', async () => {
   await withRedirectApp({}, async (app) => {
     const res = await request(app.url + '/', { headers: { host: 'certs.dev.local' } });
@@ -147,4 +162,18 @@ test('Docker health checks probe /api/health, which FORCE_HTTPS never redirects'
   const root = path.join(__dirname, '..');
   assert.match(fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8'), /HEALTHCHECK[\s\S]*http:\/\/localhost:3000\/api\/health/);
   assert.match(fs.readFileSync(path.join(root, 'docker-compose.yml'), 'utf8'), /healthcheck:[\s\S]*"http:\/\/localhost:3000\/api\/health"/);
+});
+
+test('server.js logs the HTTP redirect only once HTTPS is listening, and warns when HTTPS failed', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const httpListen = src.slice(src.indexOf('httpServer.listen(PORT'), src.indexOf('// Start HTTPS server if enabled'));
+  assert.ok(httpListen.length > 0, 'HTTP listen block not found');
+  assert.doesNotMatch(httpListen, /redirect/i, 'the HTTP listen log must not claim redirects before HTTPS is up');
+
+  const httpsListen = src.slice(src.indexOf('httpsServer.listen(HTTPS_PORT'), src.indexOf("httpsServer.on('error'"));
+  assert.match(httpsListen, /httpsListening = true[\s\S]*FORCE_HTTPS[\s\S]*redirect/i);
+
+  const sslCatch = src.slice(src.indexOf('} catch (sslError) {'), src.indexOf('} else {', src.indexOf('} catch (sslError) {')));
+  assert.match(sslCatch, /if \(FORCE_HTTPS\)[\s\S]*console\.warn\([^)]*not redirected/i,
+    'a failed HTTPS start with FORCE_HTTPS must warn that redirects are off');
 });

@@ -38,6 +38,7 @@ Download routes (`/api/download/*`, `/api/generate/pfx/*`,
 need a logged-in session (cookie `mkcertweb.sid`). Without one they return
 `401 { success: false, error: "Authentication required", redirectTo: "/login" }`.
 
+<a id="what-is-protected-without-enable_auth"></a>
 **What is protected without `ENABLE_AUTH`.** Authentication is on only when
 `ENABLE_AUTH=true`. `ENABLE_OIDC` alone turns nothing on: the OIDC routes are
 mounted only when `ENABLE_AUTH=true`. With auth off, every "auth" route is open
