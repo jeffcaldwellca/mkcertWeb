@@ -45,3 +45,15 @@ test('app.css defines light-theme overrides for every surface token', () => {
   for (const t of ['--bg', '--bg-pane', '--text', '--border', '--info', '--prompt', '--accent'])
     assert.match(css, new RegExp(`\\[data-theme="light"\\][^}]*${t}:`, 's'), t);
 });
+
+test('no side-stripe accents in redesigned CSS/HTML/JS', () => {
+  const files = ['public/css/app.css', ...REDESIGNED];
+  for (const entry of fs.readdirSync(path.join(ROOT, 'public/js'), { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.js')) files.push(path.posix.join('public/js', entry.name));
+  }
+  for (const rel of files) {
+    const src = read(rel);
+    assert.doesNotMatch(src, /border-(left|right)(-width|-color)?\s*:/i, `${rel}: side border stripe`);
+    assert.doesNotMatch(src, /inset\s+-?\d+px\s+0\s+0/i, `${rel}: inset side box-shadow stripe`);
+  }
+});
