@@ -3,9 +3,9 @@ node_modules/
 npm-debug.log*
 
 # Runtime data written by the app
-certificates/
-ssl/
-data/
+/certificates/
+/ssl/
+/data/
 config/settings.json
 temp/
 

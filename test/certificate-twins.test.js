@@ -533,3 +533,24 @@ test('GET /api/certificates quietly skips a file that vanishes before it is stat
     assert.ok(!errors.some((e) => e.includes('gone.pem')), errors.join('\n'));
   });
 });
+
+test('archive is 404 when neither active file exists, and creates nothing', async () => {
+  await withFixture('2099-03-14', {}, async ({ app, ls, folder }) => {
+    const res = await fetch(`${app.url}/api/certificates/${folder}/tw/archive`, { method: 'POST' });
+    const body = await res.json();
+    assert.strictEqual(res.status, 404, JSON.stringify(body));
+    assert.strictEqual(body.success, false);
+    assert.strictEqual(body.error, 'Certificate files not found');
+    assert.deepStrictEqual(ls(), ['archive']);
+    assert.deepStrictEqual(ls('archive'), []);
+  });
+});
+
+test('archive still moves a key-only active pair', async () => {
+  await withFixture('2099-03-15', { 'tw-key.pem': 'ACTIVE KEY' }, async ({ app, read, folder }) => {
+    const res = await fetch(`${app.url}/api/certificates/${folder}/tw/archive`, { method: 'POST' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(read('tw-key.pem'), null);
+    assert.strictEqual(read('archive/tw-key.pem'), 'ACTIVE KEY');
+  });
+});

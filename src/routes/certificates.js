@@ -43,8 +43,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
   const twinExists = (res, message) => apiResponse.conflict(res, message, { code: 'TWIN_EXISTS' });
 
   // Temp files from an interrupted swap of `certname`, named as in the restore
-  // route: .swap-<16 hex>-<certname>.pem / -key.pem inside archive/.
-  const SWAP_TEMP = /^\.swap-[0-9a-f]{16}-/;
+  // route: <SWAP_TEMP_PREFIX><16 hex>-<certname>.pem / -key.pem inside archive/.
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const SWAP_TEMP = new RegExp(`^${escapeRegExp(certificateUtils.SWAP_TEMP_PREFIX)}[0-9a-f]{16}-`);
   const hasSwapLeftovers = (archiveDir, certname) => {
     let entries;
     try {
@@ -484,6 +485,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     // Never overwrite an archived certificate of the same name.
     if (pairExists(archived)) {
       return twinExists(res, `an archived "${certname}" already exists in this folder`);
+    }
+
+    // Nothing to archive: the list was stale (deleted or archived elsewhere).
+    if (!pairExists(active)) {
+      return apiResponse.notFound(res, 'Certificate files not found');
     }
 
     try {
