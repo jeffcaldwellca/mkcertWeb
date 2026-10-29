@@ -27,8 +27,9 @@
     return { folderParam: 'legacy', label: 'Legacy', readOnly: cert.canEdit === false, isRootCA };
   }
 
+  // Archived and active certs can share folder + name, so the key marks archived ones.
   function certKey(cert) {
-    return locationOf(cert).folderParam + '/' + cert.name;
+    return locationOf(cert).folderParam + '/' + (cert.isArchived ? 'archive/' : '') + cert.name;
   }
 
   function classify(cert, now) {

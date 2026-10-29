@@ -97,3 +97,15 @@ test('hash round-trip', () => {
   assert.strictEqual(m.parseHash('#other=1'), null);
   assert.strictEqual(m.parseHash(''), null);
 });
+
+test('certKey distinguishes archived from active', () => {
+  const active = { name: 'a', folder: '2026-01-02', expiry: inDays(100) };
+  const archived = { name: 'a', folder: '2026-01-02', expiry: inDays(100), isArchived: true };
+  assert.strictEqual(m.certKey(active), '2026-01-02/a');
+  assert.strictEqual(m.certKey(archived), '2026-01-02/archive/a');
+  assert.notStrictEqual(m.certKey(active), m.certKey(archived));
+  // Both stay selectable through the hash and resolveSelection.
+  const groups = m.groupCertificates([active, archived], now);
+  assert.strictEqual(m.resolveSelection(groups, m.parseHash(m.formatHash(m.certKey(archived)))), '2026-01-02/archive/a');
+  assert.strictEqual(m.resolveSelection(groups, m.parseHash(m.formatHash(m.certKey(active)))), '2026-01-02/a');
+});

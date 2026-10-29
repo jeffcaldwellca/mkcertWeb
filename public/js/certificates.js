@@ -24,11 +24,11 @@
     pfxTarget: null
   };
 
-  // Current note per certificate, keyed by certKey ("<folderParam>/<name>").
+  // Current note per certificate, keyed by certKey (see MK.certModel.certKey).
   // Read back when opening the editor so note text is never parsed out of the DOM.
   const certNotes = new Map();
 
-  let groupsEl, detailEl, emptyEl, filterEl, domainsInput, formatSelect, quickGenForm;
+  let groupsEl, detailEl, emptyEl, filterEl, filterStatusEl, domainsInput, formatSelect, quickGenForm;
   let uploadDialog, uploadDropzone, fileInput, uploadProgress, uploadResults, fileList;
   let pfxDialog, pfxForm, pfxPassword, pfxConfirm, pfxError, pfxGenerateBtn;
 
@@ -307,7 +307,8 @@
 
   function notesHtml(cert, loc) {
     return '<div class="card"><div class="section-label">notes</div>' +
-      '<div class="certificate-notes" data-folder="' + esc(loc.folderParam) + '" data-name="' + esc(cert.name) + '">' +
+      '<div class="certificate-notes" data-key="' + esc(model.certKey(cert)) + '" data-folder="' + esc(loc.folderParam) +
+      '" data-name="' + esc(cert.name) + '">' +
       renderNoteContent(certNotes.get(model.certKey(cert)) || '') +
       '</div></div>';
   }
@@ -322,7 +323,7 @@
   }
 
   function noteKeyOf(container) {
-    return container.dataset.folder + '/' + container.dataset.name;
+    return container.dataset.key;
   }
 
   function openNoteEditor(container) {
@@ -345,13 +346,15 @@
 
   async function saveNote(container) {
     const note = container.querySelector('textarea').value;
+    // API path uses folderParam + name; the local map uses the certKey.
+    const key = noteKeyOf(container);
     const folder = container.dataset.folder;
     const name = container.dataset.name;
     try {
       const body = await state.api.put('/certificates/' + enc(folder) + '/' + enc(name) + '/notes', { note });
       const saved = body.note || '';
-      certNotes.set(folder + '/' + name, saved);
-      const cert = state.certs.find((c) => model.certKey(c) === folder + '/' + name);
+      certNotes.set(key, saved);
+      const cert = state.certs.find((c) => model.certKey(c) === key);
       if (cert) cert.note = saved;
       closeNoteEditor(container);
       toast('note saved', 'ok');
@@ -456,6 +459,14 @@
 
   // -------------------------------------------------------- cert management
 
+  // Archive/restore change a cert's key (certKey marks archived certs), so
+  // follow the moved cert instead of letting the stale hash fall back.
+  function selectMoved(folder, certName, archived) {
+    const moved = state.certs.find((c) => c.name === certName && !!c.isArchived === archived &&
+      model.locationOf(c).folderParam === folder);
+    if (moved) location.hash = model.formatHash(model.certKey(moved));
+  }
+
   async function deleteCertificate(folder, certName) {
     const ok = await confirmDialog(
       'Permanently delete "' + certName + '"? This cannot be undone.', 'delete', true);
@@ -481,6 +492,7 @@
       await state.api.post('/certificates/' + enc(folder) + '/' + enc(certName) + '/archive');
       toast('certificate "' + certName + '" archived', 'ok');
       await load();
+      selectMoved(folder, certName, true);
     } catch (err) {
       toast('failed to archive certificate: ' + err.message, 'err');
     }
@@ -493,6 +505,7 @@
       await state.api.post('/certificates/' + enc(folder) + '/' + enc(certName) + '/restore');
       toast('certificate "' + certName + '" restored', 'ok');
       await load();
+      selectMoved(folder, certName, false);
     } catch (err) {
       toast('failed to restore certificate: ' + err.message, 'err');
     }
@@ -840,6 +853,28 @@
     uploadDialog.showModal();
   }
 
+  // ------------------------------------------------------------------ filter
+
+  // The list itself is not a live region (it is rebuilt on every keystroke);
+  // only this short count is announced, and only when the filter changes.
+  function announceFilter() {
+    const total = state.certs.length;
+    const q = state.query.trim();
+    let msg;
+    if (!q) msg = 'showing all ' + total + (total === 1 ? ' certificate' : ' certificates');
+    else {
+      const n = state.certs.filter((c) => model.matchesQuery(c, state.query)).length;
+      msg = n === 0 ? 'no certificates match' : n + ' of ' + total + (total === 1 ? ' certificate' : ' certificates');
+    }
+    filterStatusEl.textContent = msg;
+  }
+
+  function onFilterInput() {
+    state.query = filterEl.value;
+    render();
+    announceFilter();
+  }
+
   // ---------------------------------------------------------------- keyboard
 
   function onDocumentKeydown(e) {
@@ -855,8 +890,7 @@
     e.preventDefault();
     if (filterEl.value) {
       filterEl.value = '';
-      state.query = '';
-      render();
+      onFilterInput();
     } else {
       filterEl.blur();
     }
@@ -878,6 +912,7 @@
     detailEl = document.getElementById('cert-detail');
     emptyEl = document.getElementById('cert-empty');
     filterEl = document.getElementById('cert-filter');
+    filterStatusEl = document.getElementById('cert-filter-status');
     quickGenForm = document.getElementById('quick-gen');
     domainsInput = document.getElementById('quick-gen-domains');
     formatSelect = document.getElementById('quick-gen-format');
@@ -900,7 +935,7 @@
     state.api = shell.api;
 
     quickGenForm.addEventListener('submit', onQuickGenerate);
-    filterEl.addEventListener('input', () => { state.query = filterEl.value; render(); });
+    filterEl.addEventListener('input', onFilterInput);
     filterEl.addEventListener('keydown', onFilterKeydown);
     document.addEventListener('keydown', onDocumentKeydown);
     detailEl.addEventListener('click', onDetailClick);
