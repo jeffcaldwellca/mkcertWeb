@@ -21,7 +21,7 @@
   <header class="titlebar">
     <div class="wrap titlebar-inner">
       <span class="titlebar-name">MKCERT-OS TERMINAL</span>
-      <span class="titlebar-status">v4.1.0 · LINK: SECURE · CA: ONLINE<span class="caret">▋</span></span>
+      <span class="titlebar-status">v5.0.0 · LINK: SECURE · CA: ONLINE<span class="caret">▋</span></span>
     </div>
   </header>
   <main id="main">
@@ -57,8 +57,8 @@
         <h2 class="section-head">DISPLAY OUTPUT</h2>
         <figure class="monitor">
           <div class="monitor-screen">
-            <img src="assets/screenshot.png" width="1244" height="529"
-                 alt="mkcert Web UI showing the certificate generation and management interface" />
+            <img src="assets/screenshot.png" width="1440" height="900"
+                 alt="mkcert Web UI certificates page: certificate list grouped by status on the left, the selected certificate's validity and subject alt names on the right" />
             <span class="monitor-scan" aria-hidden="true"></span>
           </div>
           <figcaption>// secure management console — certificate generation &amp; monitoring</figcaption>
@@ -74,10 +74,10 @@
           <button class="copy-btn" type="button" data-copy-target="qs-docker">COPY</button>
           <pre id="qs-docker"><code>git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
-docker-compose up -d</code></pre>
+docker compose up -d</code></pre>
         </div>
 
-        <p class="muted">Or run locally (requires Node.js 16+, mkcert, OpenSSL):</p>
+        <p class="muted">Or run locally (requires Node.js 22+, mkcert, OpenSSL):</p>
         <div class="codeblock">
           <button class="copy-btn" type="button" data-copy-target="qs-local">COPY</button>
           <pre id="qs-local"><code>npm install
@@ -90,9 +90,9 @@ npm start</code></pre>
       <div class="wrap">
         <h2 class="section-head">MANIFEST</h2>
         <dl class="manifest">
-          <dt>VERSION</dt><dd>4.1.0</dd>
+          <dt>VERSION</dt><dd>5.0.0</dd>
           <dt>LICENSE</dt><dd><a href="https://github.com/jeffcaldwellca/mkcertWeb/blob/main/LICENSE">GPLv3</a></dd>
-          <dt>REQUIRES</dt><dd>Node.js 16+ · mkcert · OpenSSL</dd>
+          <dt>REQUIRES</dt><dd>Node.js 22+ · mkcert · OpenSSL</dd>
           <dt>SOURCE</dt><dd><a href="https://github.com/jeffcaldwellca/mkcertWeb">github.com/jeffcaldwellca/mkcertWeb</a></dd>
           <dt>IMAGE</dt><dd><a href="https://hub.docker.com/r/jeffcaldwellca/mkcertweb">hub.docker.com/r/jeffcaldwellca/mkcertweb</a></dd>
         </dl>
@@ -122,7 +122,7 @@ npm start</code></pre>
         <a href="https://github.com/jeffcaldwellca/mkcertWeb/blob/main/LICENSE">License (GPLv3)</a>
       </nav>
       <p class="footer-note">
-        mkcert Web UI v4.1.0 — released under GPLv3.<br />
+        mkcert Web UI v5.0.0 — released under GPLv3.<br />
         Styled after classic green-phosphor CRT terminals — built for fun.
       </p>
       <p class="footer-sign">MKCERT-OS // SESSION ENDED<span class="caret">▋</span></p>

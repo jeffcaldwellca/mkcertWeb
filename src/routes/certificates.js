@@ -1,11 +1,12 @@
-// Certificate management routes module - Refactored to eliminate code duplication
+// Certificate management routes module
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
+const fsSync = require('fs');
 const fs = require('fs').promises;
 const security = require('../security');
 const certificateUtils = require('../utils/certificates');
-const { apiResponse, handleError, asyncHandler, validateRequest } = require('../utils/responses');
-const { validateFileRequest, deleteFile } = require('../utils/fileValidation');
+const { apiResponse, asyncHandler, validateRequest } = require('../utils/responses');
 const { createNotesStore } = require('../services/notesStore');
 
 const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore = createNotesStore()) => {
@@ -13,7 +14,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
   const { cliRateLimiter, generalRateLimiter } = rateLimiters;
 
   // Note-store key for a grouped certificate. Mirrors the folder identifiers
-  // the frontend uses for API calls (public/script.js displayCertificates).
+  // the frontend uses for API calls (locationOf in public/js/cert-model.js).
   const noteKeyForCert = (group) => {
     let folder;
     if (group.isInterfaceSSL) folder = 'interface-ssl';
@@ -23,45 +24,72 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     return `${folder}/${group.name}`;
   };
 
-  // Get all available commands
-  router.get('/api/commands', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const commands = [
-      {
-        name: 'Install CA',
-        key: 'install-ca',
-        description: 'Install the local CA certificate',
-        dangerous: false
-      },
-      {
-        name: 'Uninstall CA',
-        key: 'uninstall-ca',
-        description: 'Uninstall the local CA certificate',
-        dangerous: true
-      },
-      {
-        name: 'Generate',
-        key: 'generate',
-        description: 'Generate certificate for domains',
-        dangerous: false,
-        hasInput: true,
-        inputPlaceholder: 'Enter domain names (space-separated)'
-      },
-      {
-        name: 'Get CAROOT',
-        key: 'caroot',
-        description: 'Get the CA root directory path',
-        dangerous: false
-      },
-      {
-        name: 'List Certificates',
-        key: 'list',
-        description: 'List all certificates in the current directory',
-        dangerous: false
+  // The .pem / -key.pem pair for `certname` inside `dir`, resolved through
+  // the security helpers (throws on an unsafe name). Each file must sit
+  // directly in `dir`: the helper URL-decodes again, so a name Express has
+  // already decoded once (e.g. "archive%2Ftw") could otherwise reach a
+  // subdirectory such as archive/.
+  const pemPairIn = (dir, certname) => {
+    const inDir = (filename) => {
+      const resolved = security.validateAndSanitizePath(filename, dir).resolved;
+      if (path.dirname(resolved) !== path.resolve(dir)) {
+        throw new Error(`Invalid path: ${filename} is not directly inside its folder`);
       }
-    ];
+      return resolved;
+    };
+    return { cert: inDir(`${certname}.pem`), key: inDir(`${certname}-key.pem`) };
+  };
+  const pairExists = (pair) => fsSync.existsSync(pair.cert) || fsSync.existsSync(pair.key);
+  const twinExists = (res, message) => apiResponse.conflict(res, message, { code: 'TWIN_EXISTS' });
 
-    apiResponse.success(res, { commands });
-  }));
+  // Temp files from an interrupted swap of `certname`, named as in the restore
+  // route: <SWAP_TEMP_PREFIX><16 hex>-<certname>.pem / -key.pem inside archive/.
+  const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const SWAP_TEMP = new RegExp(`^${escapeRegExp(certificateUtils.SWAP_TEMP_PREFIX)}[0-9a-f]{16}-`);
+  const hasSwapLeftovers = (archiveDir, certname) => {
+    let entries;
+    try {
+      entries = fsSync.readdirSync(archiveDir);
+    } catch (err) {
+      if (err.code === 'ENOENT') return false;
+      throw err;
+    }
+    return entries.some((f) => SWAP_TEMP.test(f) &&
+      [`${certname}.pem`, `${certname}-key.pem`].includes(f.replace(SWAP_TEMP, '')));
+  };
+
+  // Exchange an active pair with its archived twin without overwriting
+  // anything. Per file: active -> temp, archived -> active, temp -> archived.
+  // Either side may hold only the cert or only the key. If any rename throws,
+  // the renames already done are undone in reverse order and the error is
+  // rethrown, with err.rollbackFailures listing any rename that could not be undone.
+  const swapPairs = (active, archived, temp) => {
+    const done = [];
+    const move = (from, to) => {
+      if (fsSync.existsSync(to)) throw new Error(`refusing to overwrite ${path.basename(to)}`);
+      fsSync.renameSync(from, to);
+      done.push([from, to]);
+    };
+    try {
+      for (const kind of ['cert', 'key']) {
+        const hadActive = fsSync.existsSync(active[kind]);
+        if (hadActive) move(active[kind], temp[kind]);
+        if (fsSync.existsSync(archived[kind])) move(archived[kind], active[kind]);
+        if (hadActive) move(temp[kind], archived[kind]);
+      }
+    } catch (err) {
+      const failures = [];
+      for (const [from, to] of done.reverse()) {
+        try {
+          fsSync.renameSync(to, from);
+        } catch (undoErr) {
+          failures.push(`${to} -> ${from}: ${undoErr.message}`);
+        }
+      }
+      if (failures.length) err.rollbackFailures = failures;
+      throw err;
+    }
+  };
 
   // Execute mkcert commands
   router.post('/api/execute', requireAuth, cliRateLimiter,
@@ -109,8 +137,9 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
           // SECURITY: mkcert -uninstall is destructive (breaks trust for every
           // cert this server issued). Mirror the guards on POST /api/uninstall-ca
           // so this path can't be used to bypass them.
-          if (!config.auth.enabled && !config.oidc.enabled) {
-            return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled');
+          // Only ENABLE_AUTH counts: without it there is no login, even with OIDC configured.
+          if (config.auth.enabled !== true) {
+            return apiResponse.forbidden(res, 'mkcert -uninstall is destructive and is only available when authentication is enabled (ENABLE_AUTH=true)');
           }
           if (req.body?.confirm !== true) {
             return apiResponse.badRequest(res, 'Pass { "confirm": true } to acknowledge this will remove the local root CA from the system trust store');
@@ -162,21 +191,13 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
             const result = await security.executeCommand(fullCommand, { cwd: certDir });
             return apiResponse.success(res, {
               output: result.stdout || result.stderr,
-              command: fullCommand,
-              certificateDir: certDir,
               format: format
             });
           } catch (error) {
-            console.error('Certificate generation error:', error);
-            return apiResponse.serverError(res, 
-              `Certificate generation failed: ${error.error || error.message}`
-            );
+            return apiResponse.serverError(res, 'Certificate generation failed', error);
           }
         case 'caroot':
           fullCommand = 'mkcert -CAROOT';
-          break;
-        case 'list':
-          fullCommand = 'ls -la *.pem 2>/dev/null || echo "No certificates found"';
           break;
         default:
           return apiResponse.badRequest(res, 'Invalid command');
@@ -231,7 +252,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         
         return {
           filename: fileInfo.name,
-          path: fileInfo.fullPath,
           size: stats.size,
           modified: stats.mtime,
           expiry: expiry,
@@ -247,10 +267,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
           relativePath: fileInfo.relativePath
         };
       } catch (err) {
+        // Deleted by another request since the directory scan: just skip it.
+        if (err.code === 'ENOENT') return { filename: fileInfo.name, error: 'File no longer exists' };
         console.error(`Error processing certificate ${fileInfo.fullPath}:`, err);
         return {
           filename: fileInfo.name,
-          path: fileInfo.fullPath,
           error: 'Could not read certificate details'
         };
       }
@@ -269,77 +290,6 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       certificates: groupedCertificates,
       total: groupedCertificates.length
     });
-  }));
-
-  // Get certificate details
-  router.get('/api/certificate/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    const stats = await fs.stat(safePath);
-    const expiry = await certificateUtils.getCertificateExpiry(safePath);
-    const domains = await certificateUtils.getCertificateDomains(safePath);
-    const fingerprint = await certificateUtils.getCertificateFingerprint(safePath);
-    
-    apiResponse.success(res, {
-      filename: filename,
-      size: stats.size,
-      modified: stats.mtime,
-      expiry: expiry,
-      domains: domains,
-      fingerprint: fingerprint,
-      type: filename.endsWith('-key.pem') ? 'key' : 'cert'
-    });
-  }));
-
-  // Delete certificate
-  router.delete('/api/certificate/:filename', requireAuth, cliRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    // Delete the certificate file
-    const deleted = await deleteFile(safePath, res);
-    if (!deleted) return; // Error response already sent by deleteFile
-    
-    // Also try to delete the corresponding key/cert file if it exists
-    let companionFile;
-    if (filename.endsWith('-key.pem')) {
-      companionFile = filename.replace('-key.pem', '.pem');
-    } else if (filename.endsWith('.pem') && !filename.endsWith('-key.pem')) {
-      companionFile = filename.replace('.pem', '-key.pem');
-    }
-    
-    if (companionFile) {
-      // Re-run containment on the derived name rather than trusting that it
-      // inherits safety from `filename` — keeps this path self-evidently safe.
-      let companionPath;
-      try {
-        companionPath = security.validateAndSanitizePath(companionFile, process.cwd()).resolved;
-      } catch (_) {
-        companionPath = null;
-      }
-      try {
-        if (!companionPath) throw new Error('unsafe companion path');
-        await fs.access(companionPath);
-        await deleteFile(companionPath); // Don't pass res - we don't want to send error response for companion file
-      } catch (err) {
-        // Companion file doesn't exist or couldn't be deleted, that's OK
-      }
-    }
-
-    // Drop any note. This route deletes files in the certificates root, where
-    // the UI folder key is interface-ssl or legacy — remove both candidates.
-    const base = path.basename(filename).replace(/(-key)?\.(pem|crt|key|p12|pfx)$/i, '');
-    notesStore.remove(`interface-ssl/${base}`);
-    notesStore.remove(`legacy/${base}`);
-
-    apiResponse.success(res, {}, 'Certificate deleted successfully');
   }));
 
   // Get root CA information
@@ -409,8 +359,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         path: rootCAPath
       });
     } catch (error) {
-      console.error('Error getting root CA info:', error);
-      apiResponse.serverError(res, 'Failed to get root CA information: ' + error.message);
+      apiResponse.serverError(res, 'Failed to get root CA information', error);
     }
   }));
 
@@ -478,11 +427,11 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
         if (fsSync.existsSync(pfxFile)) fsSync.unlinkSync(pfxFile);
       });
     } catch (error) {
-      console.error('PFX generation error:', error);
       if (fsSync.existsSync(pfxFile)) {
         try { fsSync.unlinkSync(pfxFile); } catch (_) {}
       }
-      return apiResponse.serverError(res, `Failed to generate PFX: ${error.message || error.error || 'unknown error'}`);
+      // The raw error embeds the openssl command line (absolute server paths); keep it in the log only.
+      return apiResponse.serverError(res, 'failed to generate PFX', error);
     } finally {
       if (passFile && fsSync.existsSync(passFile)) {
         try { fsSync.unlinkSync(passFile); } catch (_) {}
@@ -514,36 +463,38 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     }
 
     // Use security-validated paths
-    let certFile, keyFile, archiveDir;
+    let active, archiveDir, archived;
     try {
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, sourceDir).resolved;
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, sourceDir).resolved;
+      active = pemPairIn(sourceDir, certname);
       archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
+      archived = pemPairIn(archiveDir, certname);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
+    // Never overwrite an archived certificate of the same name.
+    if (pairExists(archived)) {
+      return twinExists(res, `an archived "${certname}" already exists in this folder`);
+    }
+
+    // Nothing to archive: the list was stale (deleted or archived elsewhere).
+    if (!pairExists(active)) {
+      return apiResponse.notFound(res, 'Certificate files not found');
+    }
+
     try {
       // Ensure archive directory exists
-      if (!require('fs').existsSync(archiveDir)) {
-        require('fs').mkdirSync(archiveDir, { recursive: true });
+      if (!fsSync.existsSync(archiveDir)) {
+        fsSync.mkdirSync(archiveDir, { recursive: true });
       }
-      
+
       // Move certificate files to archive
-      const fs = require('fs');
-      if (fs.existsSync(certFile)) {
-        const archiveCertPath = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
-        fs.renameSync(certFile, archiveCertPath);
-      }
-      if (fs.existsSync(keyFile)) {
-        const archiveKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
-        fs.renameSync(keyFile, archiveKeyPath);
-      }
-      
+      if (fsSync.existsSync(active.cert)) fsSync.renameSync(active.cert, archived.cert);
+      if (fsSync.existsSync(active.key)) fsSync.renameSync(active.key, archived.key);
+
       apiResponse.success(res, { message: `Certificate ${certname} archived successfully` });
     } catch (error) {
-      console.error('Archive error:', error);
-      apiResponse.serverError(res, `Failed to archive certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to archive certificate', error);
     }
   }));
 
@@ -569,51 +520,60 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
     
+    // ?archived=true deletes the archive/ copy, ?archived=false the active
+    // copy; absent, the active copy if it exists, else the archived one.
+    // An active cert and an archived cert can share a name, so one request
+    // never deletes both.
+    const archivedParam = req.query.archived;
+    if (archivedParam !== undefined && archivedParam !== 'true' && archivedParam !== 'false') {
+      return apiResponse.badRequest(res, 'archived must be "true" or "false"');
+    }
+
     // Use security-validated paths. Archived certificates live in the
-    // folder's archive/ subdirectory (see the /archive endpoint above), and
-    // the UI offers "Delete Forever" only on archived cards — so check both.
-    let candidates;
+    // folder's archive/ subdirectory (see the /archive endpoint above).
+    let active, archived;
     try {
       const archiveDir = security.validateAndSanitizePath('archive', sourceDir).resolved;
-      candidates = [sourceDir, archiveDir].map((dir) => ({
-        certFile: security.validateAndSanitizePath(`${certname}.pem`, dir).resolved,
-        keyFile: security.validateAndSanitizePath(`${certname}-key.pem`, dir).resolved
-      }));
+      active = pemPairIn(sourceDir, certname);
+      archived = pemPairIn(archiveDir, certname);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
 
+    let scope;
+    if (archivedParam === 'true') scope = 'archived';
+    else if (archivedParam === 'false') scope = 'active';
+    else scope = pairExists(active) ? 'active' : 'archived';
+    const target = scope === 'active' ? active : archived;
+
     try {
-      const fs = require('fs');
-      let deletedFiles = [];
-
-      for (const { certFile, keyFile } of candidates) {
-        // Delete certificate file if it exists
-        if (fs.existsSync(certFile)) {
-          fs.unlinkSync(certFile);
-          deletedFiles.push(`${certname}.pem`);
-        }
-
-        // Delete key file if it exists
-        if (fs.existsSync(keyFile)) {
-          fs.unlinkSync(keyFile);
-          deletedFiles.push(`${certname}-key.pem`);
-        }
+      const deletedFiles = [];
+      if (fsSync.existsSync(target.cert)) {
+        fsSync.unlinkSync(target.cert);
+        deletedFiles.push(`${certname}.pem`);
+      }
+      if (fsSync.existsSync(target.key)) {
+        fsSync.unlinkSync(target.key);
+        deletedFiles.push(`${certname}-key.pem`);
       }
 
       if (deletedFiles.length === 0) {
-        return apiResponse.notFound(res, 'Certificate files not found');
+        return apiResponse.notFound(res,
+          scope === 'archived' ? 'Archived certificate files not found' : 'Certificate files not found');
       }
 
-      notesStore.remove(`${folder}/${certname}`);
+      // Both copies share one note; keep it while either copy remains.
+      if (!pairExists(active) && !pairExists(archived)) {
+        notesStore.remove(`${folder}/${certname}`);
+      }
 
       apiResponse.success(res, {
         message: `Certificate ${certname} deleted successfully`,
-        deletedFiles
+        deletedFiles,
+        scope
       });
     } catch (error) {
-      console.error('Delete error:', error);
-      apiResponse.serverError(res, `Failed to delete certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to delete certificate', error);
     }
   }));
 
@@ -638,33 +598,76 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
     } else {
       return apiResponse.badRequest(res, 'Invalid folder parameter');
     }
-    
+
+    const swapParam = req.query.swap;
+    if (swapParam !== undefined && swapParam !== 'true' && swapParam !== 'false') {
+      return apiResponse.badRequest(res, 'swap must be "true" or "false"');
+    }
+
     // Use security-validated paths
-    let certFile, keyFile, archiveDir;
+    let archiveDir, archived, active;
     try {
       archiveDir = security.validateAndSanitizePath('archive', targetDir).resolved;
-      certFile = security.validateAndSanitizePath(`${certname}.pem`, archiveDir).resolved;
-      keyFile = security.validateAndSanitizePath(`${certname}-key.pem`, archiveDir).resolved;
+      archived = pemPairIn(archiveDir, certname);
+      active = pemPairIn(targetDir, certname);
     } catch (error) {
       return apiResponse.badRequest(res, 'Invalid file path');
     }
-    
+
+    // An interrupted swap leaves one of the pair under a temp name; moving
+    // anything now could strand it further.
+    if (hasSwapLeftovers(archiveDir, certname)) {
+      return apiResponse.conflict(res,
+        `an interrupted swap left temporary files for "${certname}"; resolve them manually`,
+        { code: 'SWAP_INCOMPLETE' });
+    }
+
+    if (!pairExists(archived)) {
+      return apiResponse.notFound(res, 'Archived certificate files not found');
+    }
+
+    // An active certificate of the same name is never overwritten: refuse,
+    // or with ?swap=true exchange the two copies.
+    const twin = pairExists(active);
+    if (twin && swapParam !== 'true') {
+      return twinExists(res, `an active "${certname}" already exists in this folder`);
+    }
+
+    if (twin) {
+      // The swap parks the active pair in archive/ under a temp name, which
+      // is longer than the certificate name and must still be valid.
+      let temp;
+      try {
+        const tempName = `${certificateUtils.SWAP_TEMP_PREFIX}${crypto.randomBytes(8).toString('hex')}-${certname}`;
+        security.validateFilename(`${tempName}-key.pem`);
+        temp = pemPairIn(archiveDir, tempName);
+      } catch (error) {
+        return apiResponse.badRequest(res, 'Certificate name is too long to swap with the active copy');
+      }
+      try {
+        swapPairs(active, archived, temp);
+        return apiResponse.success(res, {
+          message: `Certificate ${certname} swapped with the active copy`,
+          swapped: true
+        });
+      } catch (error) {
+        if (error.rollbackFailures) {
+          // serverError logs the error, rollbackFailures included.
+          return apiResponse.serverError(res,
+            `Failed to swap certificate ${certname} and could not fully roll back; check its archive folder for .swap-* files`, error);
+        }
+        return apiResponse.serverError(res, 'Failed to swap certificate', error);
+      }
+    }
+
     try {
       // Move certificate files from archive back to main directory
-      const fs = require('fs');
-      if (fs.existsSync(certFile)) {
-        const targetCertPath = security.validateAndSanitizePath(`${certname}.pem`, targetDir).resolved;
-        fs.renameSync(certFile, targetCertPath);
-      }
-      if (fs.existsSync(keyFile)) {
-        const targetKeyPath = security.validateAndSanitizePath(`${certname}-key.pem`, targetDir).resolved;
-        fs.renameSync(keyFile, targetKeyPath);
-      }
-      
-      apiResponse.success(res, { message: `Certificate ${certname} restored successfully` });
+      if (fsSync.existsSync(archived.cert)) fsSync.renameSync(archived.cert, active.cert);
+      if (fsSync.existsSync(archived.key)) fsSync.renameSync(archived.key, active.key);
+
+      apiResponse.success(res, { message: `Certificate ${certname} restored successfully`, swapped: false });
     } catch (error) {
-      console.error('Restore error:', error);
-      apiResponse.serverError(res, `Failed to restore certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to restore certificate', error);
     }
   }));
 
@@ -736,8 +739,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(filePath, filename);
     } catch (error) {
-      console.error('Download error:', error);
-      apiResponse.serverError(res, `Failed to download certificate: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download certificate', error);
     }
   }));
 
@@ -780,8 +782,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(filePath, filename);
     } catch (error) {
-      console.error('Download error:', error);
-      apiResponse.serverError(res, `Failed to download key: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download key', error);
     }
   }));
 
@@ -859,10 +860,10 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       // Once headers are sent we can't 500; the best we can do is destroy
       // the socket so the client sees an aborted download.
       archive.on('error', (err) => {
-        console.error('Archive stream error:', err);
         if (!res.headersSent) {
-          return apiResponse.serverError(res, `Bundle stream failed: ${err.message}`);
+          return apiResponse.serverError(res, 'Bundle stream failed', err);
         }
+        console.error('Archive stream error:', err);
         try { res.destroy(err); } catch (_) {}
       });
       archive.on('warning', (err) => {
@@ -876,9 +877,10 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
 
       await archive.finalize();
     } catch (error) {
-      console.error('Bundle download error:', error);
       if (!res.headersSent) {
-        apiResponse.serverError(res, `Failed to download bundle: ${error.message}`);
+        apiResponse.serverError(res, 'Failed to download bundle', error);
+      } else {
+        console.error('Bundle download error:', error);
       }
     }
   }));
@@ -897,8 +899,7 @@ const createCertificateRoutes = (config, rateLimiters, requireAuth, notesStore =
       
       res.download(rootCAPath, 'mkcert-rootCA.pem');
     } catch (error) {
-      console.error('Root CA download error:', error);
-      apiResponse.serverError(res, `Failed to download root CA: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to download root CA', error);
     }
   }));
 

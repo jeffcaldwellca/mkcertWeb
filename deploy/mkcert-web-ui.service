@@ -1,0 +1,60 @@
+# systemd unit for running mkcert Web UI directly on a host (without Docker).
+# Needs Node.js >= 22, mkcert and openssl.
+#
+# Install: put the code in /opt/mkcert-web-ui owned by root (the service
+# cannot modify it), run `npm ci --omit=dev` there, then create the runtime
+# directories the app writes to, owned by the service user, before the first
+# start (systemd refuses to start the unit if any ReadWritePaths entry is
+# missing):
+#   cd /opt/mkcert-web-ui && sudo install -d -o www-data -g www-data certificates config data ssl
+#   sudo cp deploy/mkcert-web-ui.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mkcert-web-ui
+#
+# mkcert's root CA lives in the state directory (/var/lib/mkcert-web-ui/ca),
+# outside the code tree, so redeploying the code never touches it.
+#
+# Upgrading an install whose root CA was created under the service user's
+# home (e.g. /var/www/.local/share/mkcert for www-data): before restarting,
+# copy rootCA.pem and rootCA-key.pem into /var/lib/mkcert-web-ui/ca/ (owned
+# by the service user, key mode 0400). Otherwise mkcert creates a new CA,
+# and clients that trust the old one will reject certificates issued from
+# then on.
+#
+# The enterprise CA option (ENTERPRISE_CA_*) runs openssl -CAcreateserial,
+# which writes a .srl file next to the enterprise CA certificate; add that
+# directory to ReadWritePaths if you enable it.
+[Unit]
+Description=mkcert Web UI
+Documentation=https://github.com/FiloSottile/mkcert
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/mkcert-web-ui
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ENABLE_HTTPS=true
+Environment=SSL_DOMAIN=localhost
+Environment=HTTPS_PORT=3443
+# Creates /var/lib/mkcert-web-ui owned by User= on every start.
+StateDirectory=mkcert-web-ui
+Environment=CAROOT=/var/lib/mkcert-web-ui/ca
+
+# Security settings
+NoNewPrivileges=yes
+# Private /tmp: upload staging and PFX password files stay inside the unit.
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# Everything the app writes under the code tree: certificates/ (generated,
+# uploaded, archived and SCEP certs, PFX exports, the CA copy for download),
+# config/settings.json, data/ (certificate notes) and ssl/ (HTTPS cert).
+# The StateDirectory above is writable automatically.
+ReadWritePaths=/opt/mkcert-web-ui/certificates /opt/mkcert-web-ui/config /opt/mkcert-web-ui/data /opt/mkcert-web-ui/ssl
+
+[Install]
+WantedBy=multi-user.target

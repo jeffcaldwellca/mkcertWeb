@@ -4,6 +4,331 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+
+## [5.0.0] - 2026-10-29
+
+### Highlights
+
+- **Split-pane dashboard.** Every page has a top bar (page tabs, mkcert / CA /
+  openssl status, user, theme) with a list pane on the left and a detail pane
+  on the right. The certificates page groups certificates as needs attention,
+  healthy, read-only and archived, has a quick-generate command bar and a
+  filter, and shows overview, files and notes tabs for the selected
+  certificate. The selection is kept in the URL.
+- **Root CA and notifications pages.** The root CA (details, download, install
+  guide, generate) and the notification channels (email, ntfy, webhook,
+  monitoring, with their test actions and the expiring list) moved off the
+  certificates page onto their own pages.
+- **Settings page** with a section list, a setting search, the config key on
+  every field, unsaved-change tracking (`edited` sections, `discard`, a
+  leave-page warning) and the running configuration.
+- **SCEP page rebuilt:** service URLs with copy buttons, enterprise CA status,
+  templates, and challenges / issued / manual enroll / mdm setup tabs. A new
+  challenge password is shown once.
+- **Light and dark themes** on every page, including login, and a layout that
+  works down to phone width.
+
+### Upgrading from 4.4.x
+
+- [ ] **Docker:** the image's `HEALTHCHECK` and the compose health check now
+  probe `/api/health` instead of `/`; change any custom health check the same
+  way. Set `TRUST_PROXY` to your reverse proxy's address as the container sees
+  it (see [docs/DOCKER.md](docs/DOCKER.md#https-and-reverse-proxies)).
+- [ ] **`docker run`:** add `-v mkcert_config:/app/config` so settings saved in
+  the UI (`config/settings.json`) survive recreating the container, as
+  `docker-compose.yml` and `npm run docker:run` now do.
+- [ ] **systemd:** the unit moved to `deploy/mkcert-web-ui.service` and keeps
+  the CA in `/var/lib/mkcert-web-ui/ca`. Before starting it, copy the existing
+  `rootCA.pem` and `rootCA-key.pem` there (or mkcert creates a new CA), then
+  create the directories it writes to:
+  `cd /opt/mkcert-web-ui && sudo install -d -o www-data -g www-data certificates config data ssl`.
+  See [deploy/README.md](deploy/README.md#upgrading-from-a-unit-that-kept-the-ca-in-the-service-users-home).
+- [ ] **`ENABLE_OIDC=true` without `ENABLE_AUTH=true`:** the settings API and
+  `mkcert -uninstall` (`POST /api/uninstall-ca`, and `uninstall-ca` in
+  `POST /api/execute`) now return 403. Set `ENABLE_AUTH=true`; without it
+  there was never a login, OIDC or otherwise.
+- [ ] **`FORCE_HTTPS=true`** now redirects pages, assets and API calls: 301 for
+  GET and HEAD, 308 for other methods. Only `/api/health` and `/scep` are
+  exempt. Scripts that call the API over `http://` must switch to `https://`.
+- [ ] **API clients:**
+  - The removed endpoints and response fields listed under Breaking are gone;
+    use the replacements given there.
+  - Archive and restore return 409 `TWIN_EXISTS` instead of overwriting a
+    same-name copy; restore takes `?swap=true` to exchange the two.
+  - `?archived` and `?swap` accept only `true` or `false` (anything else is a 400).
+  - `DELETE /api/certificates/:folder/:certname` removes one copy only (see
+    Breaking for which one).
+  - `GET /api` keys are now `"METHOD /path"`.
+  - Every JSON 500 body is a fixed `error` message plus a `ref` (and a short
+    `reason` on a few routes). Don't parse the error text; look up the `ref`
+    in the server log.
+  - Status codes: archive when the active files are gone → 404 (was 200);
+    restore when the archived files are gone → 404 (was 200); an unexpected
+    upload failure → 500 (was 400); a malformed JSON body → 400 (was 500); an
+    oversized body → 413 (was 500).
+- [ ] **UI:** uploaded and SCEP-issued certificates are view-only. The root-ca
+  page's install button really runs `mkcert -install` on the server (it needs
+  root, so it fails in Docker and under the systemd unit; install the CA on
+  clients instead). An archived certificate with an active copy of the same
+  name shows their shared note read-only; edit it on the active copy (see
+  Known issues).
+
+### Breaking
+
+- **Removed endpoints** (they now return 404): `GET /api/files`,
+  `GET /api/file/:filename/content`, `GET /download/:filename`,
+  `GET /api/certificate/:filename`, `DELETE /api/certificate/:filename` and
+  `GET /api/commands`. Use `/api/download/{cert,key,bundle}/:folder/…` and
+  `/api/certificates/:folder/:certname`.
+- **`GET /api` index format.** `endpoints.<group>` keys are now
+  `"METHOD /path"` with a description as the value (was `"/path": "METHOD - …"`,
+  which also lost one of two routes sharing a path). The index lists every API
+  route.
+- **Same-name archived and active certificates are never overwritten:**
+  - `DELETE /api/certificates/:folder/:certname` deletes exactly one copy:
+    `?archived=true` the archived one, `?archived=false` the active one, no
+    parameter the active one if present, else the archived one. It used to
+    delete both. The response adds `scope`.
+  - `POST …/restore` returns 409 `TWIN_EXISTS` when an active copy exists,
+    instead of overwriting it; `?swap=true` exchanges the two copies.
+  - `POST …/archive` returns 409 `TWIN_EXISTS` when an archived copy exists,
+    instead of overwriting it.
+- `?archived` and `?swap` accept only `true` or `false`; anything else is a 400.
+- A certificate name that decodes to a path (e.g. a double-encoded
+  `archive%252F<name>`) is rejected with 400.
+- Uploaded and SCEP-issued certificates are view-only in the UI (no download,
+  PFX, archive or notes buttons); the server's per-certificate routes never
+  accepted their folders.
+- **Removed response fields** that exposed server paths and that the UI
+  never read: `command` and `certificateDir` from `POST /api/execute`
+  (`generate`); the absolute `path` of each file in `GET /api/certificates`
+  (`relativePath` stays); `workingDirectory` from `GET /api/system`;
+  `publicCACertPath` from `POST /api/generate-ca`; and from the public
+  `GET /api/status`: `caRoot`, `ca.root`, `server.pid`, `server.memory`,
+  `server.version` and `environment.workingDir` (`features.oidc` is now a
+  boolean).
+- **systemd unit** moved to `deploy/mkcert-web-ui.service` and now keeps the
+  root CA in `/var/lib/mkcert-web-ui/ca`. When upgrading, copy `rootCA.pem`
+  and `rootCA-key.pem` from the service user's old mkcert directory there
+  first, or mkcert creates a new CA (see `deploy/README.md`).
+- **`FORCE_HTTPS=true` redirects everything over plain HTTP** (pages, assets,
+  API calls), with 308 for methods other than GET and HEAD, except
+  `/api/health` and `/scep`. It used to reach only unknown paths, and it
+  trusted `X-Forwarded-Proto` from any client; now only from `TRUST_PROXY`
+  (see Fixed).
+- **The settings API and uninstall-ca return 403 unless `ENABLE_AUTH=true`**,
+  even with `ENABLE_OIDC=true` (see Security).
+- **Health check path:** the Docker and compose health checks probe
+  `/api/health`, not `/`.
+- **Archive returns 404 when the active files are gone** (it returned 200), and
+  restore returns 404 when the archived files are gone (it returned 200 and
+  moved nothing).
+- **Error bodies and status codes:** every JSON 500 is a fixed message plus a
+  `ref` (no error text, and no stack with `NODE_ENV=development`); unexpected
+  upload failures are 500 (were 400); malformed JSON is 400 and an oversized
+  body 413 (both were 500); a broken multipart upload is 400 `Malformed upload`.
+  See Security and the upgrade checklist above.
+
+### Added
+
+- `TRUST_PROXY` environment variable: which proxies may set
+  `X-Forwarded-For` / `X-Forwarded-Proto` (`true`, `false`, a hop count, or
+  addresses, CIDRs and `loopback`/`linklocal`/`uniquelocal`). The default is
+  the previous hard-coded `loopback,linklocal,uniquelocal`, so existing
+  proxy-container setups keep working; that default trusts every private-LAN
+  client, so set it to your proxy's address as the app sees it (in Docker,
+  usually the network gateway or the proxy container's IP; see
+  `docs/DOCKER.md`).
+
+### Changed
+
+- Accessibility: focus returns to a sensible place after every re-render;
+  status dots and channel states carry text, not only colour; toasts are
+  announced through live regions (errors stay until dismissed); sub-tabs work
+  with the arrow keys.
+- Content-Security-Policy: `script-src` and `style-src` are `'self'` only, with
+  no `unsafe-inline` and no CDN origin. No page has inline scripts, styles or
+  event handlers, and guard tests keep it that way.
+- Font Awesome is gone; icons are text glyphs. No page loads anything from
+  another origin.
+- The root-ca page's install button calls `POST /api/install-ca`, which always
+  runs `mkcert -install`. The old path reported success without installing
+  when the CA files already existed.
+- Least-privilege systemd unit: the code tree is read-only to the service,
+  writes are limited to `certificates/`, `config/`, `data/` and `ssl/`, and the
+  CA lives in the unit's state directory.
+- Uploads are staged in a private directory under the OS temp dir instead of
+  the working directory.
+- `data/` (certificate notes) is git-ignored.
+- The unused `asn1js` dependency is removed.
+- Pages link the favicons and web manifest; `/favicon.ico` redirects to
+  `/assets/favicon.ico`.
+- CI runs `npm ci` and `npm test` on Node.js 22 (the `engines` minimum) for
+  pull requests and pushes to `main`; the Docker scan and publish jobs wait
+  for it.
+- `package.json`: the `env` script is gone (`server.js` loads `.env` itself),
+  `docker:run` mounts the `mkcert_config` volume like docker-compose, the
+  `compose:*` scripts use `docker compose`, and the `license` (GPL-3.0-only)
+  and `repository` fields are set.
+- `docker-compose.yml` no longer sets `HOST=0.0.0.0`, which had no effect.
+- The top bar's CA dot says `present` rather than `installed`: it shows that
+  the CA files exist in CAROOT, not that the CA is in a trust store.
+- The Docker `HEALTHCHECK` and the docker-compose healthcheck probe
+  `/api/health` instead of `/` (it needs no login and is never redirected by
+  `FORCE_HTTPS`). Custom health checks that probe `/` should switch too.
+- Documentation rewritten and checked against the code: new `docs/API.md`,
+  `CONTRIBUTING.md` and `deploy/README.md`; `.env.example` lists every
+  variable, commented out.
+
+### Fixed
+
+- Data loss with same-name certificates: deleting an archived certificate also
+  deleted the active certificate and key of the same name; restoring
+  overwrote the active copy; archiving overwrote an older archived copy.
+- `POST …/archive` returns 404 when the active files are already gone (it
+  reported success), so the UI reloads a stale list.
+- An interrupted swap can't be made worse: restore returns 409
+  `SWAP_INCOMPLETE` while a `.swap-*` leftover exists, failed swaps roll back,
+  and the listing hides the leftovers.
+- An upload with an invalid file name no longer leaves the request hanging.
+- The certificate list tolerates files or folders deleted during a scan, and
+  a missing `certificates/` folder gives an empty list instead of a 500.
+- Settings: saving with an invalid field in another section (or hidden by the
+  search) now shows and focuses that field.
+- Settings: "copy" in the running-config dialog works on plain HTTP (it
+  selects the text when the clipboard API is unavailable).
+- The UI no longer offers actions the server always rejects: buttons for
+  uploaded and SCEP certificates, and download/bundle/PFX for archived ones.
+- Command bars and card grids no longer overflow narrow screens.
+- The settings footer said saved settings override `.env`; it is the other way
+  round (environment variables that are set win), and now says so.
+- SCEP page: removed the `ENTERPRISE_CA_ORGANIZATION` and
+  `ENTERPRISE_CA_ORGANIZATIONAL_UNIT` variables (nothing reads them) and the
+  claim that challenges are configured through environment variables; they are
+  created on the page. Key size and M365 key usage text now match the code.
+- Webhook and ntfy test hints said "save, then test"; settings apply after a
+  restart, so they now say to restart first.
+- The upload dialog and file picker advertised `.cer`, `.p7b` and `.p7c`, which
+  the server rejects; they now list `.pem`, `.crt`, `.key`, `.p12` and `.pfx`.
+- A failed PFX export with a password no longer returns the openssl command
+  line and absolute server paths in the 500 body; it returns
+  `failed to generate PFX` and logs the details.
+- `POST /api/execute` no longer has the `list` command, which always failed
+  with 500; it now gets the same 400 as any unknown command.
+- `FORCE_HTTPS=true` redirected almost nothing: the redirect was registered
+  after the static files and every route, so only unknown paths reached it.
+  It now runs first, so pages, assets and API calls over plain HTTP are
+  redirected to the HTTPS port: 301 for GET and HEAD, 308 for other methods
+  (a 301 turned a POST into a GET). Only `/api/health` and `/scep` are
+  exempt, and nothing is redirected until the HTTPS server is listening.
+  "Already HTTPS" means a TLS connection, or `X-Forwarded-Proto: https` from
+  a trusted proxy (`TRUST_PROXY`); the header from any other client is
+  ignored. The startup log mentions the redirect only once HTTPS is
+  listening, and warns when HTTPS failed to start so redirects are off.
+- With `ENABLE_AUTH=true`, opening `/` without a session now redirects to
+  `/login` on the server. The static file handler used to answer `/` with
+  `index.html` first, so the redirect only happened after the page's first API
+  call. The other pages (`/index.html` included) are still static files that
+  go to `/login` when their first API call returns 401.
+- Static files are served from the app's directory, not the working
+  directory, so starting `node /path/to/server.js` from elsewhere serves the UI.
+- The startup log's "Certificate storage" line names
+  `<working directory>/certificates`, the directory the certificate routes
+  use; it showed the directory next to `server.js`.
+- The root-ca install guide's Linux command copied `rootCA.pem`, but the
+  download is named `mkcert-rootCA.pem`; the command and the download button
+  now use that name.
+- The SCEP page claimed compatibility with Microsoft Intune, VMware Workspace
+  ONE, Cisco Meraki and Apple Profile Manager, which was never tested. It now
+  says it works with standard SCEP clients that use a static challenge
+  password; `docs/SCEP.md` explains why MDMs such as Intune, which need NDES
+  or a challenge-validation API, can't use it.
+- The ntfy test button ("send test notification") failed against every
+  server since 8f8e972: its title contained an em dash, which Node refuses
+  in an HTTP header (`ERR_INVALID_CHAR`). The title is plain ASCII now, and
+  any non-ASCII title or tags (for example from a certificate name) are sent
+  RFC 2047-encoded (`=?UTF-8?B?…?=`), which ntfy decodes. The message body
+  is sent as `text/plain; charset=utf-8`.
+- `.env.example` and `examples/*.env` had comments on the same line as
+  values. dotenv strips them, but `docker run --env-file` keeps them, so
+  `CERT_MONITOR_UPLOADED=false   # …` was read as true. Comments are now on
+  their own line.
+
+### Security
+
+- **5xx responses no longer leak server internals.** Several error bodies
+  (certificate generation, root CA info/install/uninstall/generate, archive,
+  restore, delete, downloads, SCEP, notification tests, monitoring, upload)
+  echoed `error.message`, mkcert/openssl stderr or the command line, which can
+  include absolute paths, the CA directory and the home directory, to anyone
+  who could call the route (everyone when `ENABLE_AUTH` is off).
+  `NODE_ENV=development` also put the raw message and stack in every 500.
+  Every JSON 500 now returns a fixed message and a `ref`; the full error is
+  logged under that `ref`. Notification tests and CA install/uninstall/
+  generate add a short sanitised `reason` (e.g. `ECONNREFUSED`). Toasts show
+  the reason and the ref. Unexpected upload failures are now a 500 (they were a 400 with the
+  fs error), and a file that can't be saved is reported without the fs error.
+  Malformed requests are 4xx again: bad JSON is `400 Invalid request body`
+  (it was a 500), an oversized body is a 413, and a broken multipart upload
+  is `400 Malformed upload`; none of them log the raw body. A guard test
+  keeps error details out of 5xx bodies and every JSON 500 on `serverError`.
+- **`GET /api/status` disclosed server internals without a login.** The
+  route is public (the top bar shows the mkcert / CA / openssl dots before
+  login), even with `ENABLE_AUTH=true`, and it returned the CA directory, the
+  working directory, the process ID, memory usage, the Node version and, as
+  `features.oidc`, the OIDC client ID. It now returns only the booleans the UI
+  uses, plus uptime, platform and architecture.
+- **`ENABLE_OIDC=true` without `ENABLE_AUTH=true` left the settings API and
+  `mkcert -uninstall` open to anyone.** Those guards accepted the OIDC flag as
+  "authentication enabled", but without `ENABLE_AUTH` there is no login at all
+  (the OIDC routes aren't mounted and route auth is a no-op), so anyone on the
+  network could read the masked settings, rewrite credentials or remove the CA
+  from the trust store. The settings API (403) and both uninstall paths (403)
+  now require `ENABLE_AUTH=true`.
+
+### Removed
+
+- The old UI files `public/script.js`, `public/styles.css` and
+  `public/settings.js`, and Font Awesome.
+- The release-note files `docs/RELEASE-v3.1.0.md`, `RELEASE-v4.0.0.md` and
+  `RELEASE-v4.1.0.md` (this changelog has the history), `docs/PAGES.md`
+  (folded into `CONTRIBUTING.md`) and the internal `docs/superpowers/` notes.
+- `setup-demo.sh`, `scripts/check-shared-tokens.sh` (a test covers it) and
+  `.github/copilot-instructions.md`.
+- Dead server code: `src/utils/fileValidation.js` and unused helpers.
+
+### Known issues
+
+- Exporting a PFX **with a password** fails with 500; a PFX without a password
+  works.
+- Archive and restore move only `<name>.pem` and `<name>-key.pem`, so `crt` and
+  `p12` certificates can't be archived.
+- SCEP manual enrollment with extra names or a UPN (including every
+  `M365User` certificate) saves `<cn>+<n>.pem`, which the issued list doesn't
+  show.
+- Downloads and PFX export never look in `archive/`; the UI hides those
+  buttons for archived certificates.
+- An active certificate and its same-name archived copy share one note: the
+  server stores notes per folder + name, so editing either changes both. The
+  UI shows the archived copy's note read-only while the active copy exists
+  ("shares a note with the active …"); `PUT …/notes` through the API still
+  writes the shared note.
+- helmet's default `upgrade-insecure-requests` CSP directive can leave the page
+  unstyled when it's opened over plain HTTP from another machine on the LAN.
+  Use HTTPS or a TLS-terminating proxy.
+- `GET /api/scep/enterprise-ca/status` (and the SCEP page) always reports the
+  enterprise CA as disabled, even when `ENTERPRISE_CA_*` is set and manual
+  enrollment uses it.
+- With `CERT_MONITOR_UPLOADED=true` (the default) the monitor scans
+  `certificates/uploaded/` twice, so an expiring uploaded certificate is
+  listed and alerted twice. Set it to `false` when uploads live under
+  `certificates/`.
+- `NTFY_PRIORITY` (`ntfy.priority`) is shown on the notifications page but not
+  used: alerts go out at `high`, or `urgent` when a certificate is critical.
+  `HOST`, `THEME_PRIMARY_COLOR` and `THEME_DARK_MODE` are also read but have no
+  effect.
+
 ## [4.4.3] - 2026-10-29
 
 ### Fixed

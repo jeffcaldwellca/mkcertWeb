@@ -109,7 +109,9 @@ function runTool(tool, args = [], options = {}) {
         if (error.code === 'ETIMEDOUT') {
           return reject({ error: 'Command timed out after 30 seconds', stderr });
         }
-        return reject({ error: error.message, stderr });
+        // Keep a string errno code (ENOENT: tool not found) for publicReason.
+        const code = typeof error.code === 'string' ? { code: error.code } : {};
+        return reject({ error: error.message, stderr, ...code });
       }
       resolve({ stdout, stderr });
     });
@@ -170,16 +172,6 @@ function parseLegacyCommand(command) {
 
   return { tool, args: tokens, cwd };
 }
-
-// Command validation function — retained for back-compat in case any caller
-// imports it directly. Returns true iff parseLegacyCommand can structure it
-// AND the resulting argv passes the runTool allowlist.
-const isCommandSafe = (command) => {
-  const parsed = parseLegacyCommand(command);
-  if (!parsed) return false;
-  const validator = TOOL_ARG_VALIDATORS[parsed.tool];
-  return !validator || validator(parsed.args);
-};
 
 // Path validation function to prevent directory traversal attacks
 // SECURITY: This function validates and sanitizes user-provided paths to prevent
@@ -282,7 +274,6 @@ const validateFilename = (filename) => {
 module.exports = {
   runTool,
   executeCommand,
-  isCommandSafe,
   validateAndSanitizePath,
   validateFilename,
   // expose for tests / advanced callers

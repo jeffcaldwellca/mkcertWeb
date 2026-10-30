@@ -2,6 +2,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const { parseTrustProxy } = require('./trustProxy');
 
 // Load settings from settings.json if it exists
 const SETTINGS_FILE = path.join(__dirname, '../../config/settings.json');
@@ -285,6 +286,10 @@ const baseConfig = {
 const withSettings = deepMerge(baseConfig, savedSettings);
 const envOverrides = buildExplicitEnvOverrides();
 const finalConfig  = deepMerge(withSettings, envOverrides);
+
+// TRUST_PROXY is environment-only: not on the settings page, and a
+// server.trustProxy in settings.json is ignored.
+finalConfig.server = { ...finalConfig.server, trustProxy: parseTrustProxy(process.env.TRUST_PROXY) };
 
 // Log sample of final configuration for verification
 if (Object.keys(savedSettings).length > 0) {

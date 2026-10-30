@@ -1,25 +1,57 @@
-// File management routes module - Refactored to eliminate code duplication
+// Certificate upload route module
 const express = require('express');
 const path = require('path');
+const os = require('os');
+const fsSync = require('fs');
 const fs = require('fs').promises;
 const multer = require('multer');
 const security = require('../security');
-const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
-const { validateFileRequest, listCertificateFiles, readFileContent } = require('../utils/fileValidation');
+const { apiResponse, asyncHandler } = require('../utils/responses');
+
+// Prefix of the per-request directory multer stages uploads in.
+const UPLOAD_STAGING_PREFIX = 'mkcertweb-upload-staging-';
+
+// busboy's errors for a body that isn't valid multipart (truncated, no
+// boundary, bad headers). They are the client's fault: 400, not 500.
+const MALFORMED_UPLOAD = /^(Unexpected end of (form|file)|Malformed (part header|content type|urlencoded form)|Multipart: Boundary not found|Missing Content-Type|Unsupported content type)/;
+const isMalformedUpload = (err) => !!err && !err.syscall && typeof err.message === 'string' && MALFORMED_UPLOAD.test(err.message);
+
+// Remove the request's staging directory (and anything left in it).
+const removeStaging = async (req) => {
+  if (!req.uploadStagingDir) return;
+  const dir = req.uploadStagingDir;
+  req.uploadStagingDir = null;
+  await fs.rm(dir, { recursive: true, force: true }).catch((err) => {
+    console.error('Failed to remove upload staging directory:', err);
+  });
+};
 
 const createFileRoutes = (config, rateLimiters, requireAuth) => {
   const router = express.Router();
-  const { generalRateLimiter, apiRateLimiter } = rateLimiters;
+  const { apiRateLimiter } = rateLimiters;
 
-  // Configure multer for file uploads
+  // Configure multer for file uploads. Files are staged in a private
+  // per-request directory under os.tmpdir(), never in the working directory
+  // (the read-only code tree under the systemd unit), then moved into the
+  // uploaded folder by the handler below.
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, process.cwd());
+      try {
+        if (!req.uploadStagingDir) {
+          req.uploadStagingDir = fsSync.mkdtempSync(path.join(os.tmpdir(), UPLOAD_STAGING_PREFIX));
+        }
+        cb(null, req.uploadStagingDir);
+      } catch (err) {
+        cb(err);
+      }
     },
     filename: (req, file, cb) => {
-      // Validate and sanitize filename
-      if (!security.validateFilename(file.originalname)) {
-        return cb(new Error('Invalid filename'));
+      // security.validateFilename throws on an unsafe name.
+      try {
+        security.validateFilename(file.originalname);
+      } catch (err) {
+        err.expose = true; // our own validation message, safe to show
+        return cb(err);
       }
       cb(null, file.originalname);
     }
@@ -38,37 +70,21 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       if (hasAllowedExtension) {
         cb(null, true);
       } else {
-        cb(new Error('Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed'));
+        cb(Object.assign(new Error('Only certificate files (.pem, .crt, .key, .p12, .pfx) are allowed'), { expose: true }));
       }
     }
   });
 
-  // Download certificate files
-  router.get('/download/:filename', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request (filename, path, existence)
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent by validateFileRequest
-    
-    // Determine content type based on file extension
-    let contentType = 'application/x-pem-file';
-    if (filename.endsWith('.p12') || filename.endsWith('.pfx')) {
-      contentType = 'application/x-pkcs12';
-    } else if (filename.endsWith('.crt')) {
-      contentType = 'application/x-x509-ca-cert';
-    } else if (filename.endsWith('.key')) {
-      contentType = 'application/x-pem-file';
-    }
-    
-    // Send file with appropriate headers
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', contentType);
-    res.sendFile(safePath);
-  }));
-
   // Upload certificate files
   router.post('/api/upload', requireAuth, apiRateLimiter, upload.array('certificates'), asyncHandler(async (req, res) => {
+    try {
+      await saveUploads(req, res);
+    } finally {
+      await removeStaging(req); // no-op unless saveUploads threw
+    }
+  }));
+
+  const saveUploads = async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return apiResponse.badRequest(res, 'No files uploaded');
     }
@@ -131,7 +147,8 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       // Move file to uploaded folder
       const targetPath = path.join(absoluteUploadedFolder, fileName);
       try {
-        // Use copy + unlink instead of rename to handle cross-device moves (EXDEV error)
+        // copy + unlink rather than rename: the tmpdir staging area is often
+        // on a different filesystem, where rename fails with EXDEV.
         await fs.copyFile(file.path, targetPath);
         await fs.unlink(file.path);
         
@@ -141,7 +158,9 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
           type: type
         });
       } catch (moveError) {
-        results.errors.push(`Failed to save ${fileName}: ${moveError.message}`);
+        // The fs error names server paths; keep it in the log.
+        console.error(`Failed to save upload ${fileName}:`, moveError);
+        results.errors.push(`Failed to save ${fileName}`);
       }
     }
 
@@ -166,57 +185,35 @@ const createFileRoutes = (config, rateLimiters, requireAuth) => {
       results.success = false;
     }
 
+    await removeStaging(req);
     apiResponse.success(res, results, 'Upload processing complete');
-  }));
-
-  // List files in current directory
-  router.get('/api/files', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    try {
-      const files = await listCertificateFiles();
-      
-      apiResponse.success(res, {
-        files,
-        total: files.length,
-        directory: process.cwd()
-      });
-    } catch (error) {
-      handleError(res, error, 'listing files');
-    }
-  }));
-
-  // Get file content (for viewing certificate content)
-  router.get('/api/file/:filename/content', requireAuth, generalRateLimiter, asyncHandler(async (req, res) => {
-    const { filename } = req.params;
-    
-    // Validate file request
-    const { isValid, safePath } = await validateFileRequest(filename, process.cwd(), res);
-    if (!isValid) return; // Error response already sent
-    
-    // Read file content
-    const content = await readFileContent(safePath, 'utf8', res);
-    if (content === null) return; // Error response already sent
-    
-    apiResponse.success(res, {
-      filename,
-      content,
-      size: content.length
-    });
-  }));
+  };
 
   // Handle file upload errors
-  router.use('/api/upload', (error, req, res, next) => {
+  router.use('/api/upload', async (error, req, res, next) => {
+    await removeStaging(req);
     if (error instanceof multer.MulterError) {
       if (error.code === 'LIMIT_FILE_SIZE') {
         return apiResponse.badRequest(res, 'File size too large (max 10MB)');
       }
     }
     
-    return apiResponse.badRequest(res, error.message || 'File upload failed');
+    if (isMalformedUpload(error)) {
+      console.warn(`Malformed upload rejected: ${error.message}`);
+      return apiResponse.badRequest(res, 'Malformed upload');
+    }
+    // Multer's own errors and our validation errors (expose) are written for
+    // the user; anything else (fs, staging) may name server paths.
+    if (error instanceof multer.MulterError || error.expose === true) {
+      return apiResponse.badRequest(res, error.message || 'File upload failed');
+    }
+    return apiResponse.serverError(res, 'File upload failed', error);
   });
 
   return router;
 };
 
 module.exports = {
-  createFileRoutes
+  createFileRoutes,
+  UPLOAD_STAGING_PREFIX
 };

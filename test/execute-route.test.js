@@ -65,16 +65,20 @@ test('caroot command returns the command output (no TDZ ReferenceError)', async 
   });
 });
 
-test('list command succeeds and surfaces output', async () => {
+test('list command is gone: same 400 as any unknown command, nothing run', async () => {
   await withApp(makeConfig(true), async (app) => {
-    const res = await fetch(`${app.url}/api/execute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: 'list' })
-    });
-    const body = await res.json();
-    assert.strictEqual(res.status, 200, JSON.stringify(body));
-    assert.ok(body.output.startsWith('ran: '), 'output should be populated');
+    for (const command of ['list', 'definitely-not-a-command']) {
+      const res = await fetch(`${app.url}/api/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command })
+      });
+      const body = await res.json();
+      assert.strictEqual(res.status, 400, JSON.stringify(body));
+      assert.strictEqual(body.success, false);
+      assert.strictEqual(body.error, 'Invalid command');
+    }
+    assert.strictEqual(lastCommand, null, 'no command may have run');
   });
 });
 

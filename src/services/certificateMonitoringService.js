@@ -132,8 +132,7 @@ class CertificateMonitoringService {
         const uploadedCerts = await findAllCertificateFiles(uploadedDir);
         certificateFiles = [...certificateFiles, ...uploadedCerts];
       }
-      
-      //console.log(`Found ${certificateFiles.length} certificate files to monitor`);
+
       return certificateFiles;
     } catch (error) {
       console.error('Error finding certificates to monitor:', error.message);
@@ -250,9 +249,4 @@ class CertificateMonitoringService {
   }
 }
 
-// Factory function following the project pattern
-const createCertificateMonitoringService = (config, emailService) => {
-  return new CertificateMonitoringService(config, emailService);
-};
-
-module.exports = { CertificateMonitoringService, createCertificateMonitoringService };
+module.exports = { CertificateMonitoringService };

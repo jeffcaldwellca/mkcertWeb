@@ -3,8 +3,8 @@
    Shares the unified design language with the product dashboard.
    ============================================================ */
 
-/* ===== SHARED DESIGN LANGUAGE — keep in sync with the other stylesheet.
-   Canonical source: docs/superpowers/specs/2026-06-21-unified-design-language-design.md ===== */
+/* ===== SHARED DESIGN LANGUAGE — keep in sync between public/css/app.css and docs/assets/styles.css.
+   Canonical source: CONTRIBUTING.md → Design language ===== */
 :root {
   --accent:          #2cf5b8;
   --accent-soft:     #8cf5d4;
@@ -178,8 +178,8 @@ section { padding: 56px 0; border-top: 1px solid var(--border); }
 .muted { color: var(--muted); }
 .codeblock { position: relative; margin: 14px 0 22px; }
 .codeblock pre {
-  margin: 0; background: var(--bg-panel); border: 1px solid var(--border);
-  border-left: 3px solid var(--phosphor); padding: 16px 18px; overflow-x: auto;
+  margin: 0; background: var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--phosphor) 45%, transparent); padding: 16px 18px; overflow-x: auto;
   color: var(--text); text-shadow: none; border-radius: var(--radius);
 }
 .codeblock code { font-family: var(--mono); font-size: 15px; white-space: pre; }

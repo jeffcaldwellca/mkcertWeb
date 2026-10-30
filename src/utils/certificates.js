@@ -65,22 +65,39 @@ const getCertificateDomains = async (certPath) => {
   }
 };
 
-// Helper function to recursively find all certificate files
+// Temp-name prefix a restore swap parks the active pair under in archive/
+// (see swapPairs in src/routes/certificates.js). Such a file only survives an
+// interrupted swap and is never a certificate in its own right.
+const SWAP_TEMP_PREFIX = '.swap-';
+
+// Recursively find all certificate files. A directory that disappears while
+// we scan (deleted by another request) is skipped rather than failing the
+// whole listing.
 const findAllCertificateFiles = async (dir, relativePath = '') => {
   const files = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return files;
+    throw err;
+  }
+
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     const relativeFilePath = path.join(relativePath, entry.name);
-    
+
     if (entry.isDirectory()) {
       // Recursively scan subdirectories
       const subFiles = await findAllCertificateFiles(fullPath, relativeFilePath);
       files.push(...subFiles);
     } else if (entry.isFile()) {
+      if (entry.name.startsWith(SWAP_TEMP_PREFIX)) {
+        console.warn(`Skipping ${relativeFilePath}: temporary file left by an interrupted certificate swap`);
+        continue;
+      }
       // Check if it's a certificate file (including key files and P12/PFX)
-      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt') || entry.name.endsWith('.key') || 
+      if (entry.name.endsWith('.pem') || entry.name.endsWith('.crt') || entry.name.endsWith('.key') ||
           entry.name.endsWith('.p12') || entry.name.endsWith('.pfx')) {
         files.push({
           name: entry.name,
@@ -168,6 +185,7 @@ module.exports = {
   getCertificateDomains,
   getCertificateFingerprint,
   findAllCertificateFiles,
+  SWAP_TEMP_PREFIX,
   stripCertExtension,
   groupCertificates
 };

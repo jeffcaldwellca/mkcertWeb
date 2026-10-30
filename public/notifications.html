@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>notifications · mkcert Web UI</title>
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="manifest" href="/assets/site.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <header id="shell"></header>
+
+  <main class="panes">
+    <section class="pane-list" aria-label="Notification channels">
+      <div class="list-group">
+        <h2 class="section-label">channels</h2>
+        <nav id="channel-list" aria-label="Channels"><p class="empty">loading…</p></nav>
+      </div>
+    </section>
+
+    <section class="pane-detail" aria-label="Channel detail">
+      <div class="detail-head">
+        <div class="row spread">
+          <h1 class="page-title"><span class="prompt">$</span> <span id="channel-title">notifications</span></h1>
+          <a id="configure-link" class="btn btn--ghost" href="/settings.html">configure →</a>
+        </div>
+        <div class="row detail-actions" id="channel-actions"></div>
+      </div>
+      <div class="detail-body">
+        <div id="channel-status"></div>
+        <div id="channel-extra"></div>
+        <div id="channel-log"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/cert-model.js"></script>
+<script src="js/notifications.js"></script>
+</body>
+</html>

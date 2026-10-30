@@ -1,8 +1,8 @@
 // CSRF protection middleware module
 //
 // Each session gets its own secret; the frontend fetches a token from
-// /api/csrf-token and sends it in the X-CSRF-Token header (see apiRequest in
-// public/script.js). verifyCsrf rejects any state-changing request without a
+// /api/csrf-token and sends it in the X-CSRF-Token header (see createApiClient
+// in public/js/core.js). verifyCsrf rejects any state-changing request without a
 // valid token. The session cookie is also sameSite: 'lax' (see server.js).
 const Tokens = require('csrf');
 const tokens = new Tokens();

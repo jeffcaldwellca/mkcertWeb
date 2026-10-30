@@ -68,7 +68,7 @@
 
     var lines = [
       'MKCERT-OS // SECURE TERMINAL LINK',
-      'MKCERT-OS v4.1.0  —  CERTIFICATE AUTHORITY TERMINAL',
+      'MKCERT-OS v5.0.0  —  CERTIFICATE AUTHORITY TERMINAL',
       '',
       'INITIALIZING ............ OK',
       'MEMORY CHECK ............ OK',

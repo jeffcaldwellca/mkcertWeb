@@ -1,7 +1,6 @@
 // SCEP (Simple Certificate Enrollment Protocol) routes module
 const express = require('express');
 const multer = require('multer');
-const crypto = require('crypto');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
@@ -9,7 +8,7 @@ const scepUtils = require('../utils/scep');
 const pkcs7Utils = require('../utils/pkcs7');
 const enterpriseCA = require('../utils/enterpriseCA');
 const security = require('../security');
-const { apiResponse, handleError, asyncHandler } = require('../utils/responses');
+const { apiResponse, asyncHandler } = require('../utils/responses');
 
 // Load CA key + cert lazily so we don't fail boot if mkcert isn't installed.
 async function loadCAMaterial() {
@@ -76,8 +75,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
         res.setHeader('Content-Disposition', 'attachment; filename="ca-cert.der"');
         res.send(caCert);
       } catch (error) {
-        console.error('SCEP GetCACert error:', error);
-        return apiResponse.serverError(res, 'Failed to retrieve CA certificate');
+        return apiResponse.serverError(res, 'Failed to retrieve CA certificate', error);
       }
     } else if (operation === 'GetCACaps') {
       // Return SCEP capabilities. Deliberately omits SHA-1 and DES3 so clients
@@ -331,8 +329,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       }, 'SCEP certificate generated');
 
     } catch (error) {
-      console.error('SCEP certificate generation error:', error);
-      return apiResponse.serverError(res, error.message);
+      return apiResponse.serverError(res, 'Failed to generate SCEP certificate', error);
     }
   }));
 
@@ -342,8 +339,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       const certificates = await scepUtils.listSCEPCertificates();
       return apiResponse.success(res, { certificates }, 'SCEP certificates retrieved');
     } catch (error) {
-      console.error('Error listing SCEP certificates:', error);
-      return apiResponse.serverError(res, error.message);
+      return apiResponse.serverError(res, 'Failed to list SCEP certificates', error);
     }
   }));
 
@@ -401,8 +397,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       const status = await enterpriseCA.getEnterpriseCAStatus();
       return apiResponse.success(res, status, 'Enterprise CA status retrieved');
     } catch (error) {
-      console.error('Enterprise CA status error:', error);
-      return apiResponse.serverError(res, error.message);
+      return apiResponse.serverError(res, 'Failed to get enterprise CA status', error);
     }
   }));
 
@@ -412,8 +407,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
       const templates = enterpriseCA.getCertificateTemplates();
       return apiResponse.success(res, templates, 'Certificate templates retrieved');
     } catch (error) {
-      console.error('Certificate templates error:', error);
-      return apiResponse.serverError(res, error.message);
+      return apiResponse.serverError(res, 'Failed to get certificate templates', error);
     }
   }));
 
@@ -433,8 +427,7 @@ const createSCEPRoutes = (config, rateLimiters, requireAuth) => {
         message: isValid ? 'Valid UPN format' : 'Invalid UPN format'
       }, 'UPN validation completed');
     } catch (error) {
-      console.error('UPN validation error:', error);
-      return apiResponse.serverError(res, error.message);
+      return apiResponse.serverError(res, 'Failed to validate UPN', error);
     }
   }));
 

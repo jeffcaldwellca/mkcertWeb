@@ -53,3 +53,16 @@ test('asyncHandler forwards a thrown error to next() rather than self-sending', 
   assert.strictEqual(forwarded, boom, 'error should be forwarded to next');
   assert.strictEqual(res.body, null, 'asyncHandler should not write the response itself');
 });
+
+test('apiResponse.conflict sends 409 with the error and any extra fields', () => {
+  const { apiResponse } = require('../src/utils/responses');
+  const res = mockRes();
+  apiResponse.conflict(res, 'already exists', { code: 'TWIN_EXISTS' });
+  assert.strictEqual(res.statusCode, 409);
+  assert.deepStrictEqual(res.body, { success: false, error: 'already exists', code: 'TWIN_EXISTS' });
+
+  const bare = mockRes();
+  apiResponse.conflict(bare);
+  assert.strictEqual(bare.statusCode, 409);
+  assert.deepStrictEqual(bare.body, { success: false, error: 'Conflict' });
+});

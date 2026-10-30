@@ -6,7 +6,7 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var VERSION = 'MKCERT-OS v4.1.0';
+  var VERSION = 'MKCERT-OS v5.0.0';
   var REPO = 'https://github.com/jeffcaldwellca/mkcertWeb';
   var DOCKERHUB = 'https://hub.docker.com/r/jeffcaldwellca/mkcertweb';
 

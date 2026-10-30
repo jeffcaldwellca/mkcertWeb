@@ -1,17 +1,18 @@
 # Dependencies
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-yarn.lock
 
-# Certificate files
-certificates/
-certificates/*.pem
-certificates/*.key
-
-# Temporary files
+# Runtime data written by the app
+/certificates/
+/ssl/
+/data/
+config/settings.json
 temp/
+
+# Key and certificate material anywhere in the tree
+*.pem
+*.key
+*.crt
 *.pfx
 
 # Test files (stray/ad-hoc test artifacts anywhere in the tree)
@@ -26,12 +27,6 @@ temp/
 cookies.txt
 *.cookies
 
-# SSL certificates (auto-generated)
-ssl/
-*.pem
-*.key
-*.crt
-
 # Environment variables
 .env
 .env.local
@@ -39,68 +34,27 @@ ssl/
 .env.test.local
 .env.production.local
 
-# Settings file (may contain sensitive data)
-config/settings.json
-
 # Logs
 logs
 *.log
 
-# Runtime data
+# Process files
 pids
 *.pid
-*.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage
 coverage/
 *.lcov
-
-# nyc test coverage
 .nyc_output
 
-# Dependency directories
-jspm_packages/
-
-# Optional npm cache directory
+# npm / Node tooling caches
 .npm
-
-# Optional eslint cache
 .eslintcache
-
-# Optional REPL history
 .node_repl_history
 
 # Output of 'npm pack'
 *.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# next.js build output
-.next
-
-# nuxt.js build output
-.nuxt
-
-# vuepress build output
-.vuepress/dist
-
-# Serverless directories
-.serverless
-
-# FuseBox cache
-.fusebox/
-
-# DynamoDB Local files
-.dynamodb/
-
-# TernJS port file
-.tern-port
 
 # IDE files
 .vscode/
@@ -121,5 +75,7 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 .docker/
-# Superpowers scratch (brainstorm mockups, SDD workspace)
+
+# Superpowers scratch (brainstorm mockups, SDD workspace) and browser-tool output
 .superpowers/
+.playwright-mcp/

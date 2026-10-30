@@ -15,8 +15,8 @@ reporting.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 4.4.x   | :white_check_mark: |
-| < 4.4   | :x:                |
+| 5.x     | :white_check_mark: |
+| < 5.0   | :x:                |
 
 ## Reporting a vulnerability
 

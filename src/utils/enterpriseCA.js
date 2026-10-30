@@ -464,8 +464,10 @@ async function getEnterpriseCAStatus() {
           validTo: certInfo.stdout.match(/notAfter=(.+)/)?.[1]
         };
       } catch (error) {
+        // The raw error names server paths; log it, show a fixed string.
+        console.error('Enterprise CA certificate could not be read:', error);
         caStatus = 'configured-but-unavailable';
-        caDetails = { error: error.message };
+        caDetails = { error: 'CA certificate or key could not be read (see the server log)' };
       }
     }
     
@@ -488,7 +490,7 @@ async function getEnterpriseCAStatus() {
       enabled: false,
       status: 'error',
       fallbackToMkcert: true,
-      error: error.message
+      error: 'Failed to read enterprise CA status (see the server log)'
     };
   }
 }

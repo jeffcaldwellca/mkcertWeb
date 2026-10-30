@@ -11,6 +11,7 @@ npm-debug.log*
 .env
 .env.*
 config/settings.json
+data
 cookies.txt
 *.cookies
 
@@ -36,13 +37,16 @@ test
 LICENSE
 
 # Dev/ops artifacts
-mkcert-web-ui.service
-setup-demo.sh
+deploy
 coverage
 .nyc_output
 logs
 *.log
 temp
+
+# Local agent/tooling scratch
+.superpowers
+.playwright-mcp
 
 # Editor/OS noise
 .vscode

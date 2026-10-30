@@ -1,7 +1,7 @@
 // Email, NTFY, webhook, and monitoring routes module
 const express = require('express');
 const cron = require('node-cron');
-const { apiResponse, asyncHandler } = require('../utils/responses');
+const { apiResponse, asyncHandler, publicReason } = require('../utils/responses');
 
 const createNotificationRoutes = (config, rateLimiters, requireAuth, emailService, monitoringService, ntfyService, webhookService) => {
   const router = express.Router();
@@ -44,8 +44,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       
       apiResponse.success(res, result, 'Test email sent successfully');
     } catch (error) {
-      console.error('Email test failed:', error.message);
-      apiResponse.serverError(res, `Email test failed: ${error.message}`);
+      apiResponse.serverError(res, 'Email test failed', error, { reason: publicReason(error) });
     }
   }));
 
@@ -63,8 +62,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       const result = await emailService.verifyConnection();
       apiResponse.success(res, result, 'SMTP connection verified');
     } catch (error) {
-      console.error('SMTP verification failed:', error.message);
-      apiResponse.serverError(res, `SMTP verification failed: ${error.message}`);
+      apiResponse.serverError(res, 'SMTP verification failed', error, { reason: publicReason(error) });
     }
   }));
 
@@ -84,8 +82,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       await monitoringService.manualCheck();
       apiResponse.success(res, { message: 'Manual certificate check completed' }, 'Certificate check completed');
     } catch (error) {
-      console.error('Manual certificate check failed:', error.message);
-      apiResponse.serverError(res, `Certificate check failed: ${error.message}`);
+      apiResponse.serverError(res, 'Certificate check failed', error);
     }
   }));
 
@@ -99,8 +96,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       monitoringService.start();
       apiResponse.success(res, { message: 'Certificate monitoring started' }, 'Monitoring service started');
     } catch (error) {
-      console.error('Failed to start monitoring service:', error.message);
-      apiResponse.serverError(res, `Failed to start monitoring: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to start monitoring', error);
     }
   }));
 
@@ -110,8 +106,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       monitoringService.stop();
       apiResponse.success(res, { message: 'Certificate monitoring stopped' }, 'Monitoring service stopped');
     } catch (error) {
-      console.error('Failed to stop monitoring service:', error.message);
-      apiResponse.serverError(res, `Failed to stop monitoring: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to stop monitoring', error);
     }
   }));
 
@@ -136,8 +131,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
 
       apiResponse.success(res, summary, 'Expiring certificates retrieved');
     } catch (error) {
-      console.error('Failed to check expiring certificates:', error.message);
-      apiResponse.serverError(res, `Failed to check certificates: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to check certificates', error);
     }
   }));
 
@@ -189,8 +183,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
         updates: updates 
       }, 'Configuration updated successfully');
     } catch (error) {
-      console.error('Failed to update monitoring configuration:', error.message);
-      apiResponse.serverError(res, `Failed to update configuration: ${error.message}`);
+      apiResponse.serverError(res, 'Failed to update configuration', error);
     }
   }));
 
@@ -224,8 +217,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       const result = await ntfyService.sendTestNotification();
       apiResponse.success(res, result, 'Test NTFY notification sent successfully');
     } catch (error) {
-      console.error('NTFY test failed:', error.message);
-      apiResponse.serverError(res, `NTFY test failed: ${error.message}`);
+      apiResponse.serverError(res, 'NTFY test failed', error, { reason: publicReason(error) });
     }
   }));
 
@@ -257,8 +249,7 @@ const createNotificationRoutes = (config, rateLimiters, requireAuth, emailServic
       const result = await webhookService.sendTestNotification();
       apiResponse.success(res, result, 'Test webhook notification sent successfully');
     } catch (error) {
-      console.error('Webhook test failed:', error.message);
-      apiResponse.serverError(res, `Webhook test failed: ${error.message}`);
+      apiResponse.serverError(res, 'Webhook test failed', error, { reason: publicReason(error) });
     }
   }));
 

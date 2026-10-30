@@ -1,49 +1,106 @@
-# Docker Usage Guide
+# Docker
 
-Comprehensive instructions for running mkcert Web UI using Docker.
+The image is [`jeffcaldwellca/mkcertweb`](https://hub.docker.com/r/jeffcaldwellca/mkcertweb)
+(linux/amd64 and linux/arm64). It runs Node.js 24 on Alpine with openssl and an
+mkcert binary built from the v1.4.4 source, as the unprivileged `nodejs` user
+(UID/GID 1001), and starts with `node server.js`.
 
-## Docker Hub
-[https://hub.docker.com/r/jeffcaldwellca/mkcertweb](https://hub.docker.com/r/jeffcaldwellca/mkcertweb)
-
-## Quick Start
+## Quick start
 
 ```bash
 git clone https://github.com/jeffcaldwellca/mkcertWeb.git
 cd mkcertWeb
-docker-compose up -d
+docker compose up -d        # or docker-compose up -d
 ```
 
-Access the application:
-- **HTTP**: http://localhost:3000
-- **HTTPS**: https://localhost:3443 (if enabled)
+Open <http://localhost:3000>. `docker-compose.yml` pulls
+`jeffcaldwellca/mkcertweb:latest`, maps ports 3000 and 3443, and creates four
+named volumes.
 
-## Manual Docker Run
+**First run:** the image ships without a root CA, so each container makes its
+own. Open **root-ca** and press `generate`. The CA is created in the
+`mkcert_ca` volume; adding it to the container's own trust store fails without
+root, which is expected. Download `mkcert-rootCA.pem` from the same page and install it
+on the machines that should trust your certificates.
+
+## Volumes
+
+| Mount point | Holds | Volume in `docker-compose.yml` |
+|---|---|---|
+| `/app/certificates` | generated, uploaded, archived and SCEP certificates | `mkcert_certificates` |
+| `/app/data` | certificate notes (`certificate-notes.json`) | `mkcert_data` |
+| `/app/config` | settings saved from the UI (`settings.json`) | `mkcert_config` |
+| `/home/nodejs/.local/share/mkcert` | the root CA (`rootCA.pem`, `rootCA-key.pem`); the image sets `CAROOT` to this path | `mkcert_ca` |
+
+Without these volumes the CA, certificates and settings are lost whenever the
+container is recreated.
+
+## docker run
 
 ```bash
-# Build and run
-docker build -t mkcert-web-ui .
-docker run -d \
-  --name mkcert-web-ui \
+docker run -d --name mkcert-web-ui \
   -p 3000:3000 \
   -v mkcert_certificates:/app/certificates \
   -v mkcert_data:/app/data \
   -v mkcert_config:/app/config \
   -v mkcert_ca:/home/nodejs/.local/share/mkcert \
-  mkcert-web-ui
+  -e ENABLE_AUTH=true -e AUTH_USERNAME=demo -e AUTH_PASSWORD='change-me' \
+  -e SESSION_SECRET="$(openssl rand -hex 48)" \
+  jeffcaldwellca/mkcertweb:latest
 ```
 
-> **Persistence:** all four volumes matter. `/app/config` holds settings
-> saved from the web UI (webhook/notification config, theme, ...) and
-> `/home/nodejs/.local/share/mkcert` holds the root CA — without them,
-> both are lost every time the container is recreated.
+To build the image yourself: `docker build -t mkcert-web-ui .` (or
+`npm run docker:build`).
 
-## Running as a Custom UID
+## Configuration
 
-The image runs as `nodejs` (UID/GID 1001) by default. To run it as another
-user (e.g. `user: "2000:2000"` in compose, or `--user 2000:2000`), bind-mount
-all four data directories from host paths owned by that UID — the
-directories baked into the image belong to UID 1001 and aren't writable by
-anyone else:
+Configure the container with environment variables: the `environment:` list in
+`docker-compose.yml` (or a `docker-compose.override.yml`), or `-e` with
+`docker run`. A `.env` file in the project directory is **not** passed into the
+container by the provided compose file, and `.dockerignore` keeps it out of the
+image. Every variable is listed in [`.env.example`](../.env.example).
+
+The image sets these defaults, so they always come from the environment:
+
+| Variable | Image default |
+|---|---|
+| `NODE_ENV` | `production` |
+| `PORT` / `HTTPS_PORT` | `3000` / `3443` |
+| `ENABLE_HTTPS` / `FORCE_HTTPS` | `false` / `false` |
+| `SSL_DOMAIN` | `localhost` |
+| `THEME_MODE` | `dark` |
+| `ENABLE_AUTH` | `false` |
+| `AUTH_USERNAME` | `admin` |
+| `CAROOT` | `/home/nodejs/.local/share/mkcert` |
+
+Because environment variables that are set override settings saved in the UI
+(see [SETTINGS.md](SETTINGS.md#where-a-value-comes-from)), changing those values
+on the settings page has no effect in the container; change the environment
+instead. The settings page itself needs `ENABLE_AUTH=true`.
+
+Not set by the image: `AUTH_PASSWORD` (or `AUTH_PASSWORD_HASH`) and
+`SESSION_SECRET`. With auth on and no password, a random one is printed to the
+container log at each start (`docker compose logs mkcert-web-ui`). Without a
+session secret, sessions end on every restart.
+
+To serve on another host port, change the `ports:` mapping (for example
+`"8080:3000"`); `PORT` is the port inside the container.
+
+Two things use the ports inside the container, not the published ones:
+
+- The `HEALTHCHECK` (Dockerfile and compose) probes
+  `http://localhost:3000/api/health`. If you change `PORT`, override the
+  health check too.
+- The `FORCE_HTTPS` redirect sends browsers to `https://<host>:<HTTPS_PORT>`,
+  using the internal `HTTPS_PORT`. If you remap it, for example
+  `-p 8443:3443`, set `HTTPS_PORT=8443` and map `8443:8443`, or terminate TLS
+  at a reverse proxy instead.
+
+## Running as another UID
+
+To run as a different user (for example `user: "2000:2000"`), bind-mount the
+four directories from host paths that user owns. The directories inside the
+image belong to UID 1001.
 
 ```yaml
 services:
@@ -51,214 +108,96 @@ services:
     image: jeffcaldwellca/mkcertweb:latest
     user: "2000:2000"
     volumes:
-      - /etc/mkcert/certificates:/app/certificates
-      - /etc/mkcert/data:/app/data
-      - /etc/mkcert/config:/app/config
-      - /etc/mkcert/ca:/home/nodejs/.local/share/mkcert
+      - /srv/mkcert/certificates:/app/certificates
+      - /srv/mkcert/data:/app/data
+      - /srv/mkcert/config:/app/config
+      - /srv/mkcert/ca:/home/nodejs/.local/share/mkcert
 ```
 
 ```bash
-sudo mkdir -p /etc/mkcert/{certificates,data,config,ca}
-sudo chown -R 2000:2000 /etc/mkcert
+sudo mkdir -p /srv/mkcert/{certificates,data,config,ca}
+sudo chown -R 2000:2000 /srv/mkcert
 ```
 
-The image sets `CAROOT=/home/nodejs/.local/share/mkcert`, so mkcert finds the
-CA directory regardless of `HOME`. (Before v4.4.3, a UID with no passwd
-entry got `HOME=/` and CA generation failed with a permission error; the
-workaround was to set `HOME=/home/nodejs`.)
+`CAROOT` is fixed in the image, so mkcert finds the CA even when the UID has no
+home directory.
 
-## Configuration
+## HTTPS and reverse proxies
 
-### Using .env File
+- `ENABLE_HTTPS=true` makes the app also listen on 3443 with an mkcert
+  certificate for `SSL_DOMAIN`, created in `/app/ssl` at startup and signed by
+  the container's CA. Add `FORCE_HTTPS=true` to redirect plain-HTTP requests
+  there (301 for GET/HEAD, 308 for other methods so a POST stays a POST).
+  `/api/health` (the health check) and `/scep` are not redirected, and nothing
+  is redirected if the HTTPS server failed to start (the log warns).
+- Behind a reverse proxy, terminate TLS at the proxy and forward to port 3000.
+  `TRUST_PROXY` decides whose `X-Forwarded-For` (the client IP used for rate
+  limits) and `X-Forwarded-Proto` (which `FORCE_HTTPS` checks) the app
+  believes. The default, `loopback,linklocal,uniquelocal`, trusts every
+  loopback, link-local and private address. That keeps a proxy container on a
+  Docker network working, but it also trusts **every client on a private
+  LAN**, which can then fake its IP to dodge rate limits or claim HTTPS to
+  skip the redirect. Narrow it to the proxy's address **as the app sees it**:
+
+  | Setup | `TRUST_PROXY` |
+  |---|---|
+  | No container in between: the app runs on the host (bare metal, systemd) with the proxy, or the container uses `network_mode: host` | `loopback` |
+  | Proxy on the host, reaching the container through a published port (`-p 3000:3000`) | the Docker network's **gateway**, e.g. `172.17.0.1` (default bridge) or the compose network's `.1` |
+  | Proxy in another container on the same network | that container's IP, or the network's subnet, e.g. `172.18.0.0/16` |
+  | Proxy elsewhere on the LAN | its exact IP, e.g. `192.168.1.10` |
+  | No proxy | `false` |
+
+  Find the gateway and subnet with `docker network inspect`:
+
+  ```bash
+  docker network ls                                    # e.g. bridge, mkcertweb_default
+  docker network inspect mkcertweb_default \
+    --format '{{range .IPAM.Config}}{{.Gateway}} {{.Subnet}}{{end}}'
+  ```
+
+  Don't use `loopback` with a published port. Inside the container, the
+  proxy's requests come from the network gateway, not from 127.0.0.1, so
+  `X-Forwarded-*` would be ignored. Every client would share the proxy's
+  rate-limit bucket, and with `FORCE_HTTPS` the app would keep redirecting
+  requests the proxy already received over HTTPS.
+
+  It also accepts `true` (trust everyone; never on a reachable port) or a hop
+  count. It is read from the environment only (not the settings page), and an
+  invalid value stops the server at startup.
+- The Content-Security-Policy includes `upgrade-insecure-requests`, so browsers
+  load the page's scripts and styles over HTTPS. Reaching the UI over plain HTTP
+  from another machine (for example `http://192.168.1.20:3000`) can leave the
+  page unstyled. Use HTTPS or a proxy in that case.
+
+## Operations
 
 ```bash
-cat > .env << EOF
-ENABLE_AUTH=true
-AUTH_USERNAME=myuser
-AUTH_PASSWORD=mysecurepassword
-THEME_MODE=light
-ENABLE_HTTPS=true
-SSL_DOMAIN=myapp.local
-EOF
-
-docker-compose up -d
+docker compose logs -f              # logs (generated passwords, errors)
+docker compose pull && docker compose up -d   # update to the latest image
+docker compose exec mkcert-web-ui sh          # shell in the container
+docker compose exec mkcert-web-ui mkcert -CAROOT
 ```
 
-### Direct Override
+Back up a volume (repeat for `mkcert_data`, `mkcert_config` and `mkcert_ca`;
+compose prefixes volume names with the project name, see `docker volume ls`):
 
 ```bash
-ENABLE_AUTH=true AUTH_USERNAME=admin docker-compose up -d
+docker run --rm -v mkcertweb_mkcert_certificates:/data -v "$PWD":/backup alpine \
+  tar czf /backup/certificates.tar.gz -C /data .
 ```
 
-## Environment Variables
+The `mkcert_ca` volume contains the CA private key. Store its backups as
+securely as the key itself.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | HTTP server port |
-| `HTTPS_PORT` | `3443` | HTTPS server port |
-| `ENABLE_HTTPS` | `false` | Enable HTTPS server |
-| `SSL_DOMAIN` | `localhost` | Domain for SSL certificate |
-| `FORCE_HTTPS` | `false` | Redirect HTTP to HTTPS |
-| `NODE_ENV` | `production` | Environment mode |
-| `THEME_MODE` | `dark` | UI theme (dark/light) |
-| `ENABLE_AUTH` | `false` | Enable authentication |
-| `AUTH_USERNAME` | `admin` | Username |
-| `AUTH_PASSWORD` | `admin` | Password |
-| `SESSION_SECRET` | auto-generated | Session secret |
+The health check requests `/api/health` every 30 seconds (no login needed).
 
-### Notification Variables
+## Production checklist
 
-Certificate-expiry notifications can be configured entirely via environment
-variables (or from the Settings UI — explicitly-set env vars win):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WEBHOOK_ENABLED` | `false` | Enable generic HTTP webhook notifications |
-| `WEBHOOK_URL` | — | Webhook target URL (custom headers: Settings UI only) |
-| `NTFY_ENABLED` | `false` | Enable ntfy push notifications |
-| `NTFY_URL` | `https://ntfy.sh` | ntfy server URL |
-| `NTFY_TOPIC` | — | ntfy topic |
-| `NTFY_TOKEN` | — | ntfy access token (or `NTFY_USERNAME`/`NTFY_PASSWORD`) |
-| `EMAIL_NOTIFICATIONS_ENABLED` | `false` | Enable email notifications |
-| `CERT_MONITORING_ENABLED` | `false` | Enable the expiry monitoring schedule |
-| `CERT_CHECK_INTERVAL` | `0 8 * * *` | Cron schedule for expiry checks |
-| `CERT_WARNING_DAYS` | `30` | Days before expiry to warn |
-| `CERT_CRITICAL_DAYS` | `7` | Days before expiry for critical alerts |
-
-See [EMAIL_MONITORING_GUIDE.md](EMAIL_MONITORING_GUIDE.md) for the full list
-of SMTP variables.
-
-## Management
-
-### Basic Commands
-
-```bash
-docker-compose up -d          # Start
-docker-compose logs -f        # View logs
-docker-compose down           # Stop
-docker-compose restart        # Restart
-docker-compose up -d --build  # Rebuild
-docker-compose ps             # Status
-```
-
-### Data Backup & Restore
-
-```bash
-# Backup
-docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
-  tar czf /backup/certificates-backup.tar.gz -C /data .
-
-# Restore
-docker run --rm -v mkcert_certificates:/data -v $(pwd):/backup alpine \
-  tar xzf /backup/certificates-backup.tar.gz -C /data
-
-# Same pattern for the other volumes: mkcert_data, mkcert_config
-# (UI-saved settings), and mkcert_ca (root CA)
-```
-
-## Production Deployment
-
-```bash
-# Create production .env file
-cat > .env << EOF
-NODE_ENV=production
-ENABLE_HTTPS=true
-FORCE_HTTPS=true
-SSL_DOMAIN=your-domain.com
-ENABLE_AUTH=true
-AUTH_USERNAME=yourusername
-AUTH_PASSWORD=yoursecurepassword
-SESSION_SECRET=$(openssl rand -base64 32)
-EOF
-
-docker-compose up -d
-```
-
-### Production Checklist
-
-- ✅ Set strong credentials
-- ✅ Generate secure `SESSION_SECRET`
-- ✅ Enable HTTPS with valid domain
-- ✅ Set `NODE_ENV=production`
-- ✅ Enable authentication
-- ✅ Configure reverse proxy if needed
-- ✅ Regular container updates
-
-## Troubleshooting
-
-```bash
-# View logs
-docker-compose logs -f
-
-# Access container shell
-docker-compose exec mkcert-web-ui /bin/sh
-
-# Check health
-docker-compose ps
-
-# Verify dependencies
-docker-compose exec mkcert-web-ui mkcert -help
-docker-compose exec mkcert-web-ui openssl version
-```
-
-### Port Conflicts
-
-```bash
-# Edit docker-compose.yml ports or use:
-PORT=8080 docker-compose up -d
-```
-
-### Volume Issues
-
-```bash
-# Check volumes
-docker volume ls | grep mkcert
-docker volume inspect mkcertWeb_mkcert_certificates
-```
-
-## Security
-
-### Built-in Features
-- Command injection protection
-- Path traversal prevention  
-- Multi-tier rate limiting
-- Input validation
-- Secure headers
-
-### Production Security
-1. Change default credentials
-2. Use strong `SESSION_SECRET`
-3. Enable HTTPS
-4. Enable authentication
-5. Regular container updates
-6. Consider reverse proxy (nginx)
-
-## Examples
-
-### Quick Dev Setup
-```bash
-git clone https://github.com/jeffcaldwellca/mkcertWeb.git
-cd mkcertWeb
-docker-compose up -d
-```
-
-### Nginx Reverse Proxy
-```yaml
-version: '3.8'
-services:
-  mkcert-web-ui:
-    extends:
-      file: docker-compose.yml
-      service: mkcert-web-ui
-    networks:
-      - nginx-proxy
-    environment:
-      - VIRTUAL_HOST=certs.yourdomain.com
-      - LETSENCRYPT_HOST=certs.yourdomain.com
-
-networks:
-  nginx-proxy:
-    external: true
-```
-
-For more information, see [README.md](../README.md).
+- `ENABLE_AUTH=true` with a strong `AUTH_PASSWORD` (or `AUTH_PASSWORD_HASH`)
+  and a `SESSION_SECRET`.
+- HTTPS, either `ENABLE_HTTPS=true` or a TLS-terminating proxy.
+- All four volumes mounted and backed up.
+- Don't expose the UI to the internet with authentication off.
+- Pull updates regularly. The Docker Hub image is published with each release
+  (`docker-build-push.sh`). CI also publishes `ghcr.io/jeffcaldwellca/mkcertweb`,
+  whose `:latest` is rebuilt from `main` every week to pick up base-image patches.

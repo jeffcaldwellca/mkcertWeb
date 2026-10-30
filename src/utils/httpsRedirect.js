@@ -1,4 +1,4 @@
-// Build the HTTPS redirect target for the FORCE_HTTPS middleware.
+// FORCE_HTTPS: redirect plain-HTTP requests to the HTTPS server.
 
 // Strip an optional :port from a Host header value, handling bracketed IPv6.
 function stripHostPort(host) {
@@ -30,4 +30,39 @@ function buildHttpsRedirectUrl(host, url, httpsPort) {
   return `https://${bareHost}${portSuffix}${url}`;
 }
 
-module.exports = { buildHttpsRedirectUrl, stripHostPort };
+// Paths that are never redirected:
+// - /scep: SCEP clients talk plain HTTP (messages are protected by PKCS#7)
+//   and don't follow redirects;
+// - /api/health: the Docker HEALTHCHECK probes it over plain HTTP.
+// Exemption is by path only, never by client address: behind a reverse proxy
+// on the same host every request comes from loopback.
+const EXEMPT_PATHS = new Set(['/scep', '/api/health']);
+
+/**
+ * Express middleware that answers plain-HTTP requests with a 301 (GET, HEAD)
+ * or 308 (other methods, which keeps the method and body) to the same
+ * URL on the HTTPS port. Register it before static files and routes.
+ *
+ * "Already HTTPS" is req.secure only: with the app's `trust proxy` setting it
+ * honours X-Forwarded-Proto from trusted proxies, and ignores it from anyone
+ * else, so a client can't skip the redirect by sending the header itself.
+ *
+ * @param {object} options
+ * @param {number} options.httpsPort
+ * @param {() => boolean} [options.isActive] - redirect only while this returns
+ *   true (server.js: once the HTTPS server is listening)
+ */
+function createHttpsRedirect({ httpsPort, isActive = () => true }) {
+  return (req, res, next) => {
+    if (!isActive()) return next();
+    if (req.secure) return next();
+    if (EXEMPT_PATHS.has(req.path)) return next();
+    const target = buildHttpsRedirectUrl(req.get('host'), req.originalUrl, httpsPort);
+    // 301 for GET/HEAD; 308 for the rest, so a POST isn't replayed as a GET.
+    if (target) return res.redirect(req.method === 'GET' || req.method === 'HEAD' ? 301 : 308, target);
+    // No Host header to redirect to: fail loudly rather than crash.
+    return res.status(400).send('Missing Host header');
+  };
+}
+
+module.exports = { buildHttpsRedirectUrl, stripHostPort, createHttpsRedirect };

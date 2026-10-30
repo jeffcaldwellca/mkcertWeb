@@ -17,9 +17,9 @@ const { securityHeaders } = require('./src/config/securityHeaders');
 // Single safe execution path — execFile, no shell. (executeCommand isn't
 // used directly in server.js anymore; the route modules import it themselves.)
 const { runTool } = require('./src/security');
-const { buildHttpsRedirectUrl } = require('./src/utils/httpsRedirect');
-const { apiResponse } = require('./src/utils/responses');
-const { getAuthState, isAuthenticated } = require('./src/utils/authState');
+const { createHttpsRedirect } = require('./src/utils/httpsRedirect');
+const { apiResponse, errorHandler } = require('./src/utils/responses');
+const { getAuthState, isAuthenticated, createRequireAuth } = require('./src/utils/authState');
 const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
 
 // Import SCEP routes
@@ -126,13 +126,23 @@ if (allowedOrigins.length > 0) {
 // so tests can assert the CSP without booting the server.
 app.use(securityHeaders());
 
+// FORCE_HTTPS: redirect plain-HTTP requests before any static file or route
+// can answer them. It only redirects once the HTTPS server is listening (so a
+// failed HTTPS start doesn't send everyone to a dead port), and never for
+// /api/health (the Docker health check) or /scep. X-Forwarded-Proto counts
+// only from trusted proxies (see 'trust proxy' below).
+let httpsListening = false;
+if (ENABLE_HTTPS && FORCE_HTTPS) {
+  app.use(createHttpsRedirect({ httpsPort: HTTPS_PORT, isActive: () => httpsListening }));
+}
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Trust the first proxy hop if one is in front of us (so req.secure/req.ip work
-// correctly and rate-limiting buckets per-client rather than per-proxy).
-// Safe default for LAN/reverse-proxy deployments; tighten if you know better.
-app.set('trust proxy', 'loopback,linklocal,uniquelocal');
+// Which proxies may set X-Forwarded-For/-Proto (req.ip for rate limiting,
+// req.secure for FORCE_HTTPS). TRUST_PROXY, default
+// 'loopback,linklocal,uniquelocal'; see src/config/trustProxy.js.
+app.set('trust proxy', config.server.trustProxy);
 
 // Session configuration
 app.use(session({
@@ -233,30 +243,16 @@ async function configureOIDC() {
   }
 }
 
-// Authentication middleware
-const requireAuth = (req, res, next) => {
-  if (!ENABLE_AUTH) {
-    return next(); // Skip authentication if disabled
-  }
-  
-  // Check for basic auth session or OIDC authentication
-  if (isAuthenticated(req)) {
-    return next();
-  } else {
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Authentication required',
-      redirectTo: '/login'
-    });
-  }
-};
+// Authentication middleware: a no-op unless ENABLE_AUTH is on (basic or OIDC
+// session otherwise required).
+const requireAuth = createRequireAuth(ENABLE_AUTH);
 
-// Serve static files with conditional authentication
-app.use(express.static('public', {
-  setHeaders: (res, path) => {
-    // No special headers needed for static files
-  }
-}));
+// Serve static files from the code tree (not the working directory). index:
+// false so "/" falls through to app.get('/') below, which sends anonymous
+// visitors to /login when auth is on. The other pages, /index.html included,
+// are plain static files: their data comes from API routes that need a
+// session, and a 401 there sends the browser to /login.
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Authentication routes
 if (ENABLE_AUTH) {
@@ -288,7 +284,7 @@ if (ENABLE_AUTH) {
       // Rotate the session ID on successful login (session fixation defense)
       req.session.regenerate((err) => {
         if (err) {
-          return res.status(500).json({ success: false, error: 'Login failed' });
+          return apiResponse.serverError(res, 'Login failed', err);
         }
         req.session.authenticated = true;
         req.session.username = username;
@@ -317,7 +313,7 @@ if (ENABLE_AUTH) {
     // to make passport complain about missing session support.)
     req.session.destroy((err) => {
       if (err) {
-        return res.status(500).json({ success: false, error: 'Could not log out' });
+        return apiResponse.serverError(res, 'Could not log out', err);
       }
       res.clearCookie('mkcertweb.sid');
       res.json({ success: true, message: 'Logout successful', redirectTo });
@@ -449,7 +445,7 @@ app.use(createNotificationRoutes(config, rateLimiters, requireAuth, emailService
 // Mount certificate routes
 app.use(createCertificateRoutes(config, rateLimiters, requireAuth));
 
-// Mount file routes (upload/download)
+// Mount file routes (upload)
 app.use(createFileRoutes(config, rateLimiters, requireAuth));
 
 // Mount SCEP routes (must be before system routes to avoid catch-all)
@@ -461,28 +457,22 @@ app.use('/api/settings', createSettingsRoutes(config, rateLimiters, requireAuth)
 // Mount system routes
 app.use(createSystemRoutes(config, rateLimiters, requireAuth));
 
-// (csrf-token, auth/status, config/theme moved above the router mounts to
-// avoid being shadowed by the /api/* catch-all in createSystemRoutes.)
-
-// Favicon handler (return 204 No Content if not found)
+// Browsers ask for /favicon.ico before (or without) reading the page's
+// <link rel="icon">; the icon lives in public/assets/.
 app.get('/favicon.ico', (req, res) => {
-  res.status(204).end();
+  res.redirect(301, '/assets/favicon.ico');
 });
 
-// Certificate storage directory — kept for boot-time visibility/logging.
-// The actual cert routes resolve their own paths under process.cwd()/certificates.
-const CERT_DIR = path.join(__dirname, 'certificates');
+// Certificate storage directory, for the startup log. The certificate routes
+// resolve process.cwd()/certificates, so log (and create) that same path.
+const CERT_DIR = path.join(process.cwd(), 'certificates');
 fs.ensureDirSync(CERT_DIR);
 
 // Centralized error-handling middleware. asyncHandler forwards all async
-// route errors here so error formatting lives in one place.
-app.use((err, req, res, next) => {
-  console.error(err.stack || err);
-  if (res.headersSent) {
-    return next(err);
-  }
-  apiResponse.serverError(res, 'Internal server error', err);
-});
+// route errors here so error formatting lives in one place: exposed 4xx
+// (bad JSON, oversized body) keep their status with a fixed message;
+// everything else is a 500 with a ref, full error in the log.
+app.use(errorHandler);
 
 // Auto-generate SSL certificates for HTTPS
 async function generateSSLCertificate() {
@@ -509,38 +499,17 @@ async function generateSSLCertificate() {
   return { certPath, keyPath };
 }
 
-// HTTPS redirect middleware
-function redirectToHTTPS(req, res, next) {
-  if (FORCE_HTTPS && !req.secure && req.get('x-forwarded-proto') !== 'https') {
-    const target = buildHttpsRedirectUrl(req.get('host'), req.url, HTTPS_PORT);
-    if (target) {
-      return res.redirect(301, target);
-    }
-    // No Host header to redirect to — fail loudly rather than crash.
-    return res.status(400).send('Missing Host header');
-  }
-  next();
-}
-
 // Start server(s)
 async function startServer() {
   try {
     // OIDC discovery happens before we accept any /auth/oidc traffic.
     await configureOIDC();
 
-    // Always start HTTP server (for API and optionally for redirects)
-    if (ENABLE_HTTPS && FORCE_HTTPS) {
-      // Add HTTPS redirect middleware to HTTP server
-      app.use(redirectToHTTPS);
-    }
-    
+    // Always start the HTTP server (it redirects once HTTPS is up, with FORCE_HTTPS)
     const httpServer = http.createServer(app);
+    // Redirects are announced only once HTTPS is actually listening.
     httpServer.listen(PORT, () => {
-      if (ENABLE_HTTPS && FORCE_HTTPS) {
-        console.log(`🔄 HTTP server running on http://localhost:${PORT} (redirects to HTTPS)`);
-      } else {
-        console.log(`🌐 HTTP server running on http://localhost:${PORT}`);
-      }
+      console.log(`🌐 HTTP server running on http://localhost:${PORT}`);
     });
     
     // Start HTTPS server if enabled
@@ -555,13 +524,14 @@ async function startServer() {
         
         const httpsServer = https.createServer(options, app);
         httpsServer.listen(HTTPS_PORT, () => {
+          httpsListening = true;
           console.log(`🔐 HTTPS server running on https://localhost:${HTTPS_PORT}`);
           console.log(`🔑 SSL Domain: ${SSL_DOMAIN}`);
           console.log(`📁 Certificate storage: ${CERT_DIR}`);
           
           if (FORCE_HTTPS) {
+            console.log(`🔄 HTTP requests on port ${PORT} now redirect to HTTPS (except /api/health and /scep)`);
             console.log(`\n🌟 Access the application at: https://localhost:${HTTPS_PORT}`);
-            console.log(`   (HTTP requests will be redirected to HTTPS)`);
           } else {
             console.log(`\n🌟 Application available at:`);
             console.log(`   HTTP:  http://localhost:${PORT}`);
@@ -577,6 +547,9 @@ async function startServer() {
       } catch (sslError) {
         console.error(`❌ Failed to start HTTPS server:`, sslError);
         console.log(`🔄 Falling back to HTTP only...`);
+        if (FORCE_HTTPS) {
+          console.warn(`⚠ FORCE_HTTPS is set, but HTTPS is not running: plain-HTTP requests are NOT redirected and are served over HTTP.`);
+        }
         console.log(`📁 Certificate storage: ${CERT_DIR}`);
       }
     } else {

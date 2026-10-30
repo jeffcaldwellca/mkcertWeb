@@ -23,4 +23,19 @@ function isAuthenticated(req) {
   return getAuthState(req).authenticated;
 }
 
-module.exports = { getAuthState, isAuthenticated };
+// Middleware for routes that need a login. With authentication disabled
+// (ENABLE_AUTH unset) it lets every request through: there is no login to
+// check, and OIDC is only mounted when ENABLE_AUTH=true.
+function createRequireAuth(authEnabled) {
+  return (req, res, next) => {
+    if (!authEnabled) return next();
+    if (isAuthenticated(req)) return next();
+    return res.status(401).json({
+      success: false,
+      error: 'Authentication required',
+      redirectTo: '/login'
+    });
+  };
+}
+
+module.exports = { getAuthState, isAuthenticated, createRequireAuth };

@@ -21,9 +21,11 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
   // requireAuth is a no-op AND there is no identity to gate on, so an unauthenticated
   // attacker on the same network could otherwise rewrite credentials, repoint OIDC,
   // or exfiltrate SMTP creds via /export. Refuse the entire settings API in that mode.
+  // Only ENABLE_AUTH counts: OIDC routes are mounted only when it is on, so
+  // ENABLE_OIDC alone protects nothing.
   router.use((req, res, next) => {
-    if (!config.auth.enabled && !config.oidc.enabled) {
-      return apiResponse.forbidden(res, 'Settings API is disabled because authentication is not enabled. Set ENABLE_AUTH=true (or configure OIDC) and restart.');
+    if (config.auth.enabled !== true) {
+      return apiResponse.forbidden(res, 'Settings API is disabled because authentication is not enabled. Set ENABLE_AUTH=true and restart.');
     }
     return requireAuth(req, res, next);
   });
@@ -99,8 +101,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       
       apiResponse.success(res, sanitized, 'Settings retrieved successfully');
     } catch (error) {
-      console.error('Error loading settings:', error);
-      apiResponse.serverError(res, 'Failed to load settings');
+      apiResponse.serverError(res, 'Failed to load settings', error);
     }
   }));
 
@@ -116,8 +117,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       
       apiResponse.success(res, sanitized, 'Running configuration retrieved successfully');
     } catch (error) {
-      console.error('Error getting running config:', error);
-      apiResponse.serverError(res, 'Failed to get running configuration');
+      apiResponse.serverError(res, 'Failed to get running configuration', error);
     }
   }));
 
@@ -154,8 +154,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       
       apiResponse.success(res, sanitized, 'Settings saved successfully. Restart the server for changes to take effect.');
     } catch (error) {
-      console.error('Error saving settings:', error);
-      apiResponse.serverError(res, 'Failed to save settings');
+      apiResponse.serverError(res, 'Failed to save settings', error);
     }
   }));
 
@@ -180,8 +179,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
       
       apiResponse.success(res, sanitized, 'Settings reset to defaults successfully');
     } catch (error) {
-      console.error('Error resetting settings:', error);
-      apiResponse.serverError(res, 'Failed to reset settings');
+      apiResponse.serverError(res, 'Failed to reset settings', error);
     }
   }));
 
@@ -202,8 +200,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
 
       res.send(JSON.stringify(sanitized, null, 2));
     } catch (error) {
-      console.error('Error exporting settings:', error);
-      apiResponse.serverError(res, 'Failed to export settings');
+      apiResponse.serverError(res, 'Failed to export settings', error);
     }
   }));
 
@@ -237,8 +234,7 @@ function createSettingsRoutes(config, rateLimiters, requireAuth) {
 
       apiResponse.success(res, sanitized, 'Settings imported successfully. Restart the server for changes to take effect.');
     } catch (error) {
-      console.error('Error importing settings:', error);
-      apiResponse.serverError(res, 'Failed to import settings');
+      apiResponse.serverError(res, 'Failed to import settings', error);
     }
   }));
 
