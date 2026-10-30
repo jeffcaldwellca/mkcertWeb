@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- `docs/DOCKERHUB.md`, the Docker Hub overview page. `docker-build-push.sh`
+  now publishes it, with the short description, after each push, and
+  `--overview-only` updates the page without building.
+
 ## [5.0.0] - 2026-10-29
 
 ### Highlights

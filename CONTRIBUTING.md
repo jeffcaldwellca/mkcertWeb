@@ -234,3 +234,7 @@ The landing page uses the shared design-language block above and the same
 5. Publish to Docker Hub with `./docker-build-push.sh` (needs a clean working
    tree, `docker login` and buildx). It builds linux/amd64 and linux/arm64 and
    tags `X.Y.Z`, `X.Y`, `X` and `latest`. `--dry-run` builds without pushing.
+   After the push it updates the Docker Hub page (the short description in the
+   script and the overview in `docs/DOCKERHUB.md`). To change only the page,
+   edit `docs/DOCKERHUB.md`, commit, and run
+   `./docker-build-push.sh --overview-only`.
