@@ -3,12 +3,16 @@
 # Multi-architecture Docker build and push script for mkcertWeb.
 # Builds for linux/amd64 (Intel/AMD) and linux/arm64 (ARM64),
 # tagged with the version read from package.json plus floating
-# major / major.minor / latest tags.
+# major / major.minor / latest tags, then updates the Docker Hub
+# repository page from docs/DOCKERHUB.md.
 
 set -euo pipefail
 
 # Configuration
 IMAGE_NAME="${IMAGE_NAME:-jeffcaldwellca/mkcertweb}"
+OVERVIEW_FILE="docs/DOCKERHUB.md"
+# Docker Hub's short description (100 characters at most)
+HUB_DESCRIPTION="mkcert web UI: self-hosted local CA for trusted HTTPS/TLS certs, SCEP server and expiry alerts"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -24,14 +28,18 @@ ok()   { echo -e "${GREEN}✓ $*${NC}"; }
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--skip-clean-check] [--dry-run]
+Usage: $(basename "$0") [--skip-clean-check] [--dry-run | --overview-only]
 
   --skip-clean-check  Allow pushing with uncommitted changes (NOT recommended)
   --dry-run           Build only; do not push to the registry
+  --overview-only     Update the Docker Hub page from ${OVERVIEW_FILE}; no build
   -h, --help          Show this help
 
 Environment:
   IMAGE_NAME          Override the image name (default: ${IMAGE_NAME})
+  DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
+                      Credentials for the page update (default: the ones
+                      'docker login' stored). The token needs read & write.
 EOF
   exit 0
 }
@@ -39,14 +47,17 @@ EOF
 # ---------- argument parsing ----------
 SKIP_CLEAN_CHECK=0
 DRY_RUN=0
+OVERVIEW_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --skip-clean-check) SKIP_CLEAN_CHECK=1 ;;
     --dry-run)          DRY_RUN=1 ;;
+    --overview-only)    OVERVIEW_ONLY=1 ;;
     -h|--help)          usage ;;
     *)                  err "Unknown argument: $arg" ;;
   esac
 done
+[[ "$DRY_RUN" -eq 1 && "$OVERVIEW_ONLY" -eq 1 ]] && err "--dry-run and --overview-only can't be combined"
 
 # ---------- preflight ----------
 
@@ -58,7 +69,11 @@ cd "$SCRIPT_DIR"
 for tool in docker node git; do
   command -v "$tool" >/dev/null 2>&1 || err "Required tool '$tool' not found on PATH"
 done
-docker buildx version >/dev/null 2>&1 || err "docker buildx not available (need Docker 19.03+ with buildx)"
+if [[ "$OVERVIEW_ONLY" -ne 1 ]]; then
+  docker buildx version >/dev/null 2>&1 || err "docker buildx not available (need Docker 19.03+ with buildx)"
+fi
+[[ -f "$OVERVIEW_FILE" ]] || err "$OVERVIEW_FILE not found"
+(( ${#HUB_DESCRIPTION} <= 100 )) || err "HUB_DESCRIPTION is ${#HUB_DESCRIPTION} characters; Docker Hub allows 100"
 
 # Read version from package.json — single source of truth
 VERSION="$(node -p "require('./package.json').version")" \
@@ -109,6 +124,56 @@ if [[ "$DRY_RUN" -ne 1 ]]; then
   ok "Docker Hub credentials present"
 fi
 
+# ---------- Docker Hub page ----------
+# Sends HUB_DESCRIPTION and OVERVIEW_FILE to the repository page. Uses
+# DOCKERHUB_USERNAME/DOCKERHUB_TOKEN when both are set, otherwise the
+# credential store 'docker login' wrote to. The secret is passed through the
+# environment, never on a command line.
+update_overview() {
+  local creds="" store
+  if [[ -z "${DOCKERHUB_USERNAME:-}" || -z "${DOCKERHUB_TOKEN:-}" ]]; then
+    store="$(node -p "try { require(require('os').homedir() + '/.docker/config.json').credsStore || '' } catch { '' }")"
+    if [[ -n "$store" ]]; then
+      creds="$(echo "https://index.docker.io/v1/" | "docker-credential-$store" get 2>/dev/null)" || creds=""
+    fi
+  fi
+  HUB_CREDS="$creds" IMAGE_NAME="$IMAGE_NAME" OVERVIEW_FILE="$OVERVIEW_FILE" \
+  HUB_DESCRIPTION="$HUB_DESCRIPTION" node - <<'NODE'
+const fs = require('fs');
+const env = process.env;
+let user = env.DOCKERHUB_USERNAME;
+let secret = env.DOCKERHUB_TOKEN;
+if (!(user && secret) && env.HUB_CREDS) ({ Username: user, Secret: secret } = JSON.parse(env.HUB_CREDS));
+
+(async () => {
+  if (!(user && secret)) throw new Error('no Docker Hub credentials: run docker login, or set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN');
+  const login = await fetch('https://hub.docker.com/v2/users/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user, password: secret }),
+  });
+  if (!login.ok) throw new Error(`Docker Hub login failed: HTTP ${login.status}`);
+  const { token } = await login.json();
+  const res = await fetch(`https://hub.docker.com/v2/repositories/${env.IMAGE_NAME}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      description: env.HUB_DESCRIPTION,
+      full_description: fs.readFileSync(env.OVERVIEW_FILE, 'utf8'),
+    }),
+  });
+  if (!res.ok) throw new Error(`page update failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+})().catch((e) => { console.error(e.message); process.exit(1); });
+NODE
+}
+
+if [[ "$OVERVIEW_ONLY" -eq 1 ]]; then
+  info "Updating the Docker Hub page for ${IMAGE_NAME}..."
+  update_overview || err "Docker Hub page not updated"
+  ok "Docker Hub page updated from ${OVERVIEW_FILE}"
+  exit 0
+fi
+
 # ---------- buildx setup ----------
 info "Setting up buildx builder..."
 if ! docker buildx inspect multiarch >/dev/null 2>&1; then
@@ -149,6 +214,13 @@ else
   echo "    ${IMAGE_NAME}:${MAJOR_MINOR}"
   echo "    ${IMAGE_NAME}:${MAJOR}"
   echo "    ${IMAGE_NAME}:latest"
+
+  info "Updating the Docker Hub page..."
+  if update_overview; then
+    ok "Docker Hub page updated from ${OVERVIEW_FILE}"
+  else
+    warn "Docker Hub page not updated (the image is pushed). Retry with --overview-only."
+  fi
 fi
 
 echo ""
