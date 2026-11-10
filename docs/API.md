@@ -295,7 +295,7 @@ description:
 {
   "success": true,
   "name": "mkcert Web UI API",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "endpoints": {
     "certificates": {
       "GET /api/certificates": "List all certificates",
