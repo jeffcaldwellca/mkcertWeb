@@ -4,13 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
-## [Unreleased]
+## [5.0.1] - 2026-11-09
 
 ### Added
 
 - `docs/DOCKERHUB.md`, the Docker Hub overview page. `docker-build-push.sh`
   now publishes it, with the short description, after each push, and
   `--overview-only` updates the page without building.
+
+### Fixed
+
+- **SSO stayed broken until restart if the OIDC provider was unreachable at
+  startup (#59).** Discovery ran once at boot; when it failed, `/auth/oidc`
+  answered `500 Unknown authentication strategy "oidc"` until the process was
+  restarted (typical with Docker Compose starting mkcert-web before the
+  identity provider). Discovery is now retried when someone signs in with
+  SSO, at most once every 10 seconds, and until the provider answers the
+  browser is returned to the login page with a "provider cannot be reached"
+  message. The discovery request also has a 10 second timeout, so a provider
+  that accepts connections but never answers no longer stalls startup.
 
 ## [5.0.0] - 2026-10-29
 

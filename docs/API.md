@@ -114,7 +114,7 @@ live in `<folder>/archive/`.
 | POST | `/api/auth/logout` | — | general | Destroys the session. `{ success, message, redirectTo }`; for OIDC users `redirectTo` is the provider's end-session URL when it advertises one. Only mounted when `ENABLE_AUTH=true`. |
 | GET | `/api/csrf-token` | — | general | `{ success, csrfToken }` |
 | POST | `/login` | — | auth | HTML form login (`username`, `password`), redirects to `/` or `/login?error=…` |
-| GET | `/auth/oidc`, `/auth/oidc/callback` | — | general | OIDC sign-in and callback. Mounted only when `ENABLE_AUTH=true`, `ENABLE_OIDC=true` and the issuer, client ID and secret are set. |
+| GET | `/auth/oidc`, `/auth/oidc/callback` | — | general | OIDC sign-in and callback. Mounted only when `ENABLE_AUTH=true`, `ENABLE_OIDC=true` and the issuer, client ID and secret are set. If provider discovery failed at startup it is retried here (at most once every 10 seconds); while the provider is unreachable both redirect to `/login?error=oidc_unavailable`. |
 
 ## Certificates
 
@@ -295,7 +295,7 @@ description:
 {
   "success": true,
   "name": "mkcert Web UI API",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "endpoints": {
     "certificates": {
       "GET /api/certificates": "List all certificates",
