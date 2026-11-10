@@ -25,7 +25,7 @@ Run `npm test` before every commit.
 | Root CA generation | `generate-ca-route` |
 | Removed 5.0 endpoints stay 404; `GET /api` lists exactly the declared routes | `removed-endpoints`, `api-index` |
 | Security: CSRF, CSP and headers, input hardening, settings masking and allowlist, rate-limit status | `csrf`, `security-headers`, `input-hardening`, `settings-security`, `rate-limit-status` |
-| Auth: session state for basic and OIDC logins, OIDC logout URL, HTTPS redirect (301/308, startup log), `TRUST_PROXY` parsing | `auth-state`, `oidc-logout`, `https-redirect`, `trust-proxy` |
+| Auth: session state for basic and OIDC logins, OIDC logout URL, OIDC discovery retried on sign-in when the provider was down at startup, HTTPS redirect (301/308, startup log), `TRUST_PROXY` parsing | `auth-state`, `oidc-logout`, `oidc-lazy-discovery`, `https-redirect`, `trust-proxy` |
 | SCEP: GetCACaps, enrollment authorisation, CSR name checks, enterprise CA calls and identity checks | `scep-*`, `enterprise-ca-*` |
 | Monitoring, ntfy headers (ASCII or RFC 2047, no `ERR_INVALID_CHAR`), notes store, response helpers, health version | `monitoring-*`, `ntfy-headers`, `notes-store`, `responses`, `health-version` |
 | 5xx bodies: fixed message + `ref`, sanitised `reason`, full error in the log (archive, SMTP, CA install/uninstall/generate with a stubbed `runTool`, settings, upload); 4xx for bad JSON, oversized and malformed multipart bodies | `error-leak-guard`, `pfx-error-leak`, `upload-staging` |

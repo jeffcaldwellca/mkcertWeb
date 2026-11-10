@@ -11,7 +11,6 @@ const http = require('http');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const passport = require('passport');
-const OpenIDConnectStrategy = require('passport-openidconnect');
 const { securityHeaders } = require('./src/config/securityHeaders');
 
 // Single safe execution path — execFile, no shell. (executeCommand isn't
@@ -21,6 +20,7 @@ const { createHttpsRedirect } = require('./src/utils/httpsRedirect');
 const { apiResponse, errorHandler } = require('./src/utils/responses');
 const { getAuthState, isAuthenticated, createRequireAuth } = require('./src/utils/authState');
 const { buildEndSessionUrl } = require('./src/utils/oidcLogout');
+const { createOidcManager } = require('./src/utils/oidcStrategy');
 
 // Import SCEP routes
 const { createSCEPRoutes } = require('./src/routes/scep');
@@ -103,8 +103,6 @@ const OIDC_CLIENT_ID   = config.oidc.clientId;
 const OIDC_CLIENT_SECRET = config.oidc.clientSecret;
 const OIDC_CALLBACK_URL  = config.oidc.callbackUrl || `http://localhost:${PORT}/auth/oidc/callback`;
 const OIDC_SCOPE         = config.oidc.scope || 'openid profile email';
-// Populated from discovery at boot; null if the provider doesn't support RP-initiated logout.
-let OIDC_END_SESSION_ENDPOINT = null;
 
 // Middleware
 // CORS: same-origin app. Allow cross-origin only if explicitly configured via
@@ -180,68 +178,19 @@ passport.deserializeUser((user, done) => {
   done(null, user);
 });
 
-// OIDC Strategy Configuration — uses discovery instead of guessing endpoint
-// paths. We fetch ${issuer}/.well-known/openid-configuration at startup and
-// hand the discovered URLs to passport-openidconnect, which doesn't do
-// discovery on its own. Falls back to error logging (rather than crashing
-// boot) so basic auth still works when OIDC is misconfigured.
-async function discoverOIDC(issuer) {
-  // Trim trailing slash so we don't get a double slash in the URL
-  const base = issuer.replace(/\/$/, '');
-  const url  = `${base}/.well-known/openid-configuration`;
-  const res  = await fetch(url, { redirect: 'follow' });
-  if (!res.ok) throw new Error(`Discovery failed: ${res.status} ${res.statusText} for ${url}`);
-  const doc = await res.json();
-  for (const field of ['authorization_endpoint', 'token_endpoint', 'userinfo_endpoint']) {
-    if (!doc[field]) throw new Error(`Discovery doc from ${url} is missing ${field}`);
-  }
-  return doc;
-}
-
-async function configureOIDC() {
-  if (!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET)) return;
-  try {
-    const doc = await discoverOIDC(OIDC_ISSUER);
-    const supportsPKCE = Array.isArray(doc.code_challenge_methods_supported)
-      && doc.code_challenge_methods_supported.includes('S256');
-    // The strategy compares the ID token's `iss` claim against this value
-    // with strict equality, so use the issuer the provider advertises rather
-    // than the (possibly trailing-slash-different) configured string.
-    const issuer = doc.issuer || OIDC_ISSUER;
-    if (doc.issuer && doc.issuer !== OIDC_ISSUER) {
-      console.warn(`  OIDC issuer normalised: configured "${OIDC_ISSUER}", provider reports "${doc.issuer}"`);
-    }
-    passport.use('oidc', new OpenIDConnectStrategy({
-      issuer,
-      authorizationURL: doc.authorization_endpoint,
-      tokenURL:         doc.token_endpoint,
-      userInfoURL:      doc.userinfo_endpoint,
-      clientID:         OIDC_CLIENT_ID,
-      clientSecret:     OIDC_CLIENT_SECRET,
-      callbackURL:      OIDC_CALLBACK_URL,
-      scope:            OIDC_SCOPE,
-      // passport-openidconnect generates a `state` param by default and
-      // validates it on callback (the OAuth 2.0 CSRF defense).
-      pkce: supportsPKCE
-    }, (issuer, profile, context, idToken, accessToken, refreshToken, done) => {
-      // 7-arg verify signature so we receive the raw ID token (needed for
-      // id_token_hint on RP-initiated logout).
-      const user = {
-        id: profile.id,
-        email: profile.emails ? profile.emails[0].value : null,
-        name: profile.displayName || profile.username,
-        provider: 'oidc',
-        idToken
-      };
-      return done(null, user);
-    }));
-    OIDC_END_SESSION_ENDPOINT = doc.end_session_endpoint || null;
-    console.log(`✓ OIDC configured via discovery (${issuer})${supportsPKCE ? ' with PKCE' : ''}${OIDC_END_SESSION_ENDPOINT ? ', RP-initiated logout' : ''}`);
-  } catch (err) {
-    console.error(`⚠ OIDC discovery failed: ${err.message}`);
-    console.error('  OIDC login will be unavailable. Basic auth (if enabled) still works.');
-  }
-}
+// OIDC strategy: registered via discovery at startup, and retried on SSO
+// sign-in if the provider wasn't reachable then (src/utils/oidcStrategy.js).
+const OIDC_CONFIGURED = !!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET);
+const oidc = OIDC_CONFIGURED
+  ? createOidcManager({
+      passport,
+      issuer:       OIDC_ISSUER,
+      clientId:     OIDC_CLIENT_ID,
+      clientSecret: OIDC_CLIENT_SECRET,
+      callbackUrl:  OIDC_CALLBACK_URL,
+      scope:        OIDC_SCOPE
+    })
+  : null;
 
 // Authentication middleware: a no-op unless ENABLE_AUTH is on (basic or OIDC
 // session otherwise required).
@@ -304,9 +253,11 @@ if (ENABLE_AUTH) {
     // logout) so "Login with SSO" doesn't silently sign them straight back in.
     // Work this out before destroying the session, since req.user goes with it.
     let redirectTo = '/login';
-    if (req.user && req.user.provider === 'oidc' && OIDC_END_SESSION_ENDPOINT) {
+    // endSessionEndpoint() is null if the provider doesn't support it.
+    const endSessionEndpoint = oidc && oidc.endSessionEndpoint();
+    if (req.user && req.user.provider === 'oidc' && endSessionEndpoint) {
       const postLogoutRedirectUri = new URL('/login', OIDC_CALLBACK_URL).toString();
-      redirectTo = buildEndSessionUrl(OIDC_END_SESSION_ENDPOINT, { idToken: req.user.idToken, postLogoutRedirectUri }) || '/login';
+      redirectTo = buildEndSessionUrl(endSessionEndpoint, { idToken: req.user.idToken, postLogoutRedirectUri }) || '/login';
     }
     // Destroying the session removes both the basic-auth flags and the
     // passport user in one step. (Calling req.logout() after destroy() used
@@ -321,9 +272,10 @@ if (ENABLE_AUTH) {
   });
 
   // OIDC Authentication Routes
-  if (ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) {
-    // Initiate OIDC login
-    app.get('/auth/oidc', rateLimiters.generalRateLimiter,
+  if (oidc) {
+    // Initiate OIDC login. requireStrategy retries discovery if it failed at
+    // startup, and returns to /login if the provider is still unreachable.
+    app.get('/auth/oidc', rateLimiters.generalRateLimiter, oidc.requireStrategy,
       passport.authenticate('oidc')
     );
 
@@ -331,7 +283,7 @@ if (ENABLE_AUTH) {
     // Custom callback so the strategy's failure reason (issuer mismatch,
     // bad nonce, expired token, ...) reaches the server log instead of being
     // swallowed by failureRedirect.
-    app.get('/auth/oidc/callback', rateLimiters.generalRateLimiter, (req, res, next) => {
+    app.get('/auth/oidc/callback', rateLimiters.generalRateLimiter, oidc.requireStrategy, (req, res, next) => {
       passport.authenticate('oidc', (err, user, info) => {
         if (err || !user) {
           const reason = (err && err.message) || (info && info.message) || 'unknown reason';
@@ -430,7 +382,7 @@ app.get('/api/auth/status', rateLimiters.generalRateLimiter, (req, res) => {
 app.get('/api/auth/methods', rateLimiters.generalRateLimiter, (req, res) => {
   res.json({
     basic: ENABLE_AUTH,
-    oidc: { enabled: !!(ENABLE_OIDC && OIDC_ISSUER && OIDC_CLIENT_ID && OIDC_CLIENT_SECRET) }
+    oidc: { enabled: OIDC_CONFIGURED }
   });
 });
 
@@ -502,8 +454,9 @@ async function generateSSLCertificate() {
 // Start server(s)
 async function startServer() {
   try {
-    // OIDC discovery happens before we accept any /auth/oidc traffic.
-    await configureOIDC();
+    // First OIDC discovery attempt, before we accept any /auth/oidc traffic.
+    // If the provider isn't up yet it is retried on SSO sign-in.
+    if (oidc) await oidc.ensureConfigured();
 
     // Always start the HTTP server (it redirects once HTTPS is up, with FORCE_HTTPS)
     const httpServer = http.createServer(app);

@@ -9,7 +9,8 @@
   const ERRORS = {
     invalid_credentials: 'Invalid username or password. Please try again.',
     missing_credentials: 'Please enter both username and password.',
-    oidc_failed: 'Single sign-on failed. Check the server log for the reason, or sign in with a username and password.'
+    oidc_failed: 'Single sign-on failed. Check the server log for the reason, or sign in with a username and password.',
+    oidc_unavailable: 'The single sign-on provider cannot be reached right now. Try again shortly, or sign in with a username and password.'
   };
   const DEFAULT_ERROR = 'An error occurred. Please try again.';
 
